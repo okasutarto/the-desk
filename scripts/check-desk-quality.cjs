@@ -194,23 +194,28 @@ const background = scene.background;
 const camera = new THREE.OrthographicCamera();
 const overlay = new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshBasicMaterial({ depthTest: false }));
 scene.add(overlay, overlay.clone());
+const lamp = new THREE.PointLight();
+scene.add(lamp);
 let overlayRenders = 0;
 const renderContext = vm.createContext({ scene, camera, noRaycast() {},
   performance: { now: () => 10 }, perfParams: { has: () => true },
-  renderer: { autoClear: true, info: { reset() {}, render: { calls: 2, triangles: 24 } }, render(root, cam) {
+  renderer: { autoClear: true, shadowMap: { autoUpdate: true }, info: { reset() {}, render: { calls: 2, triangles: 24 } }, render(root, cam) {
     assert.equal(root, scene);
+    assert.ok(lamp.layers.test(cam.layers), 'the overlay pass sees the same lights, so the light state stays put');
+    assert.equal(renderContext.renderer.shadowMap.autoUpdate, false, 'the overlay pass never redraws shadow maps');
     assert.equal(root.background, null, 'overlay pass must not clear the composed scene');
     assert.equal(cam.layers.mask, 2);
     overlayRenders++;
   } },
-  composer: { render() { assert.ok(scene.children.every((o) => !o.visible)); } },
+  composer: { render() { assert.ok(scene.children.filter((o) => o.isMesh).every((o) => !o.visible)); } },
   useFrameDepth() {}, gpuQuery: null, gpuTimer: null, renderMs: 0, drawCalls: 0, triangles: 0,
 });
 const renderStart = source.indexOf('  const overlays =');
 vm.runInContext(source.slice(renderStart, source.indexOf('  // Daylight enters', renderStart)), renderContext);
 vm.runInContext('renderFrame()', renderContext);
 assert.equal(overlayRenders, 1);
+assert.equal(renderContext.renderer.shadowMap.autoUpdate, true);
 assert.equal(camera.layers.mask, 1);
 assert.equal(scene.background, background);
-assert.ok(scene.children.every((o) => o.visible && o.layers.isEnabled(0)));
+assert.ok(scene.children.filter((o) => o.isMesh).every((o) => o.visible && o.layers.isEnabled(0)));
 console.log('Locked resolution: Retina/zoom, sustained overload, jitter-aware pacing, visibility and shadow budgets passed.');
