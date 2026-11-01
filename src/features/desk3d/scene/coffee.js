@@ -211,6 +211,8 @@ export function createCoffee(runtime) {
   const contactGeometry = runtime.core.track(new THREE.PlaneGeometry(1, 1));
   const contactAlpha = new THREE.InstancedBufferAttribute(new Float32Array(CONTACT_MAX), 1).setUsage(THREE.DynamicDrawUsage);
   const contactBox = new THREE.InstancedBufferAttribute(new Float32Array(CONTACT_MAX), 1);
+  const contactCanopy = new THREE.InstancedBufferAttribute(new Float32Array(CONTACT_MAX), 1);
+  contactGeometry.setAttribute("contactCanopy", contactCanopy);
   contactGeometry.setAttribute("contactAlpha", contactAlpha);
   contactGeometry.setAttribute("contactBox", contactBox);
   const contactMaterial = runtime.core.track(new THREE.ShaderMaterial({
@@ -218,19 +220,23 @@ export function createCoffee(runtime) {
     vertexShader: `
       attribute float contactAlpha;
       attribute float contactBox;
+      attribute float contactCanopy;
       varying vec2 vPlace;
       varying float vAlpha;
       varying float vBox;
+      varying float vCanopy;
       void main() {
         vPlace = uv * 2.0 - 1.0;
         vAlpha = contactAlpha;
         vBox = contactBox;
+        vCanopy = contactCanopy;
         gl_Position = projectionMatrix * modelViewMatrix * instanceMatrix * vec4(position, 1.0);
       }`,
     fragmentShader: `
       varying vec2 vPlace;
       varying float vAlpha;
       varying float vBox;
+      varying float vCanopy;
       void main() {
         vec2 p = abs(vPlace);
         // 0 at the centre, 1 at the rim: an oval, or a box whose flat core spans 35% of it
@@ -240,6 +246,14 @@ export function createCoffee(runtime) {
         // it shows. Eased at both ends, so there's no crease where the core gives way and no
         // edge at the rim.
         float shade = pow(1.0 - smoothstep(0.5, 1.0, d), 1.3);
+        // The top shelters the rear more than the open front. +y on this floor plane points
+        // toward the back wall; keep the light-driven footprint while grading its darkness.
+        float shelter = 0.55 + 0.75 * smoothstep(-0.7, 0.7, vPlace.y);
+        float underWall = step(1.5, vCanopy);
+        shade *= mix(1.0, shelter, clamp(vCanopy, 0.0, 1.0) * (1.0 - underWall));
+        // On the back wall, shade starts at the underside and fades down toward the floor.
+        float wallShade = (1.0 - smoothstep(0.65, 1.0, p.x)) * smoothstep(-1.0, 0.85, vPlace.y);
+        shade = mix(shade, wallShade, underWall);
         // A gradient this faint steps visibly in 8 bits; half a step of screen-space noise
         // dithers the bands away
         float noise = fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715))));
@@ -262,6 +276,7 @@ export function createCoffee(runtime) {
     // a prop kept out of the scene while hidden gets none
     if (!inScene(entry.object) || contactShadows.length === CONTACT_MAX) return;
     contactBox.setX(contactShadows.length, entry.box ? 1 : 0);
+    contactCanopy.setX(contactShadows.length, entry.underDeskWall ? 2 : entry.canopy ? 1 : 0);
     contactShadows.push({ size: 1, ...entry });
     contactDecals.count = contactShadows.length;
   };
@@ -354,6 +369,7 @@ export function createCoffee(runtime) {
   const toSun = new THREE.Vector3();
   const keyAt = new THREE.Vector3();
   const keyLean = { x: 0, z: 0, weight: 0 };
+  const NO_LEAN = { x: 0, z: 0, weight: 0 };
   const SIDE_WALL_TURN = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI / 2);
   const NO_TURN = new THREE.Quaternion();
   function updateContactShadows() {
@@ -398,6 +414,40 @@ export function createCoffee(runtime) {
       const { object } = entry;
       if (!object.visible || entry.size < 0.002 || (entry.when && !entry.when())) {
         contactDecals.setMatrixAt(i, contactMatrix.makeScale(0, 0, 0));
+        return;
+      }
+      if (entry.underDeskWall) {
+        object.getWorldPosition(contactPlace);
+        const underside = contactPlace.y - entry.thickness / 2;
+        const height = Math.max(0.01, underside - runtime.room.FLOOR_Y);
+        const lean = leanFrom(contactPlace.x, runtime.room.WALL_Z);
+        const x = contactPlace.x + lean.x * lean.weight * 0.35;
+        const width = Math.min(entry.width, 2 * Math.max(0, x - runtime.room.SIDE_X - 0.13));
+        contactMatrix.compose(contactPlace.set(x, underside - height / 2, runtime.room.WALL_Z + 0.125), NO_TURN, contactScale.set(width, height, 1));
+        contactDecals.setMatrixAt(i, contactMatrix);
+        const sunWeight = lampKey ? 0 : direct;
+        contactAlpha.setX(i, (0.06 + 0.12 * Math.max(skyGlow, lampGlow) + 0.07 * sunWeight) * (1 - 0.35 * runtime.room.outside.rain));
+        return;
+      }
+      if (entry.canopy) {
+        // Broad occlusion from the top supplements the real cast shadows. Blend the diffuse
+        // key with the actual sun direction; a low sun spreads the shade farther across the rug.
+        object.getWorldPosition(contactPlace);
+        const lean = leanFrom(contactPlace.x, contactPlace.z);
+        const sunWeight = lampKey ? 0 : direct;
+        const dx = THREE.MathUtils.lerp(lean.x * lean.weight, fallX, sunWeight);
+        const dz = THREE.MathUtils.lerp(lean.z * lean.weight, fallZ, sunWeight);
+        const length = 0.7 + 1.1 * reach * sunWeight;
+        const x = contactPlace.x + dx * length;
+        const z = contactPlace.z + dz * length;
+        // Keep the soft footprint inside the floor's back/side walls, including phone dioramas.
+        const width = Math.min(entry.width + Math.abs(dx) * reach * sunWeight, 2 * Math.max(0, x - runtime.room.SIDE_X - 0.13));
+        const depth = Math.min(entry.depth + Math.abs(dz) * reach * sunWeight, 2 * Math.max(0, z - runtime.room.WALL_Z - 0.13));
+        contactTurn.setFromEuler(contactEuler.set(-Math.PI / 2, 0, 0));
+        contactMatrix.compose(contactPlace.set(x, entry.surfaceY + 0.008, z), contactTurn, contactScale.set(width, depth, 1));
+        contactDecals.setMatrixAt(i, contactMatrix);
+        const key = Math.max(skyGlow, lampGlow);
+        contactAlpha.setX(i, (0.08 + 0.16 * key + 0.12 * sunWeight) * (1 - 0.35 * runtime.room.outside.rain));
         return;
       }
       if (entry.shelfAt !== undefined) {
@@ -456,7 +506,7 @@ export function createCoffee(runtime) {
       // The window's sun reaches the desktop, not the floor under it. A high sun keeps the
       // footprint tight and dark; a low one draws it out, away from the window.
       const lit = surfaceY > runtime.room.FLOOR_Y + 1 ? direct : 0;
-      const lean = leanFrom(footX, footZ);
+      const lean = entry.fixedContact ? NO_LEAN : leanFrom(footX, footZ);
       const leanBy = lean.weight * 0.18 * (entry.width + entry.depth) / 2;
       const pull = lit * 0.07 * reach * (entry.width + entry.depth) / 2;
       // drawn out along where it falls: by the key's lean, and further by a low sun on the desk
@@ -506,12 +556,20 @@ export function createCoffee(runtime) {
   // each dumbbell along its bar, lifting with it in a rep (its origin rides a head's radius up)
   runtime.gym.gym.children.filter((db) => db.userData.restY !== undefined).forEach((db) =>
     roamingShadow(db, 1.0 * runtime.gym.gym.scale.x, 0.45 * runtime.gym.gym.scale.x, 0.8, { rise: db.userData.restY * runtime.gym.gym.scale.y }));
+  // The tabletop shelters a broad patch of floor/rug, beyond the small contacts at its feet.
+  const deskFootprint = boundsOf(runtime.room.desk).size;
+  addContact({ object: runtime.room.desk, width: deskFootprint.x * 1.08, depth: deskFootprint.z * 1.16,
+    surfaceY: runtime.room.FLOOR_Y + 0.07, canopy: true, box: true });
+  addContact({ object: runtime.room.desk, width: deskFootprint.x, thickness: deskFootprint.y, underDeskWall: true });
   // the desk's two columns, on their T-feet
   [-7.3, 5.3].forEach((x) => {
     const foot = new THREE.Object3D();
     foot.position.set(x, runtime.room.FLOOR_Y, 0.2);
     runtime.core.scene.add(foot);
-    contactShadow(foot, 0.9, 7.8, runtime.room.FLOOR_Y + 0.08, 0.7, { box: true });
+    // The long T-foot is flush to the rug. Its contact must stay under it: the generic
+    // light-driven lean used its long depth and displaced a dark patch beside the narrow foot.
+    addContact({ object: foot, width: 0.78, depth: 7.8, surfaceY: runtime.room.FLOOR_Y + 0.08,
+      strength: 0.28, box: true, baseY: foot.position.y, fixedContact: true });
   });
   // the cat, wherever she is: floor, rug, desk, chair or the tree's bed
   roamingShadow(runtime.cat.catModel, 1.9, 1.1, 0.75);

@@ -324,7 +324,7 @@ assert.ok(hoopGlow.day[1] > hoopGlow.evening[1] && hoopGlow.evening[1] > hoopGlo
     roomLight: { night: 0 }, outside: { rain: 0 }, blind: { lift: 1 }, FLOOR_Y: -7.4, WALL_Z: -4.43, SIDE_X: -9.6,
   });
   vm.runInContext(source.slice(source.indexOf('  const CONTACT_MAX ='), source.indexOf('  contactShadow(mug, ')) +
-    ';globalThis.api = { contactShadow, wallShadow, roamingShadow, shelfShadow, supportUnder, updateContactShadows, contactShadows, contactDecals, contactAlpha };', contact);
+    ';globalThis.api = { addContact, contactShadow, wallShadow, roamingShadow, shelfShadow, supportUnder, updateContactShadows, contactShadows, contactDecals, contactAlpha };', contact);
   const { api } = contact;
   const prop = new THREE.Group();
   prop.position.set(5.6, 0, -0.6);
@@ -420,6 +420,86 @@ assert.ok(hoopGlow.day[1] > hoopGlow.evening[1] && hoopGlow.evening[1] > hoopGlo
   api.updateContactShadows();
   const shelfDecal = decal(api.contactDecals.count - 1);
   assert.ok(shelfDecal.at.z + shelfDecal.size.y / 2 <= 0.75 + 1e-6, 'stays on the board');
+  // The tabletop's broad shade follows the actual sun and the night lamp, over the rug.
+  scene.add(contact.desk);
+  contact.desk.position.set(-1, -0.175, 0);
+  api.addContact({ object: contact.desk, width: 17.28, depth: 9.744,
+    surfaceY: contact.FLOOR_Y + 0.07, canopy: true, box: true });
+  const shelter = api.contactDecals.geometry.getAttribute('contactCanopy');
+  assert.equal(shelter.getX(0), 0, 'small contact shadows keep their original symmetric falloff');
+  assert.equal(shelter.getX(api.contactDecals.count - 1), 1, 'only tabletop shade receives the back-to-front gradient');
+  const canopy = () => { api.updateContactShadows(); return decal(api.contactDecals.count - 1); };
+  contact.roomLight.night = 0;
+  skyLight.intensity = 0.65 * 12;
+  lampLight.intensity = 0;
+  contact.outside.rain = 0;
+  contact.blind.lift = 1;
+  setSun(Math.PI / 4, 4.1);
+  const deskNoon = canopy();
+  assert.ok(deskNoon.at.x > -1, 'table shade falls away from the window');
+  assert.ok(Math.abs(deskNoon.at.y - (contact.FLOOR_Y + 0.078)) < 1e-5, 'shade lies just above the rug');
+  windowLight.position.set(-20, 10, 8);
+  const deskMorning = canopy();
+  windowLight.position.set(-20, 10, -8);
+  const deskEvening = canopy();
+  assert.ok(deskMorning.at.z < 0 && deskEvening.at.z > 0, 'morning/evening shade follows their different sun directions');
+  assert.ok(deskMorning.at.x > deskNoon.at.x && deskMorning.size.x > deskNoon.size.x, 'low sun lengthens the tabletop shade');
+  for (const shade of [deskNoon, deskMorning, deskEvening]) {
+    assert.ok(shade.at.x - shade.size.x / 2 >= contact.SIDE_X + 0.129);
+    assert.ok(shade.at.z - shade.size.y / 2 >= contact.WALL_Z + 0.129);
+  }
+  setSun(Math.PI / 4, 4.1);
+  contact.outside.rain = 1;
+  assert.ok(canopy().alpha < deskNoon.alpha, 'rain softens the broad shade');
+  contact.outside.rain = 0;
+  contact.blind.lift = 0;
+  assert.ok(canopy().alpha < deskNoon.alpha, 'closed blind removes direct sun contrast');
+  contact.roomLight.night = 1;
+  skyLight.intensity = 0;
+  lampLight.intensity = 8;
+  const deskLamp = canopy();
+  assert.ok(deskLamp.at.x > -1 && deskLamp.at.z > 0, 'night shade falls away from the lit desk lamp');
+  lampLight.position.x = 7;
+  assert.ok(canopy().at.x < -1, 'shade direction follows the lamp position');
+  lampLight.intensity = 0;
+  const lampsOff = canopy();
+  assert.ok(lampsOff.alpha < deskLamp.alpha);
+  assert.equal(lampsOff.at.x, -1, 'unlit lamp does not cast a directional shade');
+  api.addContact({ object: contact.desk, width: 16, thickness: 0.35, underDeskWall: true });
+  const wallShade = () => { api.updateContactShadows(); return decal(api.contactDecals.count - 1); };
+  assert.equal(shelter.getX(api.contactDecals.count - 1), 2, 'wall shade has its own downward falloff');
+  const darkWall = wallShade();
+  contact.roomLight.night = 0;
+  skyLight.intensity = 0.65 * 12;
+  contact.blind.lift = 1;
+  setSun(Math.PI / 4, 4.1);
+  const dayWall = wallShade();
+  assert.ok(dayWall.alpha > darkWall.alpha, 'wall contrast responds to the active light');
+  assert.ok(Math.abs(dayWall.at.z - (contact.WALL_Z + 0.125)) < 1e-5, 'wall shade stays on the back wall');
+  assert.ok(Math.abs(dayWall.at.y + dayWall.size.y / 2 + 0.35) < 1e-5, 'wall shade ends at the tabletop underside');
+  assert.ok(Math.abs(dayWall.at.y - dayWall.size.y / 2 - contact.FLOOR_Y) < 1e-5, 'wall shade reaches the floor without extending below it');
+  contact.outside.rain = 1;
+  assert.ok(wallShade().alpha < dayWall.alpha, 'rain reduces wall contrast too');
+
+  const deskFoot = new THREE.Object3D();
+  deskFoot.position.set(-7.3, contact.FLOOR_Y, 0.2);
+  scene.add(deskFoot);
+  api.addContact({ object: deskFoot, width: 0.78, depth: 7.8, surfaceY: contact.FLOOR_Y + 0.08,
+    strength: 0.28, box: true, baseY: deskFoot.position.y, fixedContact: true });
+  const footShade = () => { api.updateContactShadows(); return decal(api.contactDecals.count - 1); };
+  for (const night of [0, 1]) {
+    contact.roomLight.night = night;
+    contact.outside.rain = 0;
+    skyLight.intensity = night ? 0 : 0.65 * 12;
+    lampLight.intensity = night ? 8 : 0;
+    const foot = footShade();
+    assert.ok(Math.abs(foot.at.x - deskFoot.position.x) < 1e-5 && Math.abs(foot.at.z - deskFoot.position.z) < 1e-5,
+      'T-foot contact stays beneath the foot instead of sliding sideways with the key light');
+    assert.ok(foot.size.x < 0.8 && foot.size.y < 7.9, 'contact stays close to the narrow T-foot');
+    assert.ok(foot.alpha < 0.16, 'small grounding contact does not become a broad dark blot');
+  }
+
+
 }
 console.log('Day/night light-source and shadow switching checks passed.');
 
