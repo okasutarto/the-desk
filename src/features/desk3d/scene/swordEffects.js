@@ -20,9 +20,10 @@ export function createSwordEffects(runtime) {
   haki.raycast = runtime.core.noRaycast;
   haki.renderOrder = 11;
   haki.visible = false;
-  // A broader, saturated halo stays visible around the steel in the bright rack close-up.
-  const HAKI_PEAK = 0.95;
-  const HAKI_HEIGHT = 1.3;
+  // A halo that reads in the bright rack close-up, but kept under full strength and
+  // height so the blade still shows through it
+  const HAKI_PEAK = 0.78;
+  const HAKI_HEIGHT = 1.05;
   // Hovered, Enma leaks a little of its Haki: a faint aura breathing round the bare steel
   // between the guard and the saya's mouth as it slides part way out, gone again when the
   // pointer leaves (a strike takes over from there)

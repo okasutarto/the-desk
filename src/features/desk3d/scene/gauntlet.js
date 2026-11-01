@@ -83,8 +83,10 @@ export function createGauntlet(runtime) {
     return line;
   };
   // Curve thin armour over its supporting shell; the front is never a flat applique.
-  const curvedPlate = (shape, material, surface, depth = 0.012, outline = 0) => {
+  // `back` sinks that much of the depth behind the surface.
+  const wrapPlate = (shape, surface, depth, back = 0) => {
     const geometry = new THREE.ExtrudeGeometry(shape, { depth, bevelEnabled: true, bevelSize: 0.004, bevelThickness: 0.002, bevelSegments: 2, curveSegments: 20, steps: 1 });
+    geometry.translate(0, 0, -back);
     // Extrusion triangulates large faces with no interior vertices. Split long triangles before
     // wrapping them, otherwise a diagonal spans the bend and buries the stone and relief.
     const positions = [];
@@ -131,7 +133,15 @@ export function createGauntlet(runtime) {
       n.set(n.x - dx * n.z, n.y - dy * n.z, n.z).normalize();
       wrappedNormals.setXYZ(i, n.x, n.y, n.z);
     }
-    const piece = runtime.core.mesh(geometry, material, { outline });
+    return geometry;
+  };
+  const curvedPlate = (shape, material, surface, depth = 0.012, outline = 0) => {
+    // Pushed out across the screen by its ink, the hull's sliver triangles (from the splitting
+    // above) fold over and show their black backs on the plate's face: cracks at the shelf's
+    // distance. So its face sits a little behind the plate's, which hides them; its edges still
+    // ink the silhouette.
+    const hull = outline ? wrapPlate(shape, surface, depth + 0.03, 0.04) : undefined;
+    const piece = runtime.core.mesh(wrapPlate(shape, surface, depth), material, { outline, hull });
     glovePart.add(piece);
     return piece;
   };
@@ -315,9 +325,10 @@ export function createGauntlet(runtime) {
     stud.position.set(0, y + 0.002, 0.269);
     glovePart.add(stud);
   }
-  // Wrist, the back of the hand, and the knuckle bar
-  const wrist = runtime.core.mesh(new THREE.CylinderGeometry(0.225, 0.25, 0.18, 32), glove, { outline: 0.004 });
-  wrist.position.y = 0.84;
+  // Wrist, the back of the hand, and the knuckle bar. The wrist starts inside the cuff's lip,
+  // narrower than it: a rim poking out below the lames drew its ink as black cracks across them.
+  const wrist = runtime.core.mesh(new THREE.CylinderGeometry(0.225, 0.235, 0.15, 32), glove, { outline: 0.004 });
+  wrist.position.y = 0.855;
   wrist.scale.z = 0.8;
   const palm = runtime.core.mesh(runtime.core.rbox(0.49, 0.46, 0.28, 0.07), glove, { outline: 0.007 });
   palm.position.y = 1.105;

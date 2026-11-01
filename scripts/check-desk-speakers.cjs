@@ -11,7 +11,7 @@ const handlers = [];
 let toggles = 0;
 const ctx = vm.createContext({
   canvasTexture: () => ({ texture: new THREE.Texture(), ctx: { fillRect() {}, beginPath() {}, moveTo() {}, bezierCurveTo() {}, stroke() {}, fillText() {} } }),
-  drawWoodTop() {}, drawBrushedMetal() {},
+  drawWoodTop() {}, drawBrushedMetal() {}, drawSayaLacquer() {},
   DEFAULT_WOODS: { speakers: { wood: "oak", pattern: "planks" } },
   SPEAKER_FINISHES: { wood: { color: null, shell: '#4a4c50', baffle: '#64676b' } },
   hoverSound() {}, THREE, speakers, speakerLeds: leds, soundMuted: true, scene: new THREE.Group(), RISER_TOP: 0.5,
@@ -37,7 +37,8 @@ speakers.forEach((speaker, index) => {
   assert.ok(sides.every(part => part.material === vm.runInContext('speakerWoodMat', ctx)), 'side panels use the furniture wood');
   assert.ok(sides.every(part => Math.abs(Math.abs(part.position.x) - 0.69) < 0.001), 'panels sit on both sides');
   assert.ok(cabinet.getObjectByName('front-baffle'));
-  assert.equal(cabinet.getObjectByName('top-panel').material, cabinet.getObjectByName('front-baffle').material, 'top matches the front baffle');
+  assert.equal(cabinet.getObjectByName('top-panel'), undefined, 'one swept body, no separate top panel');
+  assert.equal(cabinet.getObjectByName('cabinet-body').material[1], cabinet.getObjectByName('front-baffle').material, 'body is lacquered to match the front baffle');
   assert.equal(Math.sign(speaker.tweeter.position.x), Math.sign(speaker.group.position.x), 'tweeter sits towards the outer side');
   assert.ok(speaker.tweeter.position.y > speaker.woofer.position.y + 0.8, 'tweeter sits above the woofer');
   const port = speaker.group.getObjectByName('front-bass-port');
