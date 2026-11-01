@@ -6,21 +6,31 @@ export function installSceneShaders(benchmark, lowPower = false) {
   // the sun, window and lamp and for the neons' point lights alike; each light's `shadow.radius`
   // is its widest blur, in texels.
   if (benchmark !== "no-pcss" && !THREE.ShaderChunk.shadowmap_pars_fragment.includes("pcssShadow")) {
+    const search = lowPower ? 4 : 8;
+    const samples = lowPower ? 6 : 24;
+    // The Vogel disk never changes. Precompute it once instead of evaluating trig and square
+    // roots for every tap, for every shadowed light, for every Retina fragment.
+    const disk = (count) => Array.from({ length: count }, (_, i) => {
+      const angle = i * 2.39996;
+      const radius = Math.sqrt((i + 0.5) / count);
+      return `vec2(${(Math.cos(angle) * radius).toFixed(8)}, ${(Math.sin(angle) * radius).toFixed(8)})`;
+    });
     const pcss = `
       // a quick search for what's in the way, then a finer filter sized by how far it is
       // (fewer on phones, where the coarser grain hides in the smaller pixels; on a desktop
       // screen the wide, faint penumbrae on pale walls show grain below about two dozen)
-      #define PCSS_SEARCH ${lowPower ? 4 : 8}
-      #define PCSS_SAMPLES ${lowPower ? 6 : 24}
+      #define PCSS_SEARCH ${search}
+      #define PCSS_SAMPLES ${samples}
+      const vec2 PCSS_DISK[ ${search + samples} ] = vec2[]( ${[...disk(search), ...disk(samples)].join(", ")} );
       // Five taps across the widest blur first: all lit, or all blocked, means this pixel is
       // nowhere near a shadow's edge, and only the edges (a sliver of the screen) pay for the rest
       const vec2 PCSS_PROBES[ 4 ] = vec2[]( vec2( 1.0, 0.0 ), vec2( -1.0, 0.0 ), vec2( 0.0, 1.0 ), vec2( 0.0, -1.0 ) );
       // how far (in shadow-map depth) a shadow must fall before it's fully spread
       #define PCSS_RANGE 0.03
       // A Vogel disk: evenly spread samples, turned per pixel so the banding turns to fine grain
-      vec2 pcssDisk( int i, int count, float spin ) {
-        float a = spin + float( i ) * 2.39996;
-        return vec2( cos( a ), sin( a ) ) * sqrt( ( float( i ) + 0.5 ) / float( count ) );
+      vec2 pcssDisk( int i, int count, vec2 rotation ) {
+        vec2 p = PCSS_DISK[ count == PCSS_SEARCH ? i : i + PCSS_SEARCH ];
+        return vec2( p.x * rotation.x - p.y * rotation.y, p.x * rotation.y + p.y * rotation.x );
       }
       float pcssShadow( sampler2D shadowMap, vec2 shadowMapSize, float shadowRadius, vec4 coord ) {
         vec2 texel = 1.0 / shadowMapSize;
@@ -29,10 +39,11 @@ export function installSceneShaders(benchmark, lowPower = false) {
         if ( probe == 5.0 ) return 1.0;
         if ( probe == 0.0 ) return 0.0;
         float spin = rand( coord.xy ) * PI2;
+        vec2 rotation = vec2( cos( spin ), sin( spin ) );
         float blockers = 0.0;
         float blockerDepth = 0.0;
         for ( int i = 0; i < PCSS_SEARCH; i ++ ) {
-          float d = unpackRGBAToDepth( texture2D( shadowMap, coord.xy + pcssDisk( i, PCSS_SEARCH, spin ) * shadowRadius * texel ) );
+          float d = unpackRGBAToDepth( texture2D( shadowMap, coord.xy + pcssDisk( i, PCSS_SEARCH, rotation ) * shadowRadius * texel ) );
           if ( d < coord.z ) { blockers += 1.0; blockerDepth += d; }
         }
         if ( blockers == 0.0 ) return 1.0;
@@ -43,7 +54,7 @@ export function installSceneShaders(benchmark, lowPower = false) {
         float radius = mix( max( 1.0, shadowRadius * 0.25 ), shadowRadius, spread );
         float lit = 0.0;
         for ( int i = 0; i < PCSS_SAMPLES; i ++ ) {
-          lit += texture2DCompare( shadowMap, coord.xy + pcssDisk( i, PCSS_SAMPLES, spin ) * radius * texel, coord.z );
+          lit += texture2DCompare( shadowMap, coord.xy + pcssDisk( i, PCSS_SAMPLES, rotation ) * radius * texel, coord.z );
         }
         return lit / float( PCSS_SAMPLES );
       }
@@ -62,11 +73,11 @@ export function installSceneShaders(benchmark, lowPower = false) {
         if ( probe == 5.0 ) return 1.0;
         if ( probe == 0.0 ) return 0.0;
         // Stable taps keep overlapping coloured point lights from turning shadow grain into coloured speckles.
-        float spin = 0.0;
+        vec2 rotation = vec2( 1.0, 0.0 );
         float blockers = 0.0;
         float blockerDepth = 0.0;
         for ( int i = 0; i < PCSS_SEARCH; i ++ ) {
-          vec2 o = pcssDisk( i, PCSS_SEARCH, spin ) * shadowRadius * texelY;
+          vec2 o = pcssDisk( i, PCSS_SEARCH, rotation ) * shadowRadius * texelY;
           float d = unpackRGBAToDepth( texture2D( shadowMap, cubeToUV( dir + side * o.x + up * o.y, texelY ) ) );
           if ( d < dp ) { blockers += 1.0; blockerDepth += d; }
         }
@@ -76,7 +87,7 @@ export function installSceneShaders(benchmark, lowPower = false) {
         float radius = mix( max( 1.0, shadowRadius * 0.25 ), shadowRadius, spread ) * texelY;
         float lit = 0.0;
         for ( int i = 0; i < PCSS_SAMPLES; i ++ ) {
-          vec2 o = pcssDisk( i, PCSS_SAMPLES, spin ) * radius;
+          vec2 o = pcssDisk( i, PCSS_SAMPLES, rotation ) * radius;
           lit += texture2DCompare( shadowMap, cubeToUV( dir + side * o.x + up * o.y, texelY ), dp );
         }
         return lit / float( PCSS_SAMPLES );
