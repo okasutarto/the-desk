@@ -16,6 +16,18 @@ export function createHandheld(runtime) {
     return material;
   };
   const switchGraphite = switchShell("#303238");
+  // A face button: a low round cap, its top edge rolled over into a shallow dome. Kept low
+  // (as on the real pads) so, seen from above, its side doesn't stretch it out of round.
+  const buttonGeo = runtime.core.track(new THREE.LatheGeometry([
+    new THREE.Vector2(0, -0.006),
+    new THREE.Vector2(0.023, -0.006),
+    new THREE.Vector2(0.0228, 0),
+    ...Array.from({ length: 6 }, (_, i) => {
+      const a = ((i + 1) / 6) * (Math.PI / 2);
+      return new THREE.Vector2(0.0188 + 0.004 * Math.cos(a), 0.004 * Math.sin(a));
+    }),
+    new THREE.Vector2(0, 0.0048),
+  ], 48));
   const joyCon = (color, side) => {
     const con = new THREE.Group();
     // Flat attachment edge, broad rounded outer corners and a softly bevelled front.
@@ -50,9 +62,9 @@ export function createHandheld(runtime) {
     con.add(runtime.core.at(thumbRim, stickX, stickY, 0.091));
     // Separate direction buttons on the left; ABXY on the right, in their reference positions.
     [[0, 0.052], [0, -0.052], [0.052, 0], [-0.052, 0]].forEach(([dx, dy]) => {
-      const button = runtime.core.mesh(new THREE.CylinderGeometry(0.021, 0.023, 0.018, 16), switchRubber, { outline: 0.003 });
+      const button = runtime.core.mesh(buttonGeo, switchRubber, { outline: 0.003 });
       button.rotation.x = Math.PI / 2;
-      con.add(runtime.core.at(button, stickX + dx, padY + dy, 0.057));
+      con.add(runtime.core.at(button, stickX + dx, padY + dy, 0.05));
     });
     const legends = runtime.core.printed(0.16, 0.16, 1200, (c, w, h) => {
       c.clearRect(0, 0, w, h);
@@ -67,7 +79,7 @@ export function createHandheld(runtime) {
     });
     legends.material.transparent = true;
     legends.material.depthWrite = false;
-    con.add(runtime.core.at(legends, stickX, padY, 0.068));
+    con.add(runtime.core.at(legends, stickX, padY, 0.0556));
     // Minus/plus sit toward the tablet; capture and home sit below the main controls.
     con.add(runtime.core.at(runtime.core.mesh(runtime.core.rbox(0.036, 0.011, 0.012, 0.003), switchGraphite, { outline: 0 }), -side * 0.058, 0.278, 0.052));
     if (side > 0) con.add(runtime.core.at(runtime.core.mesh(runtime.core.rbox(0.011, 0.036, 0.012, 0.003), switchGraphite, { outline: 0 }), -side * 0.058, 0.278, 0.052));
