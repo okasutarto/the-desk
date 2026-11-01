@@ -132,6 +132,11 @@ assert.deepEqual([allHeavy.ao, allHeavy.decorShed], [false, true], 'decorative s
 // shadow pace, while anything else that moves (flags, fidgets, tweened props) redraws them every frame.
 {
   const gsap = require('gsap').gsap;
+  // gsap's own clock follows real time, so a tween ticked within the millisecond it was made
+  // hasn't rendered yet and isn't active: drive the root timeline by hand instead
+  gsap.ticker.remove(gsap.updateRoot);
+  let gsapTime = gsap.globalTimeline.time();
+  const advance = () => gsap.updateRoot((gsapTime += 0.05));
   const cam = { zoom: 1 };
   const userView = { zoom: 1, x: 0, y: 0 };
   const tweenSource = source.slice(source.indexOf('  const isViewTarget ='), source.indexOf('  let aoFreshAt ='));
@@ -154,7 +159,7 @@ assert.deepEqual([allHeavy.ao, allHeavy.decorShed], [false, true], 'decorative s
   }
   const viewTween = gsap.to(userView, { zoom: 2, duration: 10 });
   const camTween = gsap.to(cam, { zoom: 2, duration: 10 });
-  gsap.ticker.tick();
+  advance();
   const panned = frames({ viewMoved: true });
   assert.ok(panned >= 11 && panned <= 13, 'a pan or zoom alone keeps the 12 Hz shadow pace');
   assert.equal(frames({ viewMoved: false }), 60, 'input without a view change still redraws shadows each frame');
@@ -163,10 +168,10 @@ assert.deepEqual([allHeavy.ao, allHeavy.decorShed], [false, true], 'decorative s
   const prop = { y: 0 };
   const propTween = gsap.to(prop, { y: 1, duration: 10 });
   gsap.delayedCall(10, () => {});
-  gsap.ticker.tick();
+  advance();
   assert.equal(frames({ viewMoved: true }), 60, 'a tweened prop redraws shadows while the view moves');
   propTween.kill();
-  gsap.ticker.tick();
+  advance();
   const delayed = frames({ viewMoved: true });
   assert.ok(delayed >= 11 && delayed <= 13, 'delayed calls and camera tweens are not prop motion');
   const still = frames({ moving: false });
@@ -174,6 +179,8 @@ assert.deepEqual([allHeavy.ao, allHeavy.decorShed], [false, true], 'decorative s
   viewTween.kill();
   camTween.kill();
   gsap.globalTimeline.clear();
+  // with the root driven by hand the ticker would otherwise keep the process alive
+  gsap.ticker.sleep();
 }
 
 // Execute the real scheduler, stopping immediately before scene updates.
