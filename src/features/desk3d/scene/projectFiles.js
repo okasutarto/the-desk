@@ -181,9 +181,9 @@ export function createProjectFiles(runtime) {
     const d = depthOf(entry);
     if (d > n - 1) {
       // Being refiled (as in 2D): straight up out of the others, carried back above them,
-      // dropped in behind. f runs 0 (front) → 1 (back slot).
+      // dropped in behind, briskly, the moment it's over its slot. f runs 0 (front) → 1 (back slot).
       const f = n - d;
-      const up = smooth(Math.min(f / 0.3, (1 - f) / 0.3)) * (FOLDER_D + 0.55);
+      const up = smooth(Math.min(f / 0.3, (1 - f) / 0.18)) * (FOLDER_D + 0.55);
       out.z = between(slotZ(0), slotZ(n - 1), f, 0.25, 0.7);
       out.y = slotY(0) + (slotY(n - 1) - slotY(0)) * f + up + (1 - f) * 0.3;
     } else {
@@ -286,12 +286,16 @@ export function createProjectFiles(runtime) {
     if (openFolder || target === browse.target) return;
     const steps = Math.abs(target - browse.target);
     browse.target = target;
+    // The hover lift doesn't ride along: every folder settles into its slot, and once they've
+    // landed, whichever is under the pointer then is lifted
+    folderList.forEach((entry) => liftFolder(entry, false));
     let last = Math.round(browse.p);
     gsap.to(browse, {
       p: target,
-      duration: 0.25 + 0.4 * Math.min(steps, 3),
-      ease: "power2.inOut",
+      duration: 0.2 + 0.3 * Math.min(steps, 3),
+      ease: "sine.inOut",
       overwrite: true,
+      onComplete: () => runtime.pointer.refreshHover(),
       onUpdate: () => {
         const now = Math.round(browse.p);
         if (now === last) return;
@@ -422,16 +426,17 @@ export function createProjectFiles(runtime) {
     turnSheet(folderPoint.x > -FOLDER_W / 2 ? 1 : -1);
   };
   // Hover lifts just the folder under the pointer
+  function liftFolder(entry, on) {
+    const lift = on && !openFolder;
+    gsap.to(entry.body.position, { y: 0, z: lift ? -0.42 : 0, duration: lift ? 0.28 : 0.4, ease: "power2.out", overwrite: true });
+    if (lift) hoverSound(entry, (s) => s.folderSlide({ duration: 0.2 }));
+  }
   folderList.forEach((entry) =>
     runtime.core.register(entry.f, {
       focus: "projects",
       item: true,
       // In the drawer a folder is pulled up a little (its local -z points up while it stands)
-      onHover: (on) => {
-        const lift = on && !openFolder;
-        gsap.to(entry.body.position, { y: 0, z: lift ? -0.42 : 0, duration: lift ? 0.28 : 0.4, ease: "power2.out", overwrite: true });
-        if (lift) hoverSound(entry, (s) => s.folderSlide({ duration: 0.2 }));
-      },
+      onHover: (on) => liftFolder(entry, on),
       onClick: clickFolder,
       onHotspot: (hs) => openFolder && turnSheet(hs.action === "prev" ? -1 : 1),
     }),
@@ -462,22 +467,42 @@ export function createProjectFiles(runtime) {
     },
   });
   // Scrolling in the drawer's close-up flips the files too: down to the next, up to the one
-  // before. A trackpad's stream of small deltas adds up to whole steps, and a pause between
-  // steps keeps one long swipe from racing through the lot.
-  const WHEEL_STEP = 60;
-  const WHEEL_GAP = 280;
+  // before. One scroll gesture is one file: a trackpad swipe and its momentum, or a quick spin
+  // of the wheel, flip a single file once they add up to a whole step. A pause in the stream
+  // starts a new gesture. So does a fresh swipe while the last one's momentum is still dying
+  // away, but only once the flip has all but landed and the stream has clearly picked up again:
+  // a few events running well above the quietest the momentum got, so its jitter never counts.
+  const WHEEL_STEP = 70;
+  const WHEEL_REST = 140;
+  const WHEEL_SURGE = 24;
   let wheelSum = 0;
   let wheelAt = 0;
+  let wheelSpent = false;
+  let wheelLow = Infinity;
+  let wheelRecent = [];
   const onWheel = (e) => {
     if (runtime.camera.focus.name !== "projects" || openFolder || e.ctrlKey) return;
     e.preventDefault();
-    const delta = e.deltaY * (e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? runtime.options.container.clientHeight : 1);
-    wheelSum += delta;
     const now = performance.now();
-    if (Math.abs(wheelSum) < WHEEL_STEP || now - wheelAt < WHEEL_GAP) return;
-    browseTo(browse.target + Math.sign(wheelSum));
-    wheelSum = 0;
+    const delta = e.deltaY * (e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? runtime.options.container.clientHeight : 1);
+    const size = Math.abs(delta);
+    wheelRecent = [...wheelRecent.slice(-2), size];
+    const pickedUp = wheelRecent.length === 3 && wheelRecent.every((s) => s > Math.max(WHEEL_SURGE, wheelLow * 2.5));
+    const landed = Math.abs(browse.p - browse.target) < 0.25;
+    if (now - wheelAt > WHEEL_REST || (wheelSpent && landed && pickedUp)) {
+      wheelSum = 0;
+      wheelSpent = false;
+      wheelLow = Infinity;
+    }
     wheelAt = now;
+    if (wheelSpent) {
+      wheelLow = Math.min(wheelLow, size);
+      return;
+    }
+    wheelSum += delta;
+    if (Math.abs(wheelSum) < WHEEL_STEP) return;
+    browseTo(browse.target + Math.sign(wheelSum));
+    wheelSpent = true;
   };
   runtime.core.renderer.domElement.addEventListener("wheel", onWheel, { passive: false });
 
