@@ -128,6 +128,54 @@ assert.deepEqual([aoHeavy.ao, aoHeavy.decorShed], [false, false], 'AO goes when 
 const allHeavy = runProbe([45, 36, 42]);
 assert.deepEqual([allHeavy.ao, allHeavy.decorShed], [false, true], 'decorative shadows go too when the room is slow without AO');
 
+// Shadow cameras are fixed in the room: a moving view alone keeps the still room's 12 Hz
+// shadow pace, while anything else that moves (flags, fidgets, tweened props) redraws them every frame.
+{
+  const gsap = require('gsap').gsap;
+  const cam = { zoom: 1 };
+  const userView = { zoom: 1, x: 0, y: 0 };
+  const tweenSource = source.slice(source.indexOf('  const isViewTarget ='), source.indexOf('  let aoFreshAt ='));
+  const shadowStart = source.indexOf('    // Moving props need primary shadows');
+  const shadowSource = source.slice(shadowStart, source.indexOf('    updateNeonLights(now, moving);', shadowStart));
+  const light = () => ({ castShadow: true, intensity: 1, shadow: { needsUpdate: false } });
+  const context = vm.createContext({ gsap, cam, userView, sun: light(), windowLight: light(), lampLight: light(), lightbarLight: light(), mainShadowAt: 0 });
+  vm.runInContext(tweenSource, context);
+  const shadowFrame = new vm.Script(`{${shadowSource}}`);
+  function frames(state, count = 60) {
+    let updates = 0;
+    for (let i = 0; i < count; i++) {
+      context.now = (context.now || 0) + 1000 / 60;
+      Object.assign(context, { moving: true, viewMoved: false, propsActing: false, fidgeting: false }, state);
+      context.sun.shadow.needsUpdate = false;
+      shadowFrame.runInContext(context);
+      if (context.sun.shadow.needsUpdate) updates++;
+    }
+    return updates;
+  }
+  const viewTween = gsap.to(userView, { zoom: 2, duration: 10 });
+  const camTween = gsap.to(cam, { zoom: 2, duration: 10 });
+  gsap.ticker.tick();
+  const panned = frames({ viewMoved: true });
+  assert.ok(panned >= 11 && panned <= 13, 'a pan or zoom alone keeps the 12 Hz shadow pace');
+  assert.equal(frames({ viewMoved: false }), 60, 'input without a view change still redraws shadows each frame');
+  assert.equal(frames({ viewMoved: true, propsActing: true }), 60, 'a dragged or busy prop redraws shadows while the view moves');
+  assert.equal(frames({ viewMoved: true, fidgeting: true }), 60, 'the cat fidgeting redraws shadows while the view moves');
+  const prop = { y: 0 };
+  const propTween = gsap.to(prop, { y: 1, duration: 10 });
+  gsap.delayedCall(10, () => {});
+  gsap.ticker.tick();
+  assert.equal(frames({ viewMoved: true }), 60, 'a tweened prop redraws shadows while the view moves');
+  propTween.kill();
+  gsap.ticker.tick();
+  const delayed = frames({ viewMoved: true });
+  assert.ok(delayed >= 11 && delayed <= 13, 'delayed calls and camera tweens are not prop motion');
+  const still = frames({ moving: false });
+  assert.ok(still >= 11 && still <= 13, 'a still room keeps its 12 Hz pace');
+  viewTween.kill();
+  camTween.kill();
+  gsap.globalTimeline.clear();
+}
+
 // Execute the real scheduler, stopping immediately before scene updates.
 const start = source.indexOf('  let lastTick = 0;');
 const end = source.indexOf('    // Step size for the springs', start);
@@ -218,4 +266,4 @@ assert.equal(renderContext.renderer.shadowMap.autoUpdate, true);
 assert.equal(camera.layers.mask, 1);
 assert.equal(scene.background, background);
 assert.ok(scene.children.filter((o) => o.isMesh).every((o) => o.visible && o.layers.isEnabled(0)));
-console.log('Locked resolution: Retina/zoom, sustained overload, jitter-aware pacing, visibility and shadow budgets passed.');
+console.log('Locked resolution: Retina/zoom, sustained overload, jitter-aware pacing, visibility, view-only shadow pace and shadow budgets passed.');
