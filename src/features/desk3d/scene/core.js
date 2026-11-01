@@ -53,10 +53,12 @@ export function createCore(runtime) {
     transparencyAware: false,
     accumulate: true,
     // Keep shallow wall gaps (sword racks, boards and shelf backs) readable even in diffuse
-    // light, within a 10 cm reach that leaves leaves and stems a hand's width off the wall
-    // only a faint shade on it
-    aoRadius: 1.0,
-    distanceFalloff: 1.0,
+    // light, within a 6 cm reach that fades fast: anything hung just off the wall (the clock,
+    // the swords) would otherwise shade a band of wall round its outline that reads as a
+    // heavier line, and leaves and stems a hand's width off the wall leave only a faint shade.
+    // The contact decals carry the darkness right under props.
+    aoRadius: 0.6,
+    distanceFalloff: 0.5,
     intensity: 3,
     aoSamples: 16,
     denoiseSamples: 8,
@@ -200,7 +202,9 @@ export function createCore(runtime) {
   sun.shadow.mapSize.set(SUN_MAP, SUN_MAP);
   Object.assign(sun.shadow.camera, { near: 0.5, far: 45 });
   sun.shadow.bias = -0.0004;
-  sun.shadow.normalBias = 0.02;
+  // (raking across the back wall beside the window, it needs a wider offset to keep its own
+  // surface from speckling itself with shadow)
+  sun.shadow.normalBias = 0.05;
   // A broad source: its shadows spread wide away from what casts them
   // (in texels, so a smaller map keeps the same penumbra with a smaller radius)
   sun.shadow.radius = 20 * SUN_MAP / 2048;

@@ -57,4 +57,15 @@ for (const swing of [-0.16, 0, 0.16]) {
 }
 assert.ok(source.indexOf('    constrainHat();') < source.indexOf('    updateToonBatch();'),
   'collision is resolved before copying animated transforms into the batch');
+// At rest the brim hangs clear below the nail, and the cord passes the nail in front of the
+// brim, so neither runs through it
+{
+  const rest = vm.runInContext('({ HAT_DROP, BRIM_R, CORD_OUT, HAT_OFF_WALL })', context);
+  hat.stretch.s = 1;
+  hat.setStretch();
+  hat.hatPeg.rotation.z = 0;
+  hat.hung.rotation.y = 0;
+  assert.ok(rest.HAT_DROP - rest.BRIM_R * hat.HAT_SCALE >= 0.2, 'brim top clears the nail by at least 2 cm');
+  assert.ok(rest.CORD_OUT > rest.HAT_OFF_WALL + 0.04 * hat.HAT_SCALE + 0.03 * hat.HAT_SCALE, 'cord crosses the nail in front of the brim');
+}
 console.log(`Hat/guitar clearance passed (${checked} drag and rebound poses).`);

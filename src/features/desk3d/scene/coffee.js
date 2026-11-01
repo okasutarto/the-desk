@@ -207,7 +207,7 @@ export function createCoffee(runtime) {
   // footprint under each prop, and behind what hangs on the walls. They're all instances of one
   // decal, a single draw call however many there are. The shader draws the shape: an oval, or a
   // soft-cornered box for square furniture and frames.
-  const CONTACT_MAX = 32;
+  const CONTACT_MAX = 64;
   const contactGeometry = runtime.core.track(new THREE.PlaneGeometry(1, 1));
   const contactAlpha = new THREE.InstancedBufferAttribute(new Float32Array(CONTACT_MAX), 1).setUsage(THREE.DynamicDrawUsage);
   const contactBox = new THREE.InstancedBufferAttribute(new Float32Array(CONTACT_MAX), 1);
@@ -235,9 +235,11 @@ export function createCoffee(runtime) {
         vec2 p = abs(vPlace);
         // 0 at the centre, 1 at the rim: an oval, or a box whose flat core spans 35% of it
         float d = mix(length(p), length(max(p - 0.35, 0.0)) / 0.65, vBox);
-        // Eased at both ends, so there's no point at an oval's centre, no crease where a box's
-        // flat core gives way, and no edge at the rim
-        float shade = pow(1.0 - smoothstep(0.0, 1.0, d), 1.5);
+        // Solid dark over its middle half, where the prop's foot stands, then fading out to the
+        // rim: darkest at the contact, and that darkness reaches out past the prop's edge where
+        // it shows. Eased at both ends, so there's no crease where the core gives way and no
+        // edge at the rim.
+        float shade = pow(1.0 - smoothstep(0.5, 1.0, d), 1.3);
         // A gradient this faint steps visibly in 8 bits; half a step of screen-space noise
         // dithers the bands away
         float noise = fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715))));
@@ -265,8 +267,15 @@ export function createCoffee(runtime) {
   };
   // Under a prop, on the surface it stands on. `anchor` offsets it from the prop's origin when
   // that isn't over its foot. Lifted props get a wider, fainter footprint.
+  // (drawn 1.4 times the footprint given, so the prop's edge falls within the solid core and
+  // the fade shows round it)
+  const CONTACT_REACH = 1.4;
   const contactShadow = (object, width, depth, surfaceY = 0, strength = 1, { box = false, anchor = null } = {}) =>
-    addContact({ object, width, depth, surfaceY, strength, box, anchor, baseY: object.position.y });
+    addContact({ object, width: width * CONTACT_REACH, depth: depth * CONTACT_REACH, surfaceY, strength, box, anchor, baseY: object.position.y });
+  // Under something paper-thin lying flat (a ticket, an envelope): nothing stands up to block
+  // the light, so only a thin, faint line of shade shows along its edges
+  const flatShadow = (object, width, depth, surfaceY = 0) =>
+    addContact({ object, width: width * 1.12, depth: depth * 1.12, surfaceY, strength: 0.35, box: true, anchor: null, baseY: object.position.y });
   const bounds = new THREE.Box3();
   const boundsOf = (object) => {
     object.updateWorldMatrix(true, true);
@@ -278,12 +287,62 @@ export function createCoffee(runtime) {
     const { centre, size } = boundsOf(object);
     contactShadow(object, size.x * pad, size.z * pad, runtime.room.FLOOR_Y, strength, { box, anchor: centre.sub(object.position) });
   };
+  // On a shelf board, for what stands there (the consoles, the robot, a row of game cases): in
+  // the bookcase's own space, which is scaled, and kept inside the board's top so no shade
+  // hangs off its front edge into the air. Snug to the foot (1.15 times it, not the 1.4 a
+  // desk prop gets), and fainter, the bay being dim and already shaded. `follow` false keeps
+  // a row's shade put while one piece of it is lifted out.
+  const SHELF_INSIDE = { x: runtime.shelf.SHELF_W / 2 - 0.22, front: runtime.shelf.SHELF_D / 2, back: -runtime.shelf.SHELF_D / 2 + 0.12 };
+  const shelfShadow = (objects, level, strength, { follow = true, box = false } = {}) => {
+    const bookcase = runtime.shelf.shelf;
+    bookcase.updateWorldMatrix(true, true);
+    bounds.makeEmpty();
+    objects.forEach((o) => bounds.expandByObject(o));
+    const centre = bookcase.worldToLocal(bounds.getCenter(new THREE.Vector3()));
+    const size = bounds.getSize(new THREE.Vector3()).divideScalar(bookcase.scale.x);
+    const [object] = objects;
+    addContact({
+      object, shelfAt: runtime.shelf.standOn(level), follow, strength, box,
+      local: new THREE.Vector3(centre.x - object.position.x, 0, centre.z - object.position.z),
+      width: size.x * 1.15, depth: size.z * 1.15, baseY: object.position.y,
+    });
+  };
+  // Something that moves about the room on its own (the cat, a dumbbell in a rep, crumpled
+  // paper): its shade lies on whatever it's over, the highest surface it could rest on that's
+  // below it, and fades and spreads as it rises off that. `rise` is how far its origin sits
+  // above the surface when it rests there; `when` says whether it's out to cast one at all.
+  const roamingShadow = (object, width, depth, strength, { rise = 0, when = null } = {}) =>
+    addContact({ object, roam: true, rise, when, width: width * CONTACT_REACH, depth: depth * CONTACT_REACH, strength, anchor: null });
+  const supportBox = (box) => (x, z) => (x > box.min.x && x < box.max.x && z > box.min.z && z < box.max.z ? box.max.y : null);
+  const supportSeat = new THREE.Vector3();
+  const supportPerch = new THREE.Vector3();
+  const supports = [
+    supportBox(new THREE.Box3().setFromObject(runtime.wallDecor.rugTop)),
+    supportBox(new THREE.Box3().setFromObject(runtime.room.desk)),
+    // the chair's seat, wherever it's turned
+    (x, z) => {
+      runtime.chair.chairTop.localToWorld(supportSeat.set(0, runtime.chair.SEAT_TOP, 0));
+      return Math.hypot(x - supportSeat.x, z - supportSeat.z) < 2.2 ? supportSeat.y : null;
+    },
+    // the bed on top of the cat tree
+    (x, z) => {
+      runtime.catTree.tree.localToWorld(supportPerch.copy(runtime.catTree.PERCH));
+      return Math.hypot(x - supportPerch.x, z - supportPerch.z) < 1.7 ? supportPerch.y - 0.02 : null;
+    },
+  ];
+  const supportUnder = (x, y, z) => supports.reduce((top, at) => {
+    const h = at(x, z);
+    return h !== null && h <= y + 0.05 && h > top ? h : top;
+  }, runtime.room.FLOOR_Y);
+  const roamAt = new THREE.Vector3();
+  const roamTurn = new THREE.Quaternion();
+  const roamEuler = new THREE.Euler(0, 0, 0, "YXZ");
   // Behind something hung on the back or side wall. `swing` is the part of it that sways, which
   // the shadow follows.
   const wallShadow = (object, wall, strength, { box = true, swing = object } = {}) => {
     const { centre, size } = boundsOf(object);
     swing.updateWorldMatrix(true, false);
-    addContact({ object, wall, strength, box, swing, centre: swing.worldToLocal(centre), width: (wall === "side" ? size.z : size.x) * 1.1, depth: size.y * 1.1 });
+    addContact({ object, wall, strength, box, swing, centre: swing.worldToLocal(centre), width: (wall === "side" ? size.z : size.x) * 1.05, depth: size.y * 1.05 });
   };
 
   const contactMatrix = new THREE.Matrix4();
@@ -301,9 +360,11 @@ export function createCoffee(runtime) {
     const beam = runtime.windowLighting.windowLight;
     const night = runtime.core.roomLight.night;
     // A contact shadow is its own element, drawn bold enough to read as the prop resting on
-    // the surface (as cel animation does: Petrovic et al. 2000), as dark as 40% at its core,
-    // fainter by night and under cloud, where the light is flatter
-    const contact = THREE.MathUtils.lerp(0.42, 0.32, night) * (1 - 0.2 * runtime.room.outside.rain);
+    // the surface (as cel animation does: Petrovic et al. 2000): the darkest value sits right
+    // at the contact, 50% at its core by day (about a fifth to a third darker round the prop's
+    // foot, as in a pale room lit through a window), fainter by night and under cloud, where
+    // the light is flatter
+    const contact = THREE.MathUtils.lerp(0.5, 0.38, night) * (1 - 0.2 * runtime.room.outside.rain);
     // Direct sun through the window: the beam's strength (rain has already dimmed it), less
     // what the blind holds back
     const direct = THREE.MathUtils.clamp(beam.intensity / 4.1, 0, 1) * (1 - night) * THREE.MathUtils.smoothstep(runtime.windowBlind.blind.lift, 0, 0.6);
@@ -335,8 +396,28 @@ export function createCoffee(runtime) {
     const fallZ = -toSun.z / across;
     contactShadows.forEach((entry, i) => {
       const { object } = entry;
-      if (!object.visible || entry.size < 0.002) {
+      if (!object.visible || entry.size < 0.002 || (entry.when && !entry.when())) {
         contactDecals.setMatrixAt(i, contactMatrix.makeScale(0, 0, 0));
+        return;
+      }
+      if (entry.shelfAt !== undefined) {
+        const bookcase = runtime.shelf.shelf;
+        const lift = entry.follow ? Math.max(0, object.position.y - entry.baseY) : 0;
+        const x = (entry.follow ? object.position.x : entry.restX ??= object.position.x) + entry.local.x;
+        const z = (entry.follow ? object.position.z : entry.restZ ??= object.position.z) + entry.local.z;
+        const spread = (1 + lift * 0.3) * entry.size;
+        // trimmed to the board, never pushed off it
+        const halfW = Math.min(entry.width * spread / 2, SHELF_INSIDE.x - Math.abs(x));
+        const halfD = Math.min(entry.depth * spread / 2, SHELF_INSIDE.front - z, z - SHELF_INSIDE.back);
+        if (halfW <= 0.01 || halfD <= 0.01) {
+          contactDecals.setMatrixAt(i, contactMatrix.makeScale(0, 0, 0));
+          return;
+        }
+        bookcase.localToWorld(contactPlace.set(x, entry.shelfAt + 0.004, z));
+        contactTurn.setFromEuler(contactEuler.set(-Math.PI / 2, 0, -object.rotation.y));
+        contactMatrix.compose(contactPlace, contactTurn, contactScale.set(halfW * 2 * bookcase.scale.x, halfD * 2 * bookcase.scale.z, 1));
+        contactDecals.setMatrixAt(i, contactMatrix);
+        contactAlpha.setX(i, contact * 0.7 * entry.strength / (1 + lift * 3));
         return;
       }
       if (entry.wall) {
@@ -354,15 +435,27 @@ export function createCoffee(runtime) {
         }
         contactMatrix.compose(contactPlace, entry.wall === "side" ? SIDE_WALL_TURN : NO_TURN, contactScale.set(entry.width * entry.size, entry.depth * entry.size, 1));
         contactDecals.setMatrixAt(i, contactMatrix);
-        contactAlpha.setX(i, contact * entry.strength * (0.85 + 0.3 * lean.weight));
+        // (a hung piece stands off the wall, so its shade is fainter than a footprint's, and
+        // kept mostly behind it: a dark rim round its edge would read as a heavier outline)
+        contactAlpha.setX(i, 0.3 * contact * entry.strength * (0.85 + 0.3 * lean.weight));
         return;
       }
-      const lift = Math.max(0, object.position.y - entry.baseY);
+      let footX = object.position.x + (entry.anchor?.x ?? 0);
+      let footZ = object.position.z + (entry.anchor?.z ?? 0);
+      let surfaceY = entry.surfaceY;
+      let lift = Math.max(0, object.position.y - entry.baseY);
+      let yaw = object.rotation.y;
+      if (entry.roam) {
+        object.getWorldPosition(roamAt);
+        footX = roamAt.x;
+        footZ = roamAt.z;
+        surfaceY = supportUnder(roamAt.x, roamAt.y - entry.rise, roamAt.z);
+        lift = Math.max(0, roamAt.y - entry.rise - surfaceY);
+        yaw = roamEuler.setFromQuaternion(object.getWorldQuaternion(roamTurn), "YXZ").y;
+      }
       // The window's sun reaches the desktop, not the floor under it. A high sun keeps the
       // footprint tight and dark; a low one draws it out, away from the window.
-      const lit = entry.surfaceY > runtime.room.FLOOR_Y + 1 ? direct : 0;
-      const footX = object.position.x + (entry.anchor?.x ?? 0);
-      const footZ = object.position.z + (entry.anchor?.z ?? 0);
+      const lit = surfaceY > runtime.room.FLOOR_Y + 1 ? direct : 0;
       const lean = leanFrom(footX, footZ);
       const leanBy = lean.weight * 0.18 * (entry.width + entry.depth) / 2;
       const pull = lit * 0.07 * reach * (entry.width + entry.depth) / 2;
@@ -373,7 +466,7 @@ export function createCoffee(runtime) {
       const alongX = towardX / toward;
       const alongZ = towardZ / toward;
       const stretch = lit * 0.15 * (reach - 1) + 0.3 * lean.weight;
-      contactTurn.setFromEuler(contactEuler.set(-Math.PI / 2, 0, -object.rotation.y));
+      contactTurn.setFromEuler(contactEuler.set(-Math.PI / 2, 0, -yaw));
       const spread = (1 + lift * 0.3) * entry.size;
       contactMatrix.compose(contactPlace.set(0, 0, 0), contactTurn, contactScale.set(entry.width * spread, entry.depth * spread, 1));
       contactStretch.set(
@@ -382,9 +475,11 @@ export function createCoffee(runtime) {
         stretch * alongX * alongZ, 0, 1 + stretch * alongZ * alongZ, 0,
         0, 0, 0, 1,
       );
-      contactMatrix.premultiply(contactStretch).setPosition(footX + towardX, entry.surfaceY + 0.008, footZ + towardZ);
+      contactMatrix.premultiply(contactStretch).setPosition(footX + towardX, surfaceY + 0.008, footZ + towardZ);
       contactDecals.setMatrixAt(i, contactMatrix);
-      contactAlpha.setX(i, contact * entry.strength * (0.85 + 0.3 * lean.weight) * (1 + lit * 0.45 / reach) / (1 + lift * 3));
+      // (capped short of black: a prop in the sun on the desk would otherwise stand in a flat
+      // black blot)
+      contactAlpha.setX(i, Math.min(0.9, contact * entry.strength * (0.85 + 0.3 * lean.weight) * (1 + lit * 0.45 / reach) / (1 + lift * 3)));
     });
     contactDecals.instanceMatrix.needsUpdate = true;
     contactAlpha.needsUpdate = true;
@@ -398,21 +493,46 @@ export function createCoffee(runtime) {
   contactShadow(runtime.workstation.riser, 12.2, 2.8, 0, 0.7);
   contactShadow(runtime.keyboard.keyboard, 5.8 * runtime.keyboard.KEYBOARD_SCALE, 2.5 * runtime.keyboard.KEYBOARD_SCALE, runtime.keyboard.MAT_TOP, 0.8);
   contactShadow(runtime.chat.phoneStand, 1.7, 1.5);
-  contactShadow(runtime.tickets.tickets, 3.4, 1.8, 0, 0.6);
+  // (the two passes fanned out, and the envelope, as laid on the desk)
+  flatShadow(runtime.tickets.tickets, 2.6, 1.5);
   contactShadow(runtime.projectFiles.folders, runtime.projectFiles.FOLDER_W * 1.35, runtime.projectFiles.FOLDER_D * 1.35, 0, 0.7);
-  contactShadow(runtime.postcard.mail, 3.0, 2.1, 0, 0.55);
+  flatShadow(runtime.postcard.mail, 1.62, 1.14);
   contactShadow(runtime.chair.chair, 7.2, 7.2, runtime.room.FLOOR_Y + 0.08, 0.8);
   contactShadow(runtime.lamp.lamp, 1.6, 1.6, 0, 0.8, { anchor: runtime.lamp.LAMP_BASE });
   contactShadow(runtime.lamp.familyFrame, 1.5, 0.9, 0, 0.6, { box: true });
   runtime.workstation.speakers.forEach(({ group }) => contactShadow(group, 1.9, 2.4, runtime.workstation.RISER_TOP, 0.7, { box: true }));
   floorShadow(runtime.shelf.shelf, 0.8, { box: true, pad: 1.1 });
   floorShadow(runtime.catTree.tree, 0.8, { box: true });
-  floorShadow(runtime.gym.gym, 0.7);
+  // each dumbbell along its bar, lifting with it in a rep (its origin rides a head's radius up)
+  runtime.gym.gym.children.filter((db) => db.userData.restY !== undefined).forEach((db) =>
+    roamingShadow(db, 1.0 * runtime.gym.gym.scale.x, 0.45 * runtime.gym.gym.scale.x, 0.8, { rise: db.userData.restY * runtime.gym.gym.scale.y }));
+  // the desk's two columns, on their T-feet
+  [-7.3, 5.3].forEach((x) => {
+    const foot = new THREE.Object3D();
+    foot.position.set(x, runtime.room.FLOOR_Y, 0.2);
+    runtime.core.scene.add(foot);
+    contactShadow(foot, 0.9, 7.8, runtime.room.FLOOR_Y + 0.08, 0.7, { box: true });
+  });
+  // the cat, wherever she is: floor, rug, desk, chair or the tree's bed
+  roamingShadow(runtime.cat.catModel, 1.9, 1.1, 0.75);
+  // crumpled paper out on the floor or in the air, not in the bin
+  runtime.wastebasket.papers.forEach((paper) =>
+    roamingShadow(paper.ball, 0.55, 0.55, 0.7, { rise: 0.3, when: () => paper.state !== "idle" && paper.state !== "leaving" }));
   floorShadow(runtime.wastebasket.bin, 0.8);
+  // Along the bookcase's boards, bottom to top
+  const shelfItem = (sound) => runtime.shelf.shelfItems.filter((item) => item.sound === sound).map((item) => item.obj);
+  shelfItem("robot").forEach((robot) => shelfShadow([robot], 0, 0.8));
+  shelfItem("figure").forEach((figure) => shelfShadow([figure], 0, 0.8));
+  shelfShadow(shelfItem("case"), 0, 0.7, { follow: false, box: true });
+  shelfShadow(shelfItem("book"), 1, 0.7, { follow: false, box: true });
+  shelfItem("trophy").forEach((trophy) => shelfShadow([trophy], 1, 0.8));
+  shelfShadow([runtime.shelfConsole.ps5], 2, 0.8, { box: true });
+  shelfShadow([runtime.shelfConsole.holder], 2, 0.7, { follow: false });
+  shelfShadow([runtime.gauntlet.gauntlet], 3, 0.8);
+  shelfItem("switch").forEach((handheld) => shelfShadow([handheld], 3, 0.7, { box: true }));
   wallShadow(runtime.wallDecor.clock, "back", 0.7, { box: false });
   wallShadow(runtime.wallDecor.paintingHang, "back", 0.7);
   wallShadow(runtime.aboutBoard.aboutBoard, "back", 0.6);
-  wallShadow(runtime.swordRack.katanaRack, "back", 0.6);
   wallShadow(runtime.guitar.guitar, "side", 0.7, { box: false, swing: runtime.guitar.guitarSwing });
   wallShadow(runtime.strawHat.hatPeg, "side", 0.6, { box: false });
 

@@ -37,7 +37,10 @@ export function installSceneShaders(benchmark, lowPower = false) {
         }
         if ( blockers == 0.0 ) return 1.0;
         float spread = smoothstep( 0.0, PCSS_RANGE, coord.z - blockerDepth / blockers );
-        float radius = mix( 1.0, shadowRadius, spread );
+        // Never narrower than a quarter of the widest blur: where a light rakes across a surface
+        // (the window's light along the back wall) one texel stretches into a long step, and a
+        // prop a hand's width off the wall would show those steps as a jagged staircase
+        float radius = mix( max( 1.0, shadowRadius * 0.25 ), shadowRadius, spread );
         float lit = 0.0;
         for ( int i = 0; i < PCSS_SAMPLES; i ++ ) {
           lit += texture2DCompare( shadowMap, coord.xy + pcssDisk( i, PCSS_SAMPLES, spin ) * radius * texel, coord.z );
@@ -70,7 +73,7 @@ export function installSceneShaders(benchmark, lowPower = false) {
         if ( blockers == 0.0 ) return 1.0;
         blockerDepth /= blockers;
         float spread = smoothstep( 0.0, 1.0, ( dp - blockerDepth ) / max( blockerDepth, 1e-3 ) );
-        float radius = mix( 1.0, shadowRadius, spread ) * texelY;
+        float radius = mix( max( 1.0, shadowRadius * 0.25 ), shadowRadius, spread ) * texelY;
         float lit = 0.0;
         for ( int i = 0; i < PCSS_SAMPLES; i ++ ) {
           vec2 o = pcssDisk( i, PCSS_SAMPLES, spin ) * radius;

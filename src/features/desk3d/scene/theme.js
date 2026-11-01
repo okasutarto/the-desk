@@ -105,7 +105,8 @@ export function createTheme(runtime) {
     runtime.core.sun.color.set(isDark ? "#aabfff" : "#fff1cc");
     // The sky through the window spreads faint soft shadows across the whole room, wall-mounted
     // objects included, outside the direct window patch. The key remains the direct beam.
-    runtime.core.sun.intensity = (isDark ? 0.24 : 0.55) * runtime.core.SKY_REACH;
+    // (by night only a faint moonlit sky: the lamp and the screen are the room's lights then)
+    runtime.core.sun.intensity = (isDark ? 0.1 : 0.55) * runtime.core.SKY_REACH;
     runtime.core.sun.castShadow = true;
     runtime.windowLighting.windowLight.color.set(isDark ? "#94b5ff" : "#ffe5ad");
     // Sun or moon, it comes in through the glass, shadowed by the wall, the bars and the blind
@@ -216,12 +217,12 @@ export function createTheme(runtime) {
     runtime.core.sun.intensity *= THREE.MathUtils.lerp(0.25, 1, runtime.windowBlind.blind.lift);
     runtime.core.skyFill.intensity *= 1 - 0.38 * runtime.room.outside.rain;
     runtime.core.ambient.intensity *= 1 - 0.25 * runtime.room.outside.rain;
-    // The sun (or moon) is half a degree across, so its shadows soften by about 1 cm for each
-    // metre they fall: the widest spread, about the window bars' reach across the desk, still
-    // stays crisp where a prop meets it (PCSS sizes the blur by distance). Overcast light loses
-    // the outline altogether; indoor lamp/neon shadows stay intact.
+    // The sun (or moon) is half a degree across, so its shadows soften by about 1 cm a metre:
+    // the glazing bars' shadow on the desk, half a metre to a metre below them, has a 5-10 mm
+    // edge. A wider blur would smear bars this thin into faint streaks drawn out along a low
+    // sun's rays. Overcast light loses the outline altogether; indoor lamp/neon shadows stay.
     // (in texels of a 2048 map; a smaller map scales it down to the same blur)
-    runtime.windowLighting.windowLight.shadow.radius = (THREE.MathUtils.lerp(12, 14, runtime.core.roomLight.night) + runtime.room.outside.rain * 16) * runtime.windowLighting.windowLight.shadow.mapSize.x / 2048;
+    runtime.windowLighting.windowLight.shadow.radius = (THREE.MathUtils.lerp(5.5, 6.5, runtime.core.roomLight.night) + runtime.room.outside.rain * 9) * runtime.windowLighting.windowLight.shadow.mapSize.x / 2048;
     if (Math.abs(runtime.windowLighting.cookieRain - runtime.room.outside.rain) > 0.02) runtime.windowLighting.drawGlassCookie();
     dryWindowColor.copy(runtime.windowLighting.windowLight.color);
     runtime.windowLighting.windowLight.color.lerp(rainLightColor, runtime.room.outside.rain * 0.65);

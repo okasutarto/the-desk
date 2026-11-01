@@ -581,6 +581,7 @@ export function createRoom(runtime) {
 
   // Public state used by the other scene parts.
   return {
+    desk,
     windowGroup,
     windowShadow,
     WINDOW_DEPTH,
