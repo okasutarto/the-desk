@@ -64,6 +64,8 @@ export function createAnimation(runtime) {
   let frameMs = 16;
   const postDensity = () => runtime.core.renderer.getPixelRatio();
   function sizeComposer() {
+    // Follow monitor changes too: full-size AO at 2× shades four times as many pixels.
+    runtime.core.aoPass.configuration.halfRes = postDensity() > 1.5;
     // At 2× and up the pixels are small enough to hide stair-steps, and full multisampling of a
     // Retina frame costs more memory traffic than an integrated GPU can spare; it keeps the
     // minimum, two, because the occlusion reads the frame's depth through the multisampled
@@ -126,26 +128,62 @@ export function createAnimation(runtime) {
   }
 
   // When the room can't keep up while it moves (when smoothness shows), the costliest optional
-  // work goes, one step at a time and never back: first the ambient occlusion, then the
-  // decorative shadows. Sharpness is never part of it (see resize).
+  // work goes one step at a time: first ambient occlusion, then decorative shadows.
+  // Restore in reverse order after five seconds at >=40 fps. Sharpness stays fixed.
   let judgeAfter = Infinity;
   let judged = 0;
   let slowFrames = 0;
+  let recoveryMs = 0;
+  let recoveryFrames = 0;
+  let fastMs = 0;
+  // What the occlusion adds to a frame, timed by the loader's probe (see stepProbe); until then
+  // a little over what a half-size pass costs on a Retina frame (~2.6ms, integrated GPU).
+  let aoCostMs = 4;
+  // Where the GPU can be timed, AO only returns if the frame has room for it, so a busy GPU
+  // doesn't switch it on just to shed it again; a frame rate pinned to vsync can't show that room
+  const AO_ROOM_MS = 1000 / 45;
+  const aoFits = () => runtime.core.gpuMs === null || Math.max(runtime.core.gpuMs, runtime.core.renderMs) + aoCostMs <= AO_ROOM_MS;
   const canShed = () => runtime.core.aoPass.enabled || !decorShed;
   function shedStep() {
     if (runtime.core.aoPass.enabled) runtime.core.aoPass.enabled = false;
     else decorShed = true;
   }
   function judgeQuality(now, interval, moving) {
-    if (benchmark || probe || !moving || !interval || now < judgeAfter || !canShed()) return;
+    if (benchmark || probe || !interval || now < judgeAfter) {
+      recoveryMs = recoveryFrames = fastMs = 0;
+      return;
+    }
+    // Low-power mode intentionally omits these effects, even on a fast device.
+    if (!lowPower && (decorShed || !runtime.core.aoPass.enabled)) {
+      recoveryMs += interval;
+      recoveryFrames++;
+      if (interval <= 25) fastMs += interval;
+      if (recoveryMs >= 5000) {
+        // 85% of the time in frames that kept up: a 58 fps room drops the odd frame to 33ms
+        const recovered = recoveryFrames * 1000 / recoveryMs >= 40 && fastMs >= recoveryMs * 0.85 && (decorShed || aoFits());
+        recoveryMs = recoveryFrames = fastMs = 0;
+        if (recovered) {
+          if (decorShed) decorShed = false;
+          else {
+            runtime.core.aoPass.enabled = true;
+            runtime.core.refreshAO(true);
+          }
+          judged = slowFrames = 0;
+          judgeAfter = now + 2000;
+          return;
+        }
+      }
+    }
+    if (!moving || !canShed()) return;
     judged++;
     // under 30 fps
-    if (interval > 34) slowFrames++;
+    if (interval > 1000 / 30 + 0.5) slowFrames++;
     if (judged < 90) return;
     const slow = slowFrames > judged / 4;
     judged = slowFrames = 0;
     if (!slow) return;
     shedStep();
+    recoveryMs = recoveryFrames = fastMs = 0;
     // give the lighter frame a moment to settle before judging it
     judgeAfter = now + 2000;
   }
@@ -154,13 +192,20 @@ export function createAnimation(runtime) {
   // drawn back to back and each is waited out on the GPU. Too slow, and a step is shed and the
   // room timed again, so the visitor walks into a room that already runs smoothly. The first
   // frames of each round only warm up (shaders compile after a step changes the lighting).
+  // The first round is still the coldest (everything compiles in it), so a slow one isn't
+  // pinned on the occlusion: the room is timed without it, then with it again, warm, and the
+  // difference is what AO costs. It goes only if the room keeps up without it and not with it.
   const PROBE_WARMUP = 3;
   const PROBE_FRAMES = 12;
   const PROBE_ROUNDS = 3;
-  const PROBE_SLOW_MS = 22;
+  const PROBE_SLOW_MS = 1000 / 30;
   const probePixel = new Uint8Array(4);
-  let probe = benchmark ? null : { frame: 0, round: 0, costs: [] };
+  let probe = benchmark ? null : { frame: 0, round: 0, costs: [], retest: false, aoOff: null };
   let probeMs = null;
+  function setAO(enabled) {
+    runtime.core.aoPass.enabled = enabled;
+    if (enabled) runtime.core.refreshAO(true);
+  }
   function stepProbe(started) {
     const gl = runtime.core.renderer.getContext();
     gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, probePixel);
@@ -169,9 +214,29 @@ export function createAnimation(runtime) {
     runtime.options.onEvent("loading", { progress: (probe.round * length + probe.frame) / (PROBE_ROUNDS * length) });
     if (probe.costs.length < PROBE_FRAMES) return;
     probeMs = probe.costs.sort((a, b) => a - b)[PROBE_FRAMES >> 1];
-    if (probeMs > PROBE_SLOW_MS && canShed() && probe.round < PROBE_ROUNDS - 1) {
+    const slow = probeMs > PROBE_SLOW_MS;
+    const next = (retest = false, aoOff = null) => (probe = { frame: 0, round: probe.round + 1, costs: [], retest, aoOff });
+    if (probe.round === 0 && slow && runtime.core.aoPass.enabled) {
+      setAO(false);
+      next(true);
+      return;
+    }
+    if (probe.retest) {
+      setAO(true);
+      next(false, probeMs);
+      return;
+    }
+    if (probe.aoOff !== null) {
+      aoCostMs = Math.max(1, probeMs - probe.aoOff);
+      if (slow) {
+        setAO(false);
+        // slow even without the occlusion: the decorative shadows go as well
+        if (probe.aoOff > PROBE_SLOW_MS) decorShed = true;
+        probeMs = probe.aoOff;
+      }
+    } else if (slow && canShed() && probe.round < PROBE_ROUNDS - 1) {
       shedStep();
-      probe = { frame: 0, round: probe.round + 1, costs: [] };
+      next();
       return;
     }
     probe = null;

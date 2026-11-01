@@ -125,7 +125,9 @@ export function createCore(runtime) {
   let triangles = 0;
   let gpuMs = null;
   const gl = renderer.getContext();
-  const gpuTimer = perfParams.has("perf") ? gl.getExtension("EXT_disjoint_timer_query_webgl2") : null;
+  // Timed for everyone, not only `?perf`: the quality controller reads it to tell whether the
+  // occlusion fits back in (see aoFits). Browsers without the extension leave it null.
+  const gpuTimer = gl.getExtension("EXT_disjoint_timer_query_webgl2");
   let gpuQuery = null;
   // Cards, labels and bubbles drawn over everything (no depth test) skip the composer and are
   // laid on top afterwards, so the occlusion never shades them
