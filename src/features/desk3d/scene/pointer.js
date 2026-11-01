@@ -11,6 +11,8 @@ export function createPointer(runtime) {
   const parallax = { x: 0, y: 0, tx: 0, ty: 0 };
   let hovered = null;
   let downAt = null;
+  // where the mouse last stood, so hover can be checked again when the scene moves under it
+  let mouseAt = null;
 
   const rayFromPointer = (e) => {
     const rect = runtime.core.renderer.domElement.getBoundingClientRect();
@@ -60,6 +62,15 @@ export function createPointer(runtime) {
     hovered = entry;
     hovered?.onHover?.(true);
     runtime.core.renderer.domElement.style.cursor = entry?.sticky || entry?.grabTurn || (entry?.note && runtime.camera.focus.name === "about") ? "grab" : entry ? "pointer" : "default";
+  };
+  // Something moved under a still mouse (the folders flipped round in their drawer): hover
+  // whatever is under it now, afresh, even if that's the item already hovered
+  const refreshHover = () => {
+    if (!mouseAt) return;
+    rayFromPointer(mouseAt);
+    const hit = visibleHits()[0];
+    setHover(null);
+    setHover(hit ? runtime.core.entryFor(hit.object) : null);
   };
   let shelfDrag = null;
   function browseShelf(y, instant = false) {
@@ -213,6 +224,7 @@ export function createPointer(runtime) {
     parallax.tx = ((e.clientX - rect.left) / rect.width - 0.5) * 2;
     parallax.ty = ((e.clientY - rect.top) / rect.height - 0.5) * 2;
     if (e.pointerType === "mouse") {
+      mouseAt = { clientX: e.clientX, clientY: e.clientY };
       // Reuse one raycast for hover, prop hotspots and the lanyard hit area.
       rayFromPointer(e);
       const hits = visibleHits();
@@ -460,6 +472,7 @@ export function createPointer(runtime) {
   };
   const onPointerLeave = () => {
     if (shelfDrag || runtime.aboutBoard.noteDrag || stickyDrag || chairDrag) return;
+    mouseAt = null;
     setHover(null);
     parallax.tx = parallax.ty = 0;
   };
@@ -484,6 +497,7 @@ export function createPointer(runtime) {
     onPointerLeave,
     onWindowBlur,
     setHover,
+    refreshHover,
     get shelfDrag() { return shelfDrag; },
     finishStickyDrag,
   };
