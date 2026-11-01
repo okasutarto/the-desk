@@ -51,7 +51,7 @@ const context = vm.createContext({
   blindFabric: {}, shadowedNeons: [{}, {}, {}],
   cookieRain: 0, drawGlassCookie() {}, DESK_WASH: 0.45, monitorGlowMat: {}, updateLampGlow() {}, updateLightbar() {}, setLightbar() {}, lightbarState: { power: 0 },
   riserMat: material(), riserLegMat: material(), RISER_LEG_SHADE: 0.8,
-  hoopBoardFace: { material: { emissiveIntensity: 0 } }, net: { material: material() },
+  hoopBoardFace: { material: { emissiveIntensity: 0 } }, net: { material: material() }, sleeveMat: material(),
   sun, windowLight, lampLight, ambient, readabilityFill, skyFill,
   jointMat: material(), floorMat: material(), backWallMat: material(),
   sideWallMat: material(), trimMat: material(), deskMat: material(), shadowFill: material(),
@@ -283,7 +283,7 @@ for (const part of ['morning', 'day', 'evening', 'night']) {
   now += 10000;
   run(`daylightPart = '${part}'; setRoomTheme(${part === 'night'})`);
   update(now + 5000);
-  hoopGlow[part] = [context.printGlow.level, context.net.material.color.r];
+  hoopGlow[part] = [context.printGlow.level, context.net.material.color.r, context.sleeveMat.color.r];
   const clear = windowLight.intensity;
   const clearRadius = windowLight.shadow.radius;
   const localLamp = lampLight.intensity;
@@ -301,6 +301,7 @@ for (const part of ['morning', 'day', 'evening', 'night']) {
 assert.deepEqual(hoopGlow.morning, hoopGlow.day);
 assert.ok(hoopGlow.day[0] > hoopGlow.evening[0] && hoopGlow.evening[0] > hoopGlow.night[0], 'backboard glow dims towards night');
 assert.ok(hoopGlow.day[1] > hoopGlow.evening[1] && hoopGlow.evening[1] > hoopGlow.night[1], 'net darkens towards night');
+assert.ok(hoopGlow.day[2] > hoopGlow.evening[2] && hoopGlow.evening[2] > hoopGlow.night[2], 'badge sleeve gloss fades towards night');
 
 // Exercise the same per-frame contact update used by the moving mouse and lifted mug.
 {

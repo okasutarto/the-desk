@@ -146,10 +146,11 @@ export function createSceneMeshes(scene) {
       printMats.forEach((m) => (m.emissiveIntensity = value));
     },
   };
-  const printMaterial = (map, options = {}) => {
+  // (`tint` colours a plain one with no print on it, like a photo's mat or a strip of tape)
+  const printMaterial = (map, options = {}, tint = "#ffffff") => {
     const m = new THREE.MeshToonMaterial({ map, emissiveMap: map, gradientMap: gradient, ...options });
-    m.color.setScalar(PRINT_LIT);
-    m.emissive.setScalar(1);
+    m.color.set(tint).multiplyScalar(PRINT_LIT);
+    m.emissive.set(tint);
     m.emissiveIntensity = printLevel;
     printMats.push(m);
     return track(m);

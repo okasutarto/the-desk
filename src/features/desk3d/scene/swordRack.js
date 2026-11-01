@@ -158,13 +158,15 @@ export function createSwordRack(runtime) {
   const flowerTex = canvasTexture(64, 64);
   runtime.core.track(flowerTex.texture);
   drawEnmaFlower(flowerTex.ctx, 64, 64);
-  const flowerMat = runtime.core.track(new THREE.MeshBasicMaterial({ map: flowerTex.texture, transparent: true, depthWrite: false }));
+  // printed on the lacquer like the chair's crest, so it dims with the saya by dusk and night
+  const flowerMat = runtime.core.printMaterial(flowerTex.texture, { transparent: true, depthWrite: false });
   const flowerGeo = runtime.core.track(new THREE.PlaneGeometry(0.11, 0.11));
   const crest = (parent, x, y, radius) => [-1, 1].forEach((side) => {
     const decal = new THREE.Mesh(flowerGeo, flowerMat);
     decal.position.set(x, y, side * (radius + 0.004));
     if (side < 0) decal.rotation.y = Math.PI;
     decal.raycast = runtime.core.noRaycast;
+    decal.receiveShadow = true;
     parent.add(decal);
   });
 

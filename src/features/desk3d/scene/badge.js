@@ -285,12 +285,14 @@ export function createBadge(runtime) {
   const badgeHolder = runtime.core.mesh(runtime.core.phoneSlab(0.86, 1.34, 0.065, 0.06), runtime.core.toon("#d6e2ee"), { outline: 0.015 });
   const badgeLip = runtime.core.at(runtime.core.mesh(runtime.core.rbox(0.23, 0.1, 0.07, 0.025), pinMetal, { outline: 0.012 }), 0, 0.65, 0);
   const holderSlot = runtime.core.at(runtime.core.mesh(runtime.core.rbox(0.115, 0.025, 0.075, 0.01), runtime.core.toon("#273449"), { outline: 0 }), 0, 0.66, 0);
-  // the clear vinyl sleeve over each face: two hard streaks of gloss
+  // the clear vinyl sleeve over each face: two hard streaks of gloss (unlit, so the theme
+  // dims them by dusk and night; see SLEEVE_SHEEN in theme.js)
   const sleeveTex = canvasTexture(256, 400);
   runtime.core.track(sleeveTex.texture);
   drawGlassSheen(sleeveTex.ctx, 256, 400, { strength: 0.2 });
   const sleeveMat = runtime.core.track(new THREE.MeshBasicMaterial({ map: sleeveTex.texture, transparent: true, depthWrite: false }));
-  const sleeveGeo = runtime.core.track(new THREE.PlaneGeometry(0.8, 1.26));
+  // (just inside the card's printed edge, so the streaks never run out over the holder's rim)
+  const sleeveGeo = runtime.core.track(new THREE.PlaneGeometry(0.74, 1.2));
   const sleeves = [0.041, -0.041].map((z) => {
     const sleeve = new THREE.Mesh(sleeveGeo, sleeveMat);
     sleeve.position.z = z;
@@ -337,6 +339,7 @@ export function createBadge(runtime) {
     get badgeClearance() { return badgeClearance; },
     set badgeClearance(value) { badgeClearance = value; },
     badgeFront,
+    sleeveMat,
     grabLanyard,
     lanyardPlane,
     lanyardPoint,

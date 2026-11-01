@@ -21,7 +21,7 @@ const board = vm.runInNewContext(
     track: (value) => value, noRaycast() {}, windowWood: { texture: new THREE.Texture() },
     printed: (w, h) => new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial()),
     mesh: (geometry, material) => new THREE.Mesh(geometry, material), rbox: (w, h, d) => new THREE.BoxGeometry(w, h, d),
-    toon: (color) => new THREE.MeshToonMaterial({ color }), drawAboutBoard() {}, drawAboutNote() {},
+    toon: (color) => new THREE.MeshToonMaterial({ color }), printMaterial: () => new THREE.MeshToonMaterial(), drawAboutBoard() {}, drawAboutNote() {},
     register: (object, handler) => handlers.set(object, handler), sfx: { pop() {} },
   });
 for (const note of board.boardNotes) {
