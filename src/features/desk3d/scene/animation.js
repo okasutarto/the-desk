@@ -255,6 +255,10 @@ export function createAnimation(runtime) {
   const idleMs = refreshMs * (lowPower ? 1.7 : 0.7);
   let lastTick = 0;
   let mainShadowAt = 0;
+  // Any running tween on something other than the camera (a key press, a hover lift, a prop
+  // put back); a delayed call's only target is its own callback
+  const isViewTarget = (target) => target === runtime.camera.cam || target === runtime.camera.userView || typeof target === "function";
+  const propsTweening = () => gsap.globalTimeline.getChildren(true, true, false).some((tween) => tween.isActive() && tween.targets().some((target) => !isViewTarget(target)));
   let aoFreshAt = 0;
   const aoCamPos = new THREE.Vector3();
   const aoCamTurn = new THREE.Quaternion();
@@ -273,7 +277,10 @@ export function createAnimation(runtime) {
       return;
     }
     const fidgeting = runtime.cat.catIdleTl?.isActive();
-    const acting = runtime.theme.lightingBlending || now < runtime.core.responsiveUntil || gsap.isTweening(runtime.camera.cam) || runtime.cat.catBusy || gsap.isTweening(runtime.windowBlind.blind) || runtime.mouse.mouseRunning || runtime.lamp.lampHopping || runtime.shelfCollectibles.trophyCelebrating || runtime.pointer.lanyardDrag || runtime.pointer.hatDrag || runtime.aboutBoard.noteDrag || runtime.pointer.shelfDrag || runtime.pointer.stickyDrag || runtime.pointer.chairDrag || gsap.isTweening(runtime.workstation.screenPower);
+    // Input and camera tweens keep the frame rate up; the rest also move what casts shadows
+    const viewActing = now < runtime.core.responsiveUntil || gsap.isTweening(runtime.camera.cam);
+    const propsActing = runtime.theme.lightingBlending || runtime.cat.catBusy || gsap.isTweening(runtime.windowBlind.blind) || runtime.mouse.mouseRunning || runtime.lamp.lampHopping || runtime.shelfCollectibles.trophyCelebrating || runtime.pointer.lanyardDrag || runtime.pointer.hatDrag || runtime.aboutBoard.noteDrag || runtime.pointer.shelfDrag || runtime.pointer.stickyDrag || runtime.pointer.chairDrag || gsap.isTweening(runtime.workstation.screenPower);
+    const acting = viewActing || propsActing;
     const moving = acting || fidgeting;
     // Do not skip presentation frames during interaction. Idle uses a tolerant interval rather
     // than an accumulated deadline, which otherwise creates short/long frame pairs under jitter.
@@ -415,8 +422,11 @@ export function createAnimation(runtime) {
       runtime.chat.redrawChat();
     }
     // Moving props need primary shadows in the same frame; a still room only has slow idle
-    // motion (the lanyard's breeze, the clock's hand) to keep up with
-    if (moving || now >= mainShadowAt) {
+    // motion (the lanyard's breeze, the clock's hand) to keep up with. Every shadow camera is
+    // fixed in the room, so a pan, zoom or camera move alone redraws the same maps: while the
+    // view is what moves, they keep the still room's pace, unless a prop is tweening too.
+    const viewOnly = viewMoved && !propsActing && !fidgeting && !propsTweening();
+    if ((moving && !viewOnly) || now >= mainShadowAt) {
       mainShadowAt = now + 1000 / 12 - 0.5;
       [runtime.core.sun, runtime.windowLighting.windowLight, runtime.lamp.lampLight, runtime.workstation.lightbarLight].forEach((light) => {
         if (light.castShadow && light.intensity > 0) light.shadow.needsUpdate = true;
