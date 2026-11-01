@@ -5,7 +5,7 @@ const THREE = require('three');
 const source = require('./helpers/desk-source.cjs').readDeskSource();
 // Build the reference-inspired armour with real Three.js geometry, without a renderer.
 const armour = vm.runInNewContext(
-  source.slice(source.indexOf('  const glove = toon('), source.indexOf('  const stoneTint =')) + '; ({ glovePart, forearm, fingers, thumb, stones, wristWings })', {
+  source.slice(source.indexOf('  const glove = toon('), source.indexOf('  const stoneTint =')) + '; ({ glovePart, forearm, fingers, thumb, stones, wristWings, handPlate, fan })', {
     THREE, gauntlet: new THREE.Group(), track: (value) => value,
     toon: (color) => new THREE.MeshToonMaterial({ color }),
     mesh: (geometry, material) => new THREE.Mesh(geometry, material),
@@ -25,11 +25,16 @@ armour.glovePart.updateMatrixWorld(true);
 const armourBounds = new THREE.Box3().setFromObject(armour.glovePart, true);
 assert.ok(armourBounds.min.toArray().every(Number.isFinite) && armourBounds.max.toArray().every(Number.isFinite),
   'curved armour and engraved geometry stay finite while the fingers bend');
-// Both wrist guards remain symmetric, solid and wider than the wrist itself.
+// Side wrist lames are symmetric and remain below the hand; the hand shell supplies the flare.
 assert.equal(armour.wristWings.length, 2);
 const wingBounds = armour.wristWings.map((wing) => new THREE.Box3().setFromObject(wing));
-assert.ok(wingBounds[0].min.x < -0.38 && wingBounds[1].max.x > 0.38);
+assert.ok(wingBounds[0].min.x < -0.28 && wingBounds[1].max.x > 0.28);
 assert.ok(Math.abs(wingBounds[0].min.x + wingBounds[1].max.x) < 1e-6);
+assert.ok(wingBounds.every(box => box.max.y < 0.88), 'wrist lames do not form floating wings beside the central stone');
+const skirt = armour.handPlate.getPoints(24).filter(point => point.y < 0.96);
+assert.ok(skirt.some(point => point.x > 0.28) && skirt.some(point => point.x < -0.28), 'continuous hand skirt flares below the palm');
+assert.ok(skirt.every(point => Math.abs(point.x) < 0.3), 'hand skirt keeps a modest flare instead of broad wings');
+assert.ok(armour.fan.getPoints().some(point => point.x === 0 && point.y > 0.94));
 for (const wing of armour.wristWings) {
   assert.ok(Array.from(wing.geometry.attributes.normal.array).every(Number.isFinite));
 }

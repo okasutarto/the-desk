@@ -16,13 +16,13 @@ export function createSwordEffects(runtime) {
   const auraTex = canvasTexture(256, 128);
   runtime.core.track(auraTex.texture);
   drawHakiAura(auraTex.ctx, 256, 128);
-  const haki = new THREE.Mesh(runtime.core.track(new THREE.PlaneGeometry(1, 1)), runtime.core.track(new THREE.MeshBasicMaterial({ map: auraTex.texture, transparent: true, depthWrite: false, side: THREE.DoubleSide, opacity: 0 })));
+  const haki = new THREE.Mesh(runtime.core.track(new THREE.PlaneGeometry(1, 1)), runtime.core.track(new THREE.MeshBasicMaterial({ map: auraTex.texture, transparent: true, depthWrite: false, side: THREE.DoubleSide, toneMapped: false, opacity: 0 })));
   haki.raycast = runtime.core.noRaycast;
   haki.renderOrder = 11;
   haki.visible = false;
-  // Kept a touch under full strength and height, so the blade still reads through it
-  const HAKI_PEAK = 0.7;
-  const HAKI_HEIGHT = 0.85;
+  // A broader, saturated halo stays visible around the steel in the bright rack close-up.
+  const HAKI_PEAK = 0.95;
+  const HAKI_HEIGHT = 1.3;
   // Hovered, Enma leaks a little of its Haki: a faint aura breathing round the bare steel
   // between the guard and the saya's mouth as it slides part way out, gone again when the
   // pointer leaves (a strike takes over from there)
