@@ -23,10 +23,17 @@ export function createWindowLighting(runtime) {
   windowLight.shadow.camera.far = WINDOW_SUN_FAR + 40;
   windowLight.shadow.bias = -0.0002;
   windowLight.shadow.normalBias = 0.02;
-  windowLight.shadow.radius = 3;
+  windowLight.shadow.radius = 5.5;
   runtime.core.scene.add(windowLight, windowLight.target);
   runtime.room.windowGroup.updateWorldMatrix(true, false);
   const windowGlass = runtime.room.windowGroup.localToWorld(new THREE.Vector3(0, 0, 0.06));
+  // The sky's diffuse light (core.sun) comes in through the same glass, just in front of the
+  // blind, out across the room. The blind's drop dims it (see theme) rather than casting its
+  // outline, which so broad a source wouldn't show. Where in the opening it comes from follows
+  // the sun (see aimWindowLight); it starts from the middle.
+  const skyAt = new THREE.Vector3(0, 0, 0.6);
+  runtime.core.sun.position.copy(runtime.room.windowGroup.localToWorld(skyAt.clone()));
+  runtime.core.sun.target.position.set(6, -5, 1);
   const windowRay = new THREE.Vector3();
   // The light's cookie: the glass, as the light sees it, white in black (edges a touch soft, as
   // the sun isn't a point), so it shines only through the window. Redrawn whenever it's aimed.
@@ -91,10 +98,22 @@ export function createWindowLighting(runtime) {
     windowLight.target.position.copy(windowGlass).addScaledVector(windowRay, -1);
     windowLight.target.updateMatrixWorld();
     windowLight.shadow.needsUpdate = true;
+    // The sky is brightest round the sun (the circumsolar region of the CIE standard skies), so
+    // most of its light through the glass comes from the sun's side of the opening: the sky light
+    // slides that way across the window, toward the room's front in the morning and its back by
+    // evening (the moon's side by night), and every soft shadow in the room swings with it
+    // (by the sun's own place across the sky, which the low evening beam's shorter turn doesn't
+    // hold back)
+    const slide = THREE.MathUtils.clamp((from[0] - 0.5) * 4, -1, 1);
+    aimNow.slide = aimFrom ? THREE.MathUtils.lerp(aimFrom.slide ?? slide, slide, blend) : slide;
+    const up = Math.tan(aimNow.elevation) * Math.hypot(1, aimNow.across);
+    skyAt.set(0.8 * GLASS.x * aimNow.slide, 0.8 * GLASS.y * up / Math.hypot(aimNow.across, up, 1), 0.6);
+    runtime.core.sun.position.copy(runtime.room.windowGroup.localToWorld(skyAt));
+    runtime.core.sun.shadow.needsUpdate = true;
     drawGlassCookie();
   }
   // The beam's aim as last set: its elevation, and how far it turns across the window
-  const aimNow = { elevation: 0, across: 0 };
+  const aimNow = { elevation: 0, across: 0, slide: 0 };
 
   // The beam through the window: a soft shaft of light in the air, from the glass into the room
   // along the light's own path, bright at the glass and fading out along the beam and toward its

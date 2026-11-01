@@ -68,10 +68,14 @@ handlers.get(clock).onClick();
 clockMount.updateMatrixWorld(true);
 near(bounds(clockRim).max.x - bounds(clockRim).min.x, 3, 'click animation restores the full-size clock');
 const lightSource = fs.readFileSync('src/features/desk3d/scene/windowLighting.js', 'utf8').replace(/^import .*;\n/gm, '').replace('export function', 'function');
-const lightContext = vm.createContext({ THREE, lowPower: false, runtime: { core: { scene }, room: { windowGroup, GLASS: context.GLASS } } });
+const lightContext = vm.createContext({ THREE, lowPower: false, runtime: { core: { scene, sun: new THREE.SpotLight() }, room: { windowGroup, GLASS: context.GLASS } } });
 vm.runInContext(lightSource.slice(0, lightSource.indexOf('  const windowRay =')) + '\nreturn { windowGlass, windowLight }; }\nvar result = createWindowLighting(runtime);', lightContext);
 const glass = windowGroup.localToWorld(new THREE.Vector3(0, 0, 0.06));
 assert.ok(lightContext.result.windowGlass.distanceTo(glass) < 1e-8, 'window light follows the scaled glass position');
+// The sky's light comes in through the glass: just inside it, shining into the room
+const sky = lightContext.runtime.core.sun;
+assert.ok(sky.position.x > glass.x && sky.position.x < glass.x + 1.5 && Math.abs(sky.position.y - glass.y) < 1e-6, 'sky light sits just inside the glass');
+assert.ok(sky.target.position.x > sky.position.x + 5 && sky.target.position.y < sky.position.y, 'sky light shines down into the room');
 // The glass is 11.2 × 9.7 units: 7.4 from its centre to a corner
 const sun = lightContext.result.windowLight;
 const sunFar = Number(lightSource.match(/const WINDOW_SUN_FAR = ([\d.]+)/)[1]);

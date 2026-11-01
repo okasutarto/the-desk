@@ -28,7 +28,7 @@ for (const dpr of [0.8, 1, 1.5, 2, 2.5, 3]) {
   assert.equal(postWidth, 1200);
   assert.equal(postHeight, 800);
   // Retina frames skip multisampling; 1× screens keep it for clean edges
-  composerTargets.forEach((t) => assert.equal(t.samples, dpr >= 2 ? 0 : 4, 'MSAA only below 2× density'));
+  composerTargets.forEach((t) => assert.equal(t.samples, dpr >= 2 ? 2 : 4, 'full MSAA below 2× density, the minimum the occlusion needs above'));
   // Exercise the actual frame-statistics update with sustained overload and hitches.
   const timingStart = source.indexOf('    if (lastTick) frameMs +=');
   const timingEnd = source.indexOf('    updateTicketHover(dt)', timingStart);
@@ -36,7 +36,7 @@ for (const dpr of [0.8, 1, 1.5, 2, 2.5, 3]) {
   for (let i = 0; i < 1200; i++) stats(1 + (i % 2 ? 50 : 250));
   assert.equal(vm.runInContext('postDensity()', resolution), dpr, 'slow frames must never reduce render density');
 }
-// 0.8–1.5 keep 4 samples; 2 drops both targets to 0 once; 2.5 and 3 change nothing
+// 0.8–1.5 keep 4 samples; 2 drops both targets to 2 once; 2.5 and 3 change nothing
 assert.equal(disposed, 2, 'targets are rebuilt only when their sample count changes');
 
 // Execute the real scheduler, stopping immediately before scene updates.

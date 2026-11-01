@@ -27,7 +27,7 @@ let clockPart = 'day';
 let weatherChecks = 0;
 let now = 0;
 const material = () => ({ color: new THREE.Color() });
-const sun = new THREE.DirectionalLight();
+const sun = new THREE.SpotLight();
 const windowLight = new THREE.SpotLight();
 const lampLight = new THREE.PointLight();
 const ambient = new THREE.AmbientLight();
@@ -46,7 +46,7 @@ const context = vm.createContext({
   time: 'auto', TIME_MODES: daylight.TIME_MODES, partFor: (mode) => (daylight.TIME_MODES[mode] && mode !== 'auto' ? mode : clockPart),
   refreshWeather: () => weatherChecks++,
   performance: { now: () => now }, Math: Object.assign(Object.create(Math), { random: () => 0.5 }),
-  deskNeons: [{ strip: {}, washMat: {} }, { strip: {}, washMat: {} }], fitSunShadow() {},
+  deskNeons: [{ strip: {}, washMat: {} }, { strip: {}, washMat: {} }], SKY_REACH: 12, blind: { lift: 1 },
   aimWindowLight: (at, { aimFrom = null, blend = 1 } = {}) => { windowLight.userData.sky = [...at]; windowLight.userData.aim = { aimFrom, blend }; }, aimNow: { elevation: 0.7, across: 0 },
   blindFabric: {}, shadowedNeons: [{}, {}, {}],
   cookieRain: 0, drawGlassCookie() {}, DESK_WASH: 0.45, monitorGlowMat: {}, updateLampGlow() {}, updateLightbar() {}, setLightbar() {}, lightbarState: { power: 0 },
@@ -71,7 +71,14 @@ const clearAmbient = ambient.intensity;
 const clearShadowRadius = windowLight.shadow.radius;
 assert.equal(sun.castShadow, true, 'room bounce retains soft cast shadows on all props outside the direct window patch');
 assert.equal(windowLight.castShadow, true);
-assert.ok(clearDay > sun.intensity * 5, 'window is the dominant direct light');
+assert.ok(clearDay > sun.intensity / context.SKY_REACH * 5, 'window is the dominant direct light');
+const openSky = sun.intensity;
+context.blind.lift = 0;
+update(5);
+assert.ok(sun.intensity < openSky * 0.3, 'the blind drawn down shuts out most of the sky light');
+context.blind.lift = 1;
+update(6);
+assert.equal(sun.intensity, openSky, 'raising it lets the sky back in');
 assert.equal(lampLight.intensity, 0);
 context.outside.rain = 1;
 update(10);
@@ -233,7 +240,7 @@ assert.equal(run('dayPart()'), 'evening', 'a picked part of the day ignores the 
   const windowRay = new THREE.Vector3();
   const light = new THREE.SpotLight();
   const aimContext = vm.createContext({ THREE, windowGroup, windowGlass, windowRay, windowLight: light,
-    sun: new THREE.DirectionalLight(), WINDOW_SUN_FAR: 150, drawGlassCookie() {} });
+    sun: new THREE.SpotLight(), skyAt: new THREE.Vector3(), GLASS: { x: 2.8, y: 2.425 }, WINDOW_SUN_FAR: 150, drawGlassCookie() {} });
   const start = source.indexOf('  function aimWindowLight(');
   vm.runInContext(source.slice(start, source.indexOf('  // The beam through the window:', start)), aimContext);
   const direction = (time) => {
@@ -263,6 +270,12 @@ assert.equal(run('dayPart()'), 'evening', 'a picked part of the day ignores the 
   assert.ok(morning.z < 0 && evening.z > 0, 'sunrise faces the monitor, sunset reaches toward the front');
   assert.ok(Math.abs(midday.y) > Math.abs(morning.y) && Math.abs(midday.y) > Math.abs(evening.y), 'noon gives shorter shadows');
   assert.ok(night.x > 0 && night.y < 0 && night.z > 0, 'moonlight follows the upper-right moon in the window');
+  // The sky's light slides across the opening toward the sun: the room's front by morning, its
+  // back by evening, so the room's soft shadows swing through the day
+  const skyZ = (time) => { aimContext.from = windowSky(time).sun; vm.runInContext('aimWindowLight(from)', aimContext); return aimContext.sun.position.z; };
+  const [skyMorning, skyNoon, skyEvening] = ['morning', 'day', 'evening'].map(skyZ);
+  assert.ok(skyMorning > skyNoon + 1 && skyNoon > skyEvening + 1, 'sky light moves from the front of the window to the back over the day');
+  assert.ok(Math.abs(skyMorning - windowGlass.z) < 2.8 * 2 && Math.abs(skyEvening - windowGlass.z) < 2.8 * 2, 'and stays within the glass');
 }
 // Rain must attenuate and recover correctly in every phase.
 const hoopGlow = {};
@@ -290,20 +303,124 @@ assert.ok(hoopGlow.day[0] > hoopGlow.evening[0] && hoopGlow.evening[0] > hoopGlo
 assert.ok(hoopGlow.day[1] > hoopGlow.evening[1] && hoopGlow.evening[1] > hoopGlow.night[1], 'net darkens towards night');
 
 // Exercise the same per-frame contact update used by the moving mouse and lifted mug.
-const object = { position: { x: 5.6, y: 0, z: -0.6 }, rotation: { y: 0.2 } };
-const plane = { position: {}, rotation: {}, material: {}, scale: { setScalar(value) { this.value = value; } } };
-context.contactShadows = [{ object, plane, baseY: 0, strength: 1 }];
-const contactUpdate = source.slice(source.indexOf('    for (const { object, plane, baseY, strength } of contactShadows)'), source.indexOf('    if (now - lastBlink'));
-vm.runInContext(contactUpdate, context);
-const groundedOpacity = plane.material.opacity;
-assert.equal(plane.position.x, object.position.x);
-assert.equal(plane.position.z, object.position.z);
-object.position.y = 0.7;
-object.position.x += 0.2;
-vm.runInContext(contactUpdate, context);
-assert.equal(plane.position.x, object.position.x);
-assert.ok(plane.material.opacity > 0 && plane.material.opacity < groundedOpacity);
-assert.ok(plane.scale.value > 1);
+{
+  const scene = new THREE.Scene();
+  const windowLight = new THREE.DirectionalLight();
+  scene.add(windowLight.target);
+  // the sky's light, by the window to the left of everything; off until the end
+  const skyLight = new THREE.SpotLight(0xffffff, 0);
+  skyLight.position.set(-8.5, 8.8, 3);
+  // the desk lamp, off, by the window too
+  const lampLight = new THREE.PointLight(0xffffff, 0);
+  lampLight.position.set(-7.2, 2.5, -2.8);
+  scene.add(lampLight);
+  const contact = vm.createContext({
+    THREE, scene, windowLight, track: (o) => o, noRaycast: () => {}, sun: skyLight, SKY_REACH: 12, lampLight,
+    // what the shelf and roaming shades read: the bookcase, the rug and desk they can rest on,
+    // the chair's seat and the cat tree's bed
+    SHELF_W: 3.05, SHELF_D: 1.5, shelf: new THREE.Group(), standOn: (level) => level * 2,
+    rugTop: new THREE.Mesh(new THREE.BoxGeometry(16, 0.01, 17)), desk: new THREE.Mesh(new THREE.BoxGeometry(16, 0.35, 8.4)),
+    chairTop: new THREE.Group(), SEAT_TOP: -2.2, tree: new THREE.Group(), PERCH: new THREE.Vector3(0, 6.6, 0),
+    roomLight: { night: 0 }, outside: { rain: 0 }, blind: { lift: 1 }, FLOOR_Y: -7.4, WALL_Z: -4.43, SIDE_X: -9.6,
+  });
+  vm.runInContext(source.slice(source.indexOf('  const CONTACT_MAX ='), source.indexOf('  contactShadow(mug, ')) +
+    ';globalThis.api = { contactShadow, wallShadow, roamingShadow, shelfShadow, supportUnder, updateContactShadows, contactShadows, contactDecals, contactAlpha };', contact);
+  const { api } = contact;
+  const prop = new THREE.Group();
+  prop.position.set(5.6, 0, -0.6);
+  prop.rotation.y = 0.2;
+  scene.add(prop);
+  const frame = new THREE.Mesh(new THREE.BoxGeometry(2, 1, 0.1));
+  frame.position.set(3, 9, -4.2);
+  scene.add(frame);
+  api.contactShadow(prop, 1.5, 1.5);
+  api.contactShadow(new THREE.Group(), 1, 1);
+  api.wallShadow(frame, 'back', 0.6);
+  assert.equal(api.contactDecals.count, 2, 'one instance each, none for a prop outside the scene');
+  const decal = (i) => {
+    const m = new THREE.Matrix4();
+    api.contactDecals.getMatrixAt(i, m);
+    const at = new THREE.Vector3(), turn = new THREE.Quaternion(), size = new THREE.Vector3();
+    m.decompose(at, turn, size);
+    return { at, size, alpha: api.contactAlpha.getX(i) };
+  };
+  const setSun = (elevation, intensity) => {
+    windowLight.intensity = intensity;
+    windowLight.target.position.set(0, 0, 0);
+    windowLight.position.set(-Math.cos(elevation), Math.sin(elevation), 0).multiplyScalar(20);
+  };
+  // No direct sun: centred under the prop
+  setSun(Math.PI / 4, 0);
+  api.updateContactShadows();
+  const grounded = decal(0);
+  assert.ok(Math.abs(grounded.at.x - prop.position.x) < 1e-6 && Math.abs(grounded.at.z - prop.position.z) < 1e-6);
+  // Noon sun from the window side: darker, nudged away from the window, barely drawn out
+  setSun(Math.PI / 4, 4.1);
+  api.updateContactShadows();
+  const noon = decal(0);
+  assert.ok(noon.alpha > grounded.alpha, 'bright sun deepens the contact');
+  assert.ok(noon.at.x > prop.position.x && noon.at.x - prop.position.x < 0.15 * 1.5 * 1.4, 'falls a little away from the light');
+  // A low sun draws it out further, and keeps it lighter than at noon
+  setSun(Math.PI * 25 / 180, 3.0);
+  api.updateContactShadows();
+  const low = decal(0);
+  assert.ok(low.at.x > noon.at.x && low.alpha < noon.alpha);
+  assert.ok(Math.max(low.size.x, low.size.y) > Math.max(noon.size.x, noon.size.y), 'a low sun stretches it');
+  // The blind down takes the sun away again
+  contact.blind.lift = 0;
+  api.updateContactShadows();
+  assert.ok(Math.abs(decal(0).at.x - prop.position.x) < 1e-6);
+  contact.blind.lift = 1;
+  // Lifted: wider and fainter; hidden: gone
+  prop.position.y = 0.7;
+  setSun(Math.PI / 4, 0);
+  api.updateContactShadows();
+  const lifted = decal(0);
+  assert.ok(lifted.alpha > 0 && lifted.alpha < grounded.alpha && lifted.size.x > grounded.size.x);
+  prop.visible = false;
+  api.updateContactShadows();
+  assert.equal(decal(0).size.x, 0);
+  // The wall decal sits on the wall's face, just under the frame
+  const wall = decal(1);
+  assert.ok(Math.abs(wall.at.z - (-4.43 + 0.13)) < 1e-6 && wall.at.y < frame.position.y && Math.abs(wall.at.x - 3) < 1e-6);
+  assert.ok(wall.size.x > 2 && wall.size.y > 1);
+  // The sky through the window leans each footprint away from it, and firms it up
+  prop.visible = true;
+  prop.position.y = 0;
+  api.updateContactShadows();
+  const still = decal(0);
+  skyLight.intensity = 0.65 * 12;
+  api.updateContactShadows();
+  const leaning = decal(0);
+  assert.ok(leaning.at.x > still.at.x && leaning.at.x - still.at.x < 0.25 * 1.5 * 1.4, 'leans away from the window, by a fraction of its size');
+  assert.ok(Math.max(leaning.size.x, leaning.size.y) > Math.max(still.size.x, still.size.y), 'drawn out the way it leans');
+  assert.ok(leaning.alpha > still.alpha);
+  assert.ok(decal(1).at.x > 3, 'the wall footprint slides along the wall, away from the window');
+  // By night the lit desk lamp takes over as the key: the footprint leans away from it instead
+  skyLight.intensity = 0;
+  contact.roomLight.night = 1;
+  lampLight.intensity = 8;
+  prop.position.set(-5, 0, -2.8);
+  api.updateContactShadows();
+  const byLamp = decal(0);
+  assert.ok(byLamp.at.x > prop.position.x, 'leans away from the lamp at night');
+  assert.ok(grounded.alpha > 0.4, 'bold enough to read: darkest at the contact by day');
+  // A roaming prop's shade lies on the highest surface below it: the desk's top over the desk,
+  // the rug beside it, and fades as the prop rises
+  contact.FLOOR_Y = -7.4;
+  assert.ok(Math.abs(api.supportUnder(0, 3, 0) - 0.175) < 1e-6, 'over the desk: its top');
+  assert.ok(Math.abs(api.supportUnder(0, 0.1, 0) - 0.005) < 1e-6, 'under the desk: the rug');
+  assert.equal(api.supportUnder(20, 3, 20), -7.4, 'off both: the floor');
+  // A shelf prop's shade is trimmed to the board: never past its front edge
+  const box = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.6, 1.2));
+  box.position.set(0, 0.3, 0.5);
+  contact.shelf.add(box);
+  scene.add(contact.shelf);
+  api.shelfShadow([box], 0, 1);
+  api.updateContactShadows();
+  const shelfDecal = decal(api.contactDecals.count - 1);
+  assert.ok(shelfDecal.at.z + shelfDecal.size.y / 2 <= 0.75 + 1e-6, 'stays on the board');
+}
 console.log('Day/night light-source and shadow switching checks passed.');
 
 // Shelf lighting stays aligned in one hue; animation is reserved for the cheat-code party.

@@ -277,6 +277,7 @@ export function createLamp(runtime) {
   return {
     radial,
     lamp,
+    LAMP_BASE,
     lampLight,
     jointMat,
     familyPhoto,

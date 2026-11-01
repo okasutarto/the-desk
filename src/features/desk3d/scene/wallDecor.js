@@ -184,6 +184,7 @@ export function createWallDecor(runtime) {
 
   // Public state used by the other scene parts.
   return {
+    rugTop,
     paintingHang,
     clock,
     updateRoomClock,

@@ -47,11 +47,13 @@ export function createStrawHat(runtime) {
   const HAT_SCALE = 2.7;
   const HAT_OFF_WALL = 0.12;
   // The cord is tied either side of the crown's base, 40 degrees off its top, with a little
-  // knot at each tie; it hangs the hat a hand's length below the nail
+  // knot at each tie; it hangs the hat far enough below the nail that the brim's top edge
+  // clears it by 2.5 cm, so neither the nail nor the cord runs through the brim
   const TIE_ANGLE = (40 * Math.PI) / 180;
   const TIE_X = 0.42 * Math.sin(TIE_ANGLE);
   const TIE_UP = 0.42 * Math.cos(TIE_ANGLE);
-  const HAT_DROP = TIE_UP * HAT_SCALE + 1.0;
+  const BRIM_R = 0.74 + 0.03;
+  const HAT_DROP = BRIM_R * HAT_SCALE + 0.25;
   const hung = runtime.core.at(strawHat, 0, -HAT_DROP, HAT_OFF_WALL);
   hung.rotation.x = Math.PI / 2;
   hung.scale.setScalar(HAT_SCALE);
@@ -63,15 +65,17 @@ export function createStrawHat(runtime) {
     knot.position.set(side * TIE_X, 0.075, -TIE_UP);
     strawHat.add(knot);
   });
-  // Its cord: from each tie, taut up to the nail, and draped over the top of it
+  // Its cord: from each tie, taut up to the nail, and draped over the top of it, out near the
+  // nail's head, in front of the brim's plane
   const CORD_TOP = 0.065;
+  const CORD_OUT = 0.34;
   const tie = (side) => new THREE.Vector3(side * TIE_X * HAT_SCALE, -HAT_DROP + TIE_UP * HAT_SCALE, HAT_OFF_WALL + 0.075 * HAT_SCALE);
-  const overNail = (side) => new THREE.Vector3(side * 0.07, 0.02, 0.22);
+  const overNail = (side) => new THREE.Vector3(side * 0.07, 0.02, CORD_OUT);
   const hatCord = new THREE.CatmullRomCurve3([
     tie(-1),
     tie(-1).lerp(overNail(-1), 0.5),
     overNail(-1),
-    new THREE.Vector3(0, CORD_TOP, 0.22),
+    new THREE.Vector3(0, CORD_TOP, CORD_OUT),
     overNail(1),
     tie(1).lerp(overNail(1), 0.5),
     tie(1),

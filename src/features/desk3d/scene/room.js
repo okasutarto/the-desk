@@ -106,7 +106,15 @@ export function createRoom(runtime) {
   const wallGradient = runtime.core.track(new THREE.DataTexture(Uint8Array.from({ length: 256 }, (_, i) => Math.round(70 + i * 185 / 255)), 256, 1, THREE.RedFormat));
   wallGradient.minFilter = wallGradient.magFilter = THREE.LinearFilter;
   wallGradient.needsUpdate = true;
-  backWallMat.gradientMap = sideWallMat.gradientMap = wallGradient;
+  backWallMat.gradientMap = wallGradient;
+  // The same, but the window wall takes no light from behind: the ramp wraps a little round
+  // onto faces turned away from a lamp, and the sun outside glowed through this wall in a band
+  // above the window, past the reach of the beam's own shadow. Unlit from behind, the same
+  // response facing the room (where the ramp crosses dotNL = 0 at index 128).
+  const sideWallGradient = runtime.core.track(new THREE.DataTexture(Uint8Array.from({ length: 256 }, (_, i) => i < 120 ? 0 : Math.round((70 + i * 185 / 255) * Math.min(1, (i - 120) / 8))), 256, 1, THREE.RedFormat));
+  sideWallGradient.minFilter = sideWallGradient.magFilter = THREE.LinearFilter;
+  sideWallGradient.needsUpdate = true;
+  sideWallMat.gradientMap = sideWallGradient;
   sideWallMat.map = sideWallPaint;
   const trimMat = runtime.core.toon("#ffffff");
   const roomBox = (w, h, d, material, x, y, z, outline = 0.055) => {
@@ -181,8 +189,9 @@ export function createRoom(runtime) {
 
   // On a portrait screen the room is a diorama instead: the same two walls and floor cut off
   // just past the furniture, standing on a thick slab, the whole of it framed on the page's
-  // own background (see SHOTS.overview), with a pinch to look closer
-  const DIORAMA = { x0: SIDE_X - 0.12, x1: 24.5, z0: WALL_Z - 0.12, z1: 15.0, top: 23.0, slab: 0.9 };
+  // own background (see SHOTS.overview), with a pinch to look closer. The side wall runs on far
+  // enough to take in the straw hat, its brim reaching to about z = 21.7, beyond the guitar.
+  const DIORAMA = { x0: SIDE_X - 0.12, x1: 24.5, z0: WALL_Z - 0.12, z1: 22.5, top: 23.0, slab: 0.9 };
   const slabMat = runtime.core.toon("#3a332c");
   // A box whose faces tile their texture as the endless room's do (one unit is one unit)
   const dioramaBox = (w, h, d, material, x, y, z, uvScale, outline = 0.055) => {
@@ -581,6 +590,7 @@ export function createRoom(runtime) {
 
   // Public state used by the other scene parts.
   return {
+    desk,
     windowGroup,
     windowShadow,
     WINDOW_DEPTH,

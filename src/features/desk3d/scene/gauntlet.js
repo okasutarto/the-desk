@@ -152,72 +152,138 @@ export function createGauntlet(runtime) {
       Math.sin(angle) * 0.33, 0.207, Math.cos(angle) * 0.33 * 0.8, 0.6));
   }
   // Two overlapping lames close round the wrist, each flaring a little over the one below, like
-  // the reference's smooth layered wrist (no plates jutting out to the sides)
+  // layered wrist beneath the flared side guards
   [[0.7, 0.79, 0.27, 0.252], [0.775, 0.875, 0.264, 0.248]].forEach(([y0, y1, r0, r1]) => {
     const lameProfile = [[r0 - 0.014, y0], [r0, y0], [r0 - 0.002, y0 + 0.012], [r1, y1], [r1 - 0.014, y1], [r0 - 0.014, y0]].map(([r, y]) => new THREE.Vector2(r, y));
     const lame = runtime.core.mesh(new THREE.LatheGeometry(lameProfile, 40), glove, { outline: 0.008 });
     lame.scale.z = 0.8;
     glovePart.add(lame);
   });
+  // Flared wrist guards: broad curved wings with an open channel for the centre strip.
+  const wristWings = [];
+  [-1, 1].forEach((side) => {
+    const wing = new THREE.Shape();
+    wing.moveTo(0.105, 0.72);
+    wing.quadraticCurveTo(0.14, 0.85, 0.15, 0.965);
+    wing.quadraticCurveTo(0.205, 1.01, 0.242, 1.035);
+    wing.quadraticCurveTo(0.255, 0.845, 0.385, 0.735);
+    wing.quadraticCurveTo(0.28, 0.685, 0.13, 0.675);
+    wing.closePath();
+    const geometry = new THREE.ExtrudeGeometry(wing, { depth: 0.016, bevelEnabled: true, bevelSize: 0.005, bevelThickness: 0.003, bevelSegments: 2, curveSegments: 16, steps: 1 });
+    // Wrap each plate back around the wrist rather than leaving a flat cutout on the front.
+    const vertices = geometry.attributes.position;
+    for (let i = 0; i < vertices.count; i++) {
+      const x = vertices.getX(i);
+      vertices.setXYZ(i, side * x, vertices.getY(i), vertices.getZ(i) + 0.232 - (x - 0.105) * 0.5);
+    }
+    // Mirroring reverses winding; reverse the triangles so both guards face outward.
+    if (side < 0) {
+      for (let i = 0; i < vertices.count; i += 3) {
+        for (const attribute of Object.values(geometry.attributes)) {
+          for (let k = 0; k < attribute.itemSize; k++) {
+            const first = attribute.array[i * attribute.itemSize + k];
+            attribute.array[i * attribute.itemSize + k] = attribute.array[(i + 2) * attribute.itemSize + k];
+            attribute.array[(i + 2) * attribute.itemSize + k] = first;
+          }
+        }
+      }
+    }
+    geometry.computeVertexNormals();
+    const guard = runtime.core.mesh(geometry, glove, { outline: 0.007 });
+    glovePart.add(guard);
+    wristWings.push(guard);
+    const trim = [[0.12, 0.722], [0.153, 0.85], [0.166, 0.962], [0.229, 1.01], [0.26, 0.854], [0.361, 0.74], [0.272, 0.709], [0.143, 0.693]];
+    engrave(trim.map(([x, y]) => [side * x, y, 0.255 - (x - 0.105) * 0.5]), gloveLight, 0.004);
+  });
   // A narrow grooved strip down the middle of the wrist, from the hand plate to the arch's tip
   const wristStrip = runtime.core.at(runtime.core.mesh(runtime.core.rbox(0.048, 0.19, 0.018, 0.008), glove, { outline: 0.005 }), 0, 0.78, 0.207);
   wristStrip.rotation.x = -0.1;
   glovePart.add(wristStrip);
-  engrave([[0, -0.08, 0.01], [0, 0.08, 0.01]], gloveDark, 0.0035, wristStrip);
-  for (let i = 0; i < 3; i++) wristStrip.add(runtime.core.at(runtime.core.mesh(runtime.core.rbox(0.03, 0.004, 0.004, 0.0015), gloveDark, { outline: 0, cast: false }), 0, -0.05 + i * 0.05, 0.01));
+  // A chain of engraved oval loops down the strip
+  [-0.055, 0, 0.055].forEach((y) => engrave([[0, y - 0.022, 0.01], [0.011, y, 0.01], [0, y + 0.022, 0.01], [-0.011, y, 0.01], [0, y - 0.022, 0.01]], gloveDark, 0.003, wristStrip));
   // Wrist, the back of the hand, and the knuckle bar
   const wrist = runtime.core.mesh(new THREE.CylinderGeometry(0.245, 0.245, 0.07, 24), gloveDark, { outline: 0.012 });
   wrist.position.y = 0.84;
   wrist.scale.z = 0.8;
   glovePart.add(wrist, runtime.core.at(runtime.core.mesh(runtime.core.rbox(0.5, 0.46, 0.22, 0.07), glove, { outline: 0.012 }), 0, 1.1, 0));
   glovePart.add(runtime.core.at(runtime.core.mesh(runtime.core.rbox(0.53, 0.09, 0.25, 0.03), gloveDark, { outline: 0.012 }), 0, 1.34, 0));
-  // Swept cheek guards follow the round centre setting instead of rectangular appliqués.
+  // One broad plate over the back of the hand, recessed round the centre setting: straight
+  // flanks, a rounded heel at each lower corner, then a long sweep down to the wrist strip
+  const handPlate = new THREE.Shape();
+  handPlate.moveTo(0.095, 1.29);
+  handPlate.quadraticCurveTo(0.18, 1.26, 0.235, 1.31);
+  handPlate.quadraticCurveTo(0.255, 1.13, 0.25, 0.96);
+  handPlate.quadraticCurveTo(0.248, 0.905, 0.2, 0.9);
+  handPlate.quadraticCurveTo(0.07, 0.884, 0, 0.878);
+  handPlate.quadraticCurveTo(-0.07, 0.884, -0.2, 0.9);
+  handPlate.quadraticCurveTo(-0.248, 0.905, -0.25, 0.96);
+  handPlate.quadraticCurveTo(-0.255, 1.13, -0.235, 1.31);
+  handPlate.quadraticCurveTo(-0.18, 1.26, -0.095, 1.29);
+  handPlate.quadraticCurveTo(-0.15, 1.2, -0.13, 1.1);
+  handPlate.quadraticCurveTo(-0.125, 0.975, 0, 0.962);
+  handPlate.quadraticCurveTo(0.125, 0.975, 0.13, 1.1);
+  handPlate.quadraticCurveTo(0.15, 1.2, 0.095, 1.29);
+  const plate = runtime.core.mesh(new THREE.ExtrudeGeometry(handPlate, { depth: 0.014, bevelEnabled: true, bevelSize: 0.006, bevelThickness: 0.003, bevelSegments: 2, steps: 1, curveSegments: 16 }), glove, { outline: 0.008 });
+  plate.position.z = 0.113;
+  glovePart.add(plate);
+  // A raised rim just inside the plate's flanks and lower edge
+  const rim = [[0.225, 1.28], [0.236, 1.1], [0.235, 0.96], [0.222, 0.924], [0.19, 0.917], [0.07, 0.901], [0, 0.897]];
+  engrave([...rim.map(([x, y]) => [-x, y, 0.134]), ...rim.reverse().slice(1).map(([x, y]) => [x, y, 0.134])], gloveLight, 0.004);
+  // Relief work stands proud of the plate, its toon outline drawing the edges
+  const relief = (shape, depth = 0.008) => {
+    const piece = runtime.core.mesh(new THREE.ExtrudeGeometry(shape, { depth, bevelEnabled: true, bevelSize: 0.003, bevelThickness: 0.002, bevelSegments: 1, steps: 1, curveSegments: 12 }), gloveLight, { outline: 0.004, cast: false });
+    piece.position.z = 0.128;
+    glovePart.add(piece);
+    return piece;
+  };
+  const band = (x0, y0, x1, y1) => {
+    const length = Math.hypot(x1 - x0, y1 - y0);
+    glovePart.add(runtime.core.at(runtime.core.mesh(runtime.core.rbox(length + 0.018, 0.018, 0.01, 0.003), gloveLight, { outline: 0.004, cast: false }),
+      (x0 + x1) / 2, (y0 + y1) / 2, 0.134, Math.atan2(y1 - y0, x1 - x0)));
+  };
   [-1, 1].forEach((side) => {
-    const cheek = new THREE.Shape();
-    cheek.moveTo(side * 0.095, 1.29);
-    cheek.quadraticCurveTo(side * 0.18, 1.26, side * 0.235, 1.31);
-    cheek.quadraticCurveTo(side * 0.25, 1.13, side * 0.25, 0.93);
-    cheek.lineTo(side * 0.12, 0.98);
-    cheek.quadraticCurveTo(side * 0.07, 1.025, side * 0.095, 1.08);
-    cheek.quadraticCurveTo(side * 0.155, 1.17, side * 0.095, 1.29);
-    const plate = runtime.core.mesh(new THREE.ExtrudeGeometry(cheek, { depth: 0.014, bevelEnabled: true, bevelSize: 0.006, bevelThickness: 0.003, bevelSegments: 2, steps: 1, curveSegments: 12 }), glove, { outline: 0.008 });
-    plate.position.z = 0.113;
-    glovePart.add(plate);
-    engrave([[side * 0.225, 1.28, 0.137], [side * 0.236, 1.1, 0.137], [side * 0.238, 0.952, 0.137], [side * 0.13, 0.996, 0.137]], gloveLight, 0.004);
+    // A crescent horn sweeping out and down round the stone's upper half
+    const horn = new THREE.Shape();
+    horn.moveTo(side * 0.1, 1.262);
+    horn.quadraticCurveTo(side * 0.205, 1.215, side * 0.195, 1.045);
+    horn.lineTo(side * 0.165, 1.045);
+    horn.quadraticCurveTo(side * 0.172, 1.185, side * 0.1, 1.232);
+    horn.closePath();
+    relief(horn);
+    // An angular bracket below it: out from the setting, straight down, then slanting back in
+    // toward the rivet, with a smaller bracket nested inside
+    band(side * 0.125, 1.035, side * 0.215, 1.035);
+    band(side * 0.215, 1.035, side * 0.215, 0.978);
+    band(side * 0.215, 0.978, side * 0.055, 0.918);
+    band(side * 0.135, 0.998, side * 0.172, 0.998);
+    band(side * 0.172, 0.998, side * 0.172, 0.975);
+    band(side * 0.172, 0.975, side * 0.115, 0.954);
   });
   const mindSurround = runtime.core.mesh(new THREE.TorusGeometry(0.111, 0.008, 6, 48), gloveDark, { outline: 0 });
   mindSurround.scale.y = 1.12;
   mindSurround.position.set(0, 1.1, 0.132);
   glovePart.add(mindSurround);
-  for (let i = 0; i < 16; i++) {
-    const angle = i * Math.PI / 8;
-    const tick = runtime.core.at(runtime.core.mesh(runtime.core.rbox(0.007, 0.019, 0.005, 0.002), gloveLight, { outline: 0, cast: false }), Math.sin(angle) * 0.11, 1.1 + Math.cos(angle) * 0.124, 0.14, -angle);
-    glovePart.add(tick);
+  // A ring of beads round the centre setting
+  for (let i = 0; i < 24; i++) {
+    const angle = i * Math.PI / 12;
+    const bead = new THREE.Mesh(rivetGeo, gloveLight);
+    bead.scale.setScalar(0.55);
+    bead.position.set(Math.sin(angle) * 0.111, 1.1 + Math.cos(angle) * 0.124, 0.14);
+    glovePart.add(bead);
   }
-  // A low engraved frame curving round the centre stone, from the knuckle bosses down to a point
-  // under it: grooves cut into the plate, not raised wings
-  [-1, 1].forEach((side) => {
-    engrave([[side * 0.1, 1.275], [side * 0.158, 1.19], [side * 0.165, 1.09], [side * 0.115, 0.995], [side * 0.03, 0.958]].map(([x, y]) => [x, y, 0.136]), gloveDark, 0.0055);
-    engrave([[side * 0.118, 1.272], [side * 0.176, 1.19], [side * 0.183, 1.09], [side * 0.13, 0.99], [side * 0.04, 0.945]].map(([x, y]) => [x, y, 0.137]), gloveLight, 0.0035);
-  });
   // A short ribbed upright joins the centre setting to the knuckle bar
   const stoneNeck = runtime.core.at(runtime.core.mesh(runtime.core.rbox(0.032, 0.085, 0.02, 0.008), glove, { outline: 0.005 }), 0, 1.245, 0.12);
   glovePart.add(stoneNeck);
   for (let i = 0; i < 4; i++) stoneNeck.add(runtime.core.at(runtime.core.mesh(runtime.core.rbox(0.024, 0.005, 0.005, 0.002), gloveDark, { outline: 0, cast: false }), 0, -0.03 + i * 0.02, 0.011));
-  const arch = new THREE.Shape();
-  arch.moveTo(-0.07, 0.97);
-  arch.lineTo(0, 0.9);
-  arch.lineTo(0.07, 0.97);
-  arch.lineTo(0.04, 0.985);
-  arch.lineTo(0, 0.945);
-  arch.lineTo(-0.04, 0.985);
-  arch.closePath();
-  const archPlate = runtime.core.mesh(new THREE.ExtrudeGeometry(arch, { depth: 0.012, bevelEnabled: true, bevelSize: 0.004, bevelThickness: 0.003, bevelSegments: 1, steps: 1 }), gloveLight, { outline: 0.005 });
-  archPlate.position.z = 0.118;
-  glovePart.add(archPlate);
-  const archRivet = new THREE.Mesh(rivetGeo, gloveDark);
-  archRivet.position.set(0, 0.93, 0.138);
-  glovePart.add(archRivet);
+  // A single domed rivet under the centre setting
+  const mindRivet = new THREE.Mesh(rivetGeo, gloveLight);
+  mindRivet.scale.setScalar(1.6);
+  mindRivet.position.set(0, 0.942, 0.136);
+  glovePart.add(mindRivet);
+  // A raised strip below the rivet meets the engraved wrist strip.
+  const plateStrip = runtime.core.at(runtime.core.mesh(runtime.core.rbox(0.056, 0.07, 0.016, 0.006), glove, { outline: 0.005 }), 0, 0.886, 0.13);
+  glovePart.add(plateStrip);
+  engrave([[0, -0.02, 0.009], [0.01, 0, 0.009], [0, 0.02, 0.009], [-0.01, 0, 0.009], [0, -0.02, 0.009]], gloveDark, 0.003, plateStrip);
   // An armoured finger segment: a gold capsule whose round ends overlap its neighbours', so a
   // bent finger stays in one piece, with a dark plate ring around the joint at its base
   const fingerSegment = (radius, length, ring = true) => {
@@ -436,7 +502,7 @@ export function createGauntlet(runtime) {
       object.position.copy(centre).addScaledVector(position.clone().sub(centre), shrink.k);
     };
     gsap.to(shrink, { k: 0, delay: delay + 0.3, duration: 1.1, ease: "power2.in", onUpdate: apply });
-    if (shadow) gsap.to(shadow.plane.scale, { x: 0.001, y: 0.001, z: 0.001, delay: delay + 0.6, duration: 0.8 });
+    if (shadow) gsap.to(shadow, { size: 0.001, delay: delay + 0.6, duration: 0.8 });
     // ...and back again, exactly where it was
     runtime.core.timers.push(setTimeout(() => {
       gsap.to(shrink, {
@@ -446,7 +512,7 @@ export function createGauntlet(runtime) {
           object.position.copy(position);
         },
       });
-      if (shadow) gsap.to(shadow.plane.scale, { x: 1, y: 1, z: 1, duration: 0.6 });
+      if (shadow) gsap.to(shadow, { size: 1, duration: 0.6 });
     }, (delay + 4.2) * 1000));
   }
   const snapPoint = new THREE.Vector3();

@@ -8,9 +8,10 @@ export function installSceneShaders(benchmark, lowPower = false) {
   if (benchmark !== "no-pcss" && !THREE.ShaderChunk.shadowmap_pars_fragment.includes("pcssShadow")) {
     const pcss = `
       // a quick search for what's in the way, then a finer filter sized by how far it is
-      // (half as many on phones, where the coarser grain hides in the smaller pixels)
+      // (fewer on phones, where the coarser grain hides in the smaller pixels; on a desktop
+      // screen the wide, faint penumbrae on pale walls show grain below about two dozen)
       #define PCSS_SEARCH ${lowPower ? 4 : 8}
-      #define PCSS_SAMPLES ${lowPower ? 6 : 12}
+      #define PCSS_SAMPLES ${lowPower ? 6 : 24}
       // Five taps across the widest blur first: all lit, or all blocked, means this pixel is
       // nowhere near a shadow's edge, and only the edges (a sliver of the screen) pay for the rest
       const vec2 PCSS_PROBES[ 4 ] = vec2[]( vec2( 1.0, 0.0 ), vec2( -1.0, 0.0 ), vec2( 0.0, 1.0 ), vec2( 0.0, -1.0 ) );
@@ -36,7 +37,10 @@ export function installSceneShaders(benchmark, lowPower = false) {
         }
         if ( blockers == 0.0 ) return 1.0;
         float spread = smoothstep( 0.0, PCSS_RANGE, coord.z - blockerDepth / blockers );
-        float radius = mix( 1.0, shadowRadius, spread );
+        // Never narrower than a quarter of the widest blur: where a light rakes across a surface
+        // (the window's light along the back wall) one texel stretches into a long step, and a
+        // prop a hand's width off the wall would show those steps as a jagged staircase
+        float radius = mix( max( 1.0, shadowRadius * 0.25 ), shadowRadius, spread );
         float lit = 0.0;
         for ( int i = 0; i < PCSS_SAMPLES; i ++ ) {
           lit += texture2DCompare( shadowMap, coord.xy + pcssDisk( i, PCSS_SAMPLES, spin ) * radius * texel, coord.z );
@@ -69,7 +73,7 @@ export function installSceneShaders(benchmark, lowPower = false) {
         if ( blockers == 0.0 ) return 1.0;
         blockerDepth /= blockers;
         float spread = smoothstep( 0.0, 1.0, ( dp - blockerDepth ) / max( blockerDepth, 1e-3 ) );
-        float radius = mix( 1.0, shadowRadius, spread ) * texelY;
+        float radius = mix( max( 1.0, shadowRadius * 0.25 ), shadowRadius, spread ) * texelY;
         float lit = 0.0;
         for ( int i = 0; i < PCSS_SAMPLES; i ++ ) {
           vec2 o = pcssDisk( i, PCSS_SAMPLES, spin ) * radius;
