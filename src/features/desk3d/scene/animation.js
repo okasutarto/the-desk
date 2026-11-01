@@ -64,9 +64,11 @@ export function createAnimation(runtime) {
   let frameMs = 16;
   const postDensity = () => runtime.core.renderer.getPixelRatio();
   function sizeComposer() {
-    // At 2× and up the pixels are small enough to hide stair-steps, and multisampling a Retina
-    // frame costs more memory traffic than an integrated GPU can spare
-    const samples = postDensity() >= 2 ? 0 : 4;
+    // At 2× and up the pixels are small enough to hide stair-steps, and full multisampling of a
+    // Retina frame costs more memory traffic than an integrated GPU can spare; it keeps the
+    // minimum, two, because the occlusion reads the frame's depth through the multisampled
+    // target's resolved copy (without one it drew nothing: a blank room on moving to a 2× screen)
+    const samples = postDensity() >= 2 ? 2 : 4;
     [runtime.core.composer.renderTarget1, runtime.core.composer.renderTarget2].forEach((target) => {
       if (target.samples === samples) return;
       target.samples = samples;
