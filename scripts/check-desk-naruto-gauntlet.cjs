@@ -5,7 +5,7 @@ const THREE = require('three');
 const source = require('./helpers/desk-source.cjs').readDeskSource();
 // Build the reference-inspired armour with real Three.js geometry, without a renderer.
 const armour = vm.runInNewContext(
-  source.slice(source.indexOf('  const glove = toon('), source.indexOf('  const stoneTint =')) + '; ({ glovePart, forearm, fingers, thumb, stones })', {
+  source.slice(source.indexOf('  const glove = toon('), source.indexOf('  const stoneTint =')) + '; ({ glovePart, forearm, fingers, thumb, stones, wristWings })', {
     THREE, gauntlet: new THREE.Group(), track: (value) => value,
     toon: (color) => new THREE.MeshToonMaterial({ color }),
     mesh: (geometry, material) => new THREE.Mesh(geometry, material),
@@ -25,6 +25,14 @@ armour.glovePart.updateMatrixWorld(true);
 const armourBounds = new THREE.Box3().setFromObject(armour.glovePart, true);
 assert.ok(armourBounds.min.toArray().every(Number.isFinite) && armourBounds.max.toArray().every(Number.isFinite),
   'curved armour and engraved geometry stay finite while the fingers bend');
+// Both wrist guards remain symmetric, solid and wider than the wrist itself.
+assert.equal(armour.wristWings.length, 2);
+const wingBounds = armour.wristWings.map((wing) => new THREE.Box3().setFromObject(wing));
+assert.ok(wingBounds[0].min.x < -0.38 && wingBounds[1].max.x > 0.38);
+assert.ok(Math.abs(wingBounds[0].min.x + wingBounds[1].max.x) < 1e-6);
+for (const wing of armour.wristWings) {
+  assert.ok(Array.from(wing.geometry.attributes.normal.array).every(Number.isFinite));
+}
 let handler;
 const glovePart = new THREE.Group();
 const targets = [];

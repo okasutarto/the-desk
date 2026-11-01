@@ -24,6 +24,42 @@ let glassCopy = null;
 const GLASS_DROPS = Array.from({ length: 22 }, (_, i) => ({ x: (i * 0.383 + 0.07) % 1, y: (i * 0.617) % 1, r: 1.1 + ((i * 0.29) % 1) * 1.5, v: 0.004 + ((i * 0.53) % 1) * 0.02 }));
 // Fine beads of water stuck to the glass between the drops
 const GLASS_BEADS = Array.from({ length: 70 }, (_, i) => ({ x: (i * 0.6180339 + 0.11) % 1, y: (i * 0.4142 + 0.37) % 1, r: 0.2 + ((i * 0.7071) % 1) * 0.3 }));
+// Sample smooth, asymmetric ridgelines once; only the painted projection changes each frame.
+const ridgeline = (points, rough) => Array.from({ length: 161 }, (_, i) => {
+  const x = i / 160;
+  let j = 0;
+  while (j < points.length - 2 && x > points[j + 1][0]) j++;
+  const p0 = points[Math.max(0, j - 1)];
+  const p1 = points[j];
+  const p2 = points[j + 1];
+  const p3 = points[Math.min(points.length - 1, j + 2)];
+  const t = (x - p1[0]) / (p2[0] - p1[0]);
+  const span = p2[0] - p1[0];
+  const m1 = (p2[1] - p0[1]) / (p2[0] - p0[0]) * span;
+  const m2 = (p3[1] - p1[1]) / (p3[0] - p1[0]) * span;
+  const y = (2 * t ** 3 - 3 * t ** 2 + 1) * p1[1] + (t ** 3 - 2 * t ** 2 + t) * m1
+    + (-2 * t ** 3 + 3 * t ** 2) * p2[1] + (t ** 3 - t ** 2) * m2;
+  return [x, y + rough * (Math.sin(x * 73) * 0.6 + Math.sin(x * 137 + 2) * 0.4)];
+});
+const FAR_RIDGE = ridgeline([
+  [0, 0.42], [0.08, 0.37], [0.2, 0.41], [0.36, 0.3], [0.52, 0.4],
+  [0.68, 0.31], [0.86, 0.39], [1, 0.34],
+], 0.0015);
+const RIDGE = ridgeline([
+  [0, 0.46], [0.075, 0.395], [0.14, 0.34], [0.2, 0.395], [0.3, 0.5],
+  [0.38, 0.445], [0.45, 0.38], [0.52, 0.435], [0.62, 0.52],
+  [0.72, 0.415], [0.8, 0.36], [0.88, 0.405], [1, 0.48],
+], 0.002);
+// Where along the ridge the three peaks top out
+const RIDGE_PEAKS = [0.14, 0.45, 0.8].map((px) => {
+  let i = Math.round(px * (RIDGE.length - 1));
+  while (i > 0 && RIDGE[i - 1][1] < RIDGE[i][1]) i--;
+  while (i < RIDGE.length - 1 && RIDGE[i + 1][1] < RIDGE[i][1]) i++;
+  return i;
+});
+// Leafy lumps making up a round tree's crown ([x, y, size] in crown radii), and a cloud's puffs
+const CROWN = [[-0.78, 0.42, 0.48], [0.74, 0.46, 0.46], [-0.08, 0.56, 0.54], [-0.58, -0.18, 0.62], [0.52, -0.16, 0.66], [-0.12, -0.72, 0.68], [0.36, -1.02, 0.42]];
+const PUFFS = [[-0.62, 0.06, 0.36], [-0.28, -0.16, 0.5], [0.16, -0.26, 0.6], [0.56, -0.04, 0.44], [0.86, 0.1, 0.28]];
 // The sky through the day: top band, middle, horizon; the sun's height, colour and side
 const SKIES = {
   morning: { sky: ["#ffb98a", "#ffd4a8", "#fff0d6"], sun: [0.32, 0.30, "#ffcf5c"], cloud: "#fff3e3" },
@@ -60,20 +96,45 @@ export function drawWindowView(c, w, h, { t = 0, time = "day", rain = 0, glass =
     c.strokeStyle = color;
     c.stroke();
   };
-  // A union of circles (and rects) with one clean outline and a hard shadow: drawn three times,
-  // shadow, then grown by the line width in black, then the fill on top
+  // A closed curve run smoothly through points (Catmull-Rom as beziers)
+  const closedCurve = (pts) => {
+    const n = pts.length;
+    c.moveTo(pts[0][0], pts[0][1]);
+    for (let i = 0; i < n; i++) {
+      const [p0, p1, p2, p3] = [pts[(i + n - 1) % n], pts[i], pts[(i + 1) % n], pts[(i + 2) % n]];
+      c.bezierCurveTo(p1[0] + (p2[0] - p0[0]) / 6, p1[1] + (p2[1] - p0[1]) / 6, p2[0] - (p3[0] - p1[0]) / 6, p2[1] - (p3[1] - p1[1]) / 6, p2[0], p2[1]);
+    }
+  };
+  // One part of a blob: a circle `[x, y, r]`, a rect `[x, y, 0, rw, rh]`, or an organic lump
+  // `{ x, y, r, sy, seed, wob }` whose edge swells and dips a little all the way round (`sy`
+  // squashes it), so a cluster of them reads drawn by hand rather than with compasses
+  const partPath = (p, dx, dy, grow, scale = 1) => {
+    if (!Array.isArray(p)) {
+      const { x, y, r, sy = 1, seed = 0, wob = 0.1 } = p;
+      const pts = [];
+      for (let k = 0; k < 9; k++) {
+        const a = (k / 9) * Math.PI * 2 + seed;
+        const m = r * scale * (1 + wob * (Math.sin(seed * 3.1 + k * 2.3) * 0.6 + Math.sin(seed * 1.7 + k * 4.1) * 0.4));
+        pts.push([x + dx + Math.cos(a) * (m + grow), y + dy + Math.sin(a) * (m * sy + grow)]);
+      }
+      closedCurve(pts);
+      return;
+    }
+    const [x, y, r, rw, rh] = p;
+    if (rw) c.rect(x + dx - grow, y + dy - grow, rw + grow * 2, rh + grow * 2);
+    else {
+      c.moveTo(x + dx + r * scale + grow, y + dy);
+      c.arc(x + dx, y + dy, r * scale + grow, 0, Math.PI * 2);
+    }
+  };
+  // A union of parts with one clean outline and a hard shadow: drawn three times, shadow, then
+  // grown by the line width in black, then the fill on top
   const blob = (parts, fill, shadow = line * 1.4) => {
     [[shadow, shadow, 0, "#000"], [0, 0, line, "#000"], [0, 0, 0, fill]].forEach(([dx, dy, grow, color]) => {
       if (color === "#000" && dx && !shadow) return;
       c.fillStyle = color;
       c.beginPath();
-      parts.forEach(([x, y, r, rw, rh]) => {
-        if (rw) c.rect(x + dx - grow, y + dy - grow, rw + grow * 2, rh + grow * 2);
-        else {
-          c.moveTo(x + dx + r + grow, y + dy);
-          c.arc(x + dx, y + dy, r + grow, 0, Math.PI * 2);
-        }
-      });
+      parts.forEach((p) => partPath(p, dx, dy, grow));
       c.fill();
     });
   };
@@ -96,15 +157,9 @@ export function drawWindowView(c, w, h, { t = 0, time = "day", rain = 0, glass =
     const gust = behind > 0 ? (1 - Math.exp(-behind * 40)) * Math.exp(-behind * 5) * Math.cos(behind * 14) : 0;
     return (breeze + gust * 1.1) * (1 + rain * 0.8);
   };
-  const lumps = (parts, dx = 0, dy = 0, grow = 1) => {
+  const lumps = (parts, dx = 0, dy = 0, scale = 1) => {
     c.beginPath();
-    parts.forEach(([x, y, r, rw, rh]) => {
-      if (rw) c.rect(x + dx, y + dy, rw, rh);
-      else {
-        c.moveTo(x + dx + r * grow, y + dy);
-        c.arc(x + dx, y + dy, r * grow, 0, Math.PI * 2);
-      }
-    });
+    parts.forEach((p) => partPath(p, dx, dy, 0, scale));
   };
   // A blob in two tones: its own colour where the light reaches, shade in the crescent beneath
   // and away from the sun, and a small sheen on the bigger lumps facing it
@@ -119,12 +174,13 @@ export function drawWindowView(c, w, h, { t = 0, time = "day", rain = 0, glass =
     c.fillStyle = color;
     c.fill();
     c.beginPath();
-    parts.forEach(([x, y, r, rw]) => {
-      if (rw || r < size * 0.3) return;
+    parts.forEach((p) => {
+      const { x, y, r, rw, sy = 1 } = Array.isArray(p) ? { x: p[0], y: p[1], r: p[2], rw: p[3] } : p;
+      if (rw || r < size * 0.45) return;
       const hx = x + lightSide * r * 0.38;
-      const hy = y - r * 0.45;
-      c.moveTo(hx + r * 0.22, hy);
-      c.ellipse(hx, hy, r * 0.22, r * 0.12, 0, 0, Math.PI * 2);
+      const hy = y - r * sy * 0.45;
+      c.moveTo(hx + Math.cos(0.25) * r * 0.22, hy + lightSide * Math.sin(0.25) * r * 0.22);
+      c.ellipse(hx, hy, r * 0.22, r * 0.12 * sy, lightSide * 0.25, 0, Math.PI * 2);
     });
     c.fillStyle = glow(color, 0.4);
     c.fill();
@@ -224,6 +280,14 @@ export function drawWindowView(c, w, h, { t = 0, time = "day", rain = 0, glass =
   }
   c.globalAlpha = 1;
 
+  // A cloud: a flattish, slightly lumpy base with puffs of uneven size heaped along it, each
+  // cloud's set nudged its own way so no two match
+  const cloudParts = (x, y, s, i, puff = () => s) => [{ x: x + s * 0.1, y: y + s * 0.2, r: s * 0.92, sy: 0.3, seed: i * 1.3, wob: 0.05 }].concat(
+    PUFFS.map(([dx, dy, r], k) => {
+      const v = Math.sin(i * 4.1 + k * 2.7);
+      return { x: x + (dx + v * 0.05) * s, y: y + (dy + v * 0.04) * s, r: puff(k) * r * (1 + v * 0.16), seed: i * 3 + k, wob: 0.09 };
+    }),
+  );
   // Clouds drifting across (more, lower and heavier when it rains); where each is, so its
   // shadow can slide over the mountains below it
   const cloudSpots = [];
@@ -234,15 +298,15 @@ export function drawWindowView(c, w, h, { t = 0, time = "day", rain = 0, glass =
     // each puff swells and settles on its own beat, so the cloud slowly changes shape as it drifts
     const puff = (k) => s * (1 + 0.05 * Math.sin(t * 0.6 + i * 2.3 + k * 1.9));
     cloudSpots.push([x, s]);
-    celBlob([[x - s * 0.55, y + s * 0.1, puff(0) * 0.42], [x, y - s * 0.15, puff(1) * 0.58], [x + s * 0.55, y + s * 0.08, puff(2) * 0.45], [x - s * 0.55, y + s * 0.1, 0, s * 1.1, s * 0.42]], grey(look.cloud), s);
+    celBlob(cloudParts(x, y, s, i, puff), grey(look.cloud), s);
   });
   if (rain > 0.05) {
     c.globalAlpha = Math.min(1, rain * 1.5);
-    [[0.25, 0.05, 1.5, 3], [0.7, 0.16, 1.3, 2.2], [-0.05, 0.22, 1.1, 2.6]].forEach(([bx, by, size, speed]) => {
+    [[0.25, 0.05, 1.5, 3], [0.7, 0.16, 1.3, 2.2], [-0.05, 0.22, 1.1, 2.6]].forEach(([bx, by, size, speed], i) => {
       const x = wrapX(bx * w + t * speed * u, w * 0.25);
       const y = by * h;
       const s = size * u * 9;
-      blob([[x - s * 0.55, y + s * 0.1, s * 0.45], [x, y - s * 0.12, s * 0.6], [x + s * 0.55, y + s * 0.08, s * 0.48], [x - s * 0.55, y + s * 0.1, 0, s * 1.1, s * 0.45]], dark ? "#3a4060" : "#7d8798");
+      blob(cloudParts(x, y, s, i + 5), dark ? "#3a4060" : "#7d8798");
     });
     c.globalAlpha = 1;
   }
@@ -280,14 +344,13 @@ export function drawWindowView(c, w, h, { t = 0, time = "day", rain = 0, glass =
   // A far range, paler and softer-edged, the haze between it and the near peaks
   c.beginPath();
   c.moveTo(-line, h * 0.6);
-  [[0, 0.42], [0.08, 0.36], [0.2, 0.41], [0.36, 0.3], [0.52, 0.4], [0.68, 0.31], [0.86, 0.39], [1, 0.33]].forEach(([x, y]) => c.lineTo(w * x, h * y));
+  FAR_RIDGE.forEach(([x, y]) => c.lineTo(w * x, h * y));
   c.lineTo(w + line, h * 0.6);
   c.closePath();
   c.fillStyle = grey(mixHex(dark ? "#3b3570" : time === "evening" ? "#9b7fd4" : "#c4b5fd", SKY[2], 0.55));
   c.fill();
   stroke(line * 0.6, "rgba(0,0,0,.45)");
   // Mountains behind the lake (drawn again, upside down, in the water)
-  const RIDGE = [[0, 0.46], [0.14, 0.34], [0.3, 0.5], [0.45, 0.38], [0.62, 0.52], [0.8, 0.36], [1, 0.48]];
   const ridge = (mapY = (y) => y) => {
     c.beginPath();
     c.moveTo(-line, mapY(h * 0.6));
@@ -303,9 +366,9 @@ export function drawWindowView(c, w, h, { t = 0, time = "day", rain = 0, glass =
   c.clip();
   // Each peak's far side from the light in shade, the edge kinked on the way down so it reads
   // as a rock face rather than a wedge; a few gullies scored down the lit side
-  [1, 3, 5].forEach((p) => {
+  RIDGE_PEAKS.forEach((p) => {
     const [px, py] = RIDGE[p];
-    const [vx, vy] = RIDGE[p - lightSide];
+    const [vx, vy] = RIDGE[Math.max(0, Math.min(RIDGE.length - 1, p - lightSide * 24))];
     c.beginPath();
     c.moveTo(w * px, h * py);
     c.lineTo(w * vx, h * vy);
@@ -336,14 +399,15 @@ export function drawWindowView(c, w, h, { t = 0, time = "day", rain = 0, glass =
   ridge();
   stroke();
   // Snow caps, their shaded half a cool blue-grey
-  [[0.14, 0.34], [0.45, 0.38], [0.8, 0.36]].forEach(([x, y]) => {
+  RIDGE_PEAKS.forEach((p) => {
+    const [x, y] = RIDGE[p];
     const cap = () => {
       c.beginPath();
-      c.moveTo(w * x, h * y);
-      c.lineTo(w * (x + 0.045), h * (y + 0.05));
+      c.moveTo(w * RIDGE[p - 6][0], h * RIDGE[p - 6][1]);
+      RIDGE.slice(p - 5, p + 7).forEach(([rx, ry]) => c.lineTo(w * rx, h * ry));
       c.lineTo(w * (x + 0.015), h * (y + 0.04));
       c.lineTo(w * (x - 0.02), h * (y + 0.055));
-      c.lineTo(w * (x - 0.05), h * (y + 0.05));
+      c.lineTo(w * (x - 0.03), h * (y + 0.045));
       c.closePath();
     };
     const snow = dark ? "#c9c5dc" : "#fffdf5";
@@ -396,28 +460,45 @@ export function drawWindowView(c, w, h, { t = 0, time = "day", rain = 0, glass =
     const hw = u * (3.4 + (i % 2) * 0.6);
     const hh = u * 2.6;
     const base = bank - h * 0.008;
+    // A short side wall and an off-centre ridge give the cottages a little depth.
+    const peakX = hx - hw * (0.1 + i * 0.025);
+    const peakY = base - hh - u * (2 + i * 0.12);
+    const wall = () => {
+      c.beginPath();
+      c.moveTo(hx - hw * 0.5, base - hh);
+      c.lineTo(hx + hw * 0.48, base - hh + u * 0.12);
+      c.lineTo(hx + hw * 0.51, base - u * 0.1);
+      c.lineTo(hx - hw * 0.48, base);
+      c.closePath();
+    };
+    wall();
     c.fillStyle = grey("#fffdf5");
-    c.fillRect(hx - hw / 2, base - hh, hw, hh);
-    // the gable end turned from the light, and the roof's slope on that side, in shade
-    c.fillStyle = shade(grey("#fffdf5"), 0.25);
-    c.fillRect(lightSide > 0 ? hx - hw / 2 : hx + hw * 0.18, base - hh, hw * 0.32, hh);
+    c.fill();
     c.beginPath();
-    c.rect(hx - hw / 2, base - hh, hw, hh);
+    c.moveTo(hx + lightSide * hw * 0.12, base - hh);
+    c.lineTo(hx - lightSide * hw * 0.5, base - hh);
+    c.lineTo(hx - lightSide * hw * 0.48, base);
+    c.lineTo(hx + lightSide * hw * 0.12, base - u * 0.08);
+    c.closePath();
+    c.fillStyle = shade(grey("#fffdf5"), 0.25);
+    c.fill();
+    wall();
     stroke(line * 0.7);
     const gable = () => {
       c.beginPath();
-      c.moveTo(hx - hw * 0.62, base - hh);
-      c.lineTo(hx, base - hh - u * 2.2);
-      c.lineTo(hx + hw * 0.62, base - hh);
+      c.moveTo(hx - hw * 0.66, base - hh + u * 0.14);
+      c.lineTo(peakX, peakY);
+      c.quadraticCurveTo(hx + hw * 0.28, peakY + u * 0.6, hx + hw * 0.66, base - hh + u * 0.2);
+      c.lineTo(hx + hw * 0.12, base - hh + u * 0.32);
       c.closePath();
     };
     gable();
     c.fillStyle = grey(roof);
     c.fill();
     c.beginPath();
-    c.moveTo(hx, base - hh - u * 2.2);
-    c.lineTo(hx - lightSide * hw * 0.62, base - hh);
-    c.lineTo(hx, base - hh);
+    c.moveTo(peakX, peakY);
+    c.lineTo(hx - lightSide * hw * 0.66, base - hh + u * 0.14);
+    c.lineTo(hx + hw * 0.12, base - hh + u * 0.32);
     c.closePath();
     c.fillStyle = shade(grey(roof), 0.3);
     c.fill();
@@ -976,15 +1057,17 @@ export function drawWindowView(c, w, h, { t = 0, time = "day", rain = 0, glass =
     c.translate(0, u * 10 * scale);
     if (round) {
       const r = u * 6 * scale;
-      celBlob([[-r * 0.6, -u * 13 * scale, r * 0.75], [r * 0.6, -u * 13 * scale, r * 0.7], [0, -u * 18 * scale, r]], dark ? "#1f5c3a" : "#22a65c", r);
+      celBlob(CROWN.map(([dx, dy, size], k) => ({ x: dx * r, y: -u * 16 * scale + dy * r, r: size * r, sy: 1 + Math.sin(i + k) * 0.1, seed: i * 2.1 + k, wob: 0.12 })), grey(dark ? "#1f5c3a" : "#22a65c"), r);
     } else {
-      const pine = dark ? "#14532d" : "#166534";
+      const pine = grey(dark ? "#14532d" : "#166534");
       [[-u * 8, -u * 18, u * 7], [-u * 14, -u * 30, u * 5.5]].forEach(([bottom, top, half]) => {
         const tier = () => {
           c.beginPath();
           c.moveTo(0, top * scale);
-          c.lineTo(half * scale, bottom * scale);
-          c.lineTo(-half * scale, bottom * scale);
+          c.bezierCurveTo(half * 0.16 * scale, (top + u * 4) * scale, half * 0.7 * scale, (bottom - u * 2) * scale, half * scale, bottom * scale);
+          c.quadraticCurveTo(half * 0.35 * scale, (bottom + u * 0.8) * scale, 0, (bottom - u * 0.3) * scale);
+          c.quadraticCurveTo(-half * 0.6 * scale, (bottom + u * 0.5) * scale, -half * scale, (bottom - u * 0.3) * scale);
+          c.bezierCurveTo(-half * 0.6 * scale, (bottom - u * 3) * scale, -half * 0.25 * scale, (top + u * 3) * scale, 0, top * scale);
           c.closePath();
         };
         tier();
