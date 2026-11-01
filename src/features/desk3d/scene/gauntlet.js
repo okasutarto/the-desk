@@ -712,7 +712,7 @@ export function createGauntlet(runtime) {
           [[runtime.chair.chair], ["#45474d", "#1a1714"]],
           [[runtime.guitar.guitar], ["#e6c38f", "#6b4428", "#1a1714"]],
           [[runtime.wallDecor.paintingHang], ["#ff90e8", "#ffdd00", "#00e0c6", "#1a1714"]],
-          [[runtime.wallDecor.clock], ["#7fb2ff", "#fffdf5", "#1a1714"]],
+          [[runtime.wallDecor.clock], ["#f4f3ef", "#fffdf5", "#1a1714"]],
           [[runtime.tickets.tickets], ["#fffdf5", "#00e0c6", "#ffdd00"]],
           [[runtime.projectFiles.folders], ["#ff90e8", "#ffdd00", "#8fd694", "#7fb2ff"]],
           [[runtime.gym.gym], ["#8b9099", "#6b7079", "#9ca3af"]],

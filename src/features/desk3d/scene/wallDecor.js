@@ -8,7 +8,7 @@ export function createWallDecor(runtime) {
   const clock = new THREE.Group();
   // Lined up over the monitor as seen from the desk view
   // Low enough that its top stays in frame on wide, short screens
-  clock.position.set(11.05, 12.6, runtime.room.WALL_Z + 0.25); // centred over the shelf, well above the gauntlet
+  clock.position.set(11.05, 12.6, runtime.room.WALL_Z + 0.21); // centred over the shelf, well above the gauntlet
   const clockMount = new THREE.Group();
   clockMount.position.copy(clock.position).add(new THREE.Vector3(0, 0.78, 0));
   clock.position.set(0, -0.78, 0);
@@ -18,28 +18,33 @@ export function createWallDecor(runtime) {
   if (SHOW_CLOCK) runtime.room.room.add(clockMount);
   const CLOCK_SCALE = 30 / 18;
   clock.scale.setScalar(CLOCK_SCALE); // 30 cm diameter; centre 200 cm above the floor.
-  const clockRim = runtime.core.mesh(new THREE.CylinderGeometry(0.9, 0.9, 0.15, 48), runtime.core.toon("#7fb2ff"), { outline: 0.06 });
+  // One slim turned white case, like the family photo's frame: a flat back, a shallow side,
+  // then a narrow rolled lip that curls over and drops in a short step to the dial (radius,
+  // depth; lathed round y, then stood up so its depth runs along z). It's outlined by a plain
+  // drum of its size: its own lip, facing in, would push the ink in over the dial's edge.
+  const DIAL_R = 0.84;
+  const CASE_PROFILE = [[0, -0.05], [0.885, -0.05], [0.9, -0.035], [0.9, 0.045], [0.895, 0.063], [0.882, 0.074], [0.866, 0.077],
+    [0.851, 0.072], [0.843, 0.058], [DIAL_R, 0.045], [0, 0.04]];
+  const caseHull = new THREE.CylinderGeometry(0.9, 0.9, 0.127, 48).translate(0, (0.077 - 0.05) / 2, 0);
+  const clockRim = runtime.core.mesh(new THREE.LatheGeometry(CASE_PROFILE.map(([r, z]) => new THREE.Vector2(r, z)), 48), runtime.core.toon("#f4f3ef"), { outline: 0.018, hull: caseHull });
   clockRim.rotation.x = Math.PI / 2;
-  // a rolled bezel round the glass
-  const clockBezel = runtime.core.mesh(new THREE.TorusGeometry(0.8, 0.055, 10, 48), runtime.core.toon("#5a8ad6"), { outline: 0.012 });
-  clockBezel.position.z = 0.09;
   const dial = canvasTexture(512, 512);
   runtime.core.track(dial.texture);
   drawClockFace(dial.ctx, 512, 512);
-  const clockFace = new THREE.Mesh(runtime.core.track(new THREE.CircleGeometry(0.76, 48)), runtime.core.printMaterial(dial.texture));
-  clockFace.position.z = 0.09;
+  const clockFace = new THREE.Mesh(runtime.core.track(new THREE.CircleGeometry(DIAL_R, 48)), runtime.core.printMaterial(dial.texture));
+  clockFace.position.z = 0.045;
   const clockHandMat = runtime.core.toon("#000000");
   const hourHand = new THREE.Group();
   const minuteHand = new THREE.Group();
   [[hourHand, 0.42], [minuteHand, 0.62]].forEach(([pivot, length]) => {
     const hand = runtime.core.mesh(new THREE.BoxGeometry(0.075, length, 0.025), clockHandMat, { cast: false, outline: 0 });
     hand.position.y = length / 2;
-    pivot.position.z = 0.13;
+    pivot.position.z = 0.085;
     pivot.add(hand);
   });
   // A red seconds hand with a round counterweight that ticks round, and a gold cap over the pivot
   const secondHand = new THREE.Group();
-  secondHand.position.z = 0.145;
+  secondHand.position.z = 0.1;
   const secondMat = runtime.core.toon("#e11d48");
   secondHand.add(
     runtime.core.at(runtime.core.mesh(new THREE.BoxGeometry(0.022, 0.86, 0.012), secondMat, { cast: false, outline: 0 }), 0, 0.27, 0),
@@ -47,8 +52,8 @@ export function createWallDecor(runtime) {
   );
   const clockCap = runtime.core.mesh(new THREE.CylinderGeometry(0.055, 0.055, 0.03, 16), runtime.core.toon("#ffd34d"), { outline: 0.008, cast: false });
   clockCap.rotation.x = Math.PI / 2;
-  clockCap.position.z = 0.16;
-  clock.add(clockRim, clockBezel, clockFace, hourHand, minuteHand, secondHand, clockCap);
+  clockCap.position.z = 0.115;
+  clock.add(clockRim, clockFace, hourHand, minuteHand, secondHand, clockCap);
   let lastSecond = -1;
   function updateSecondHand() {
     const sec = new Date().getSeconds();
