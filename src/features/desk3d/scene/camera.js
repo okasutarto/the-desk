@@ -78,7 +78,7 @@ export function createCamera(runtime) {
     },
     family: () => {
       runtime.lamp.familyFrame.updateWorldMatrix(true, false);
-      runtime.lamp.familyFrame.localToWorld(screenPos.set(0, 1.1, 0.1));
+      runtime.lamp.familyFrame.localToWorld(screenPos.set(0, 1.06, 0.1));
       runtime.lamp.familyFrame.getWorldDirection(screenNormal);
       return { target: screenPos.toArray(), dir: screenNormal.toArray(), fit: [1.6, 2.15], depth: 0.9 };
     },
