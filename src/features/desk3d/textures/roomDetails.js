@@ -679,14 +679,15 @@ export function drawSatinFinish(c, w, h, { grain = 0.06 } = {}) {
 
 // Satin-matte moulded polymer, as on a clothless speaker shell: an even, very fine and
 // low-contrast stipple, smooth to the eye, with no brushed streaks
-export function drawMatteFinish(c, w, h, { grain = 0.03 } = {}) {
+// `speck` scales the dots up (and thins them out to match) for a coarse, textured coat
+export function drawMatteFinish(c, w, h, { grain = 0.03, speck = 1 } = {}) {
   let r = 4271;
   const rand = () => ((r = (r * 16807) % 2147483647) / 2147483647);
   c.fillStyle = "#d8d8d8";
   c.fillRect(0, 0, w, h);
-  for (let i = 0; i < w * h * 0.6; i++) {
+  for (let i = 0; i < (w * h * 0.6) / (speck * speck); i++) {
     c.fillStyle = `rgba(${rand() < 0.5 ? "255,255,255" : "0,0,0"},${rand() * grain})`;
-    c.fillRect(rand() * w, rand() * h, 1 + rand(), 1 + rand());
+    c.fillRect(rand() * w, rand() * h, speck * (1 + rand()), speck * (1 + rand()));
   }
 }
 

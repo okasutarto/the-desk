@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import gsap from "gsap";
 import { hoverSound, sfx, GROOVE_BEAT, setRainLevel, initializeAudio } from "@/shared/composables/useSfx";
-import { canvasTexture, drawTerminal, drawWoodTop, drawBrushedMetal, drawSayaLacquer, drawStudioTop, drawVentSlots, drawPowerScreen } from "../textures";
+import { canvasTexture, drawTerminal, drawWoodTop, drawBrushedMetal, drawMatteFinish, drawStudioTop, drawVentSlots, drawPowerScreen } from "../textures";
 import { createDesktop, SCREEN_W, SCREEN_H } from "../desktop";
 import { createLofi, TRACKS } from "../lofi";
 import { PALETTES } from "../sceneConfig";
@@ -469,15 +469,14 @@ export function createWorkstation(runtime) {
   coneWeave.texture.wrapS = coneWeave.texture.wrapT = THREE.RepeatWrapping;
   coneWeave.texture.repeat.set(6, 1);
   wooferConeMat.map = coneWeave.texture;
-  // The baffle's glossy lacquer, the katana saya's finish as a light tile its material tints.
-  // The baffle and body map their uv in scene units (across × up the face and on over the top),
-  // so one tile is stretched across the face with the sheen's bright band through the middle.
-  const baffleFinish = canvasTexture(1024, 128);
+  // The baffle's textured matte coat: coarse specks, light and dark, big enough to read at the
+  // desk's distance, in a tile its material tints. The baffle and body map their uv in scene
+  // units (across × up the face and on over the top), so it runs on unbroken round the curves.
+  const baffleFinish = canvasTexture(256, 256);
   runtime.core.track(baffleFinish.texture);
-  drawSayaLacquer(baffleFinish.ctx, 1024, 128, { color: "#c8c8c8" });
+  drawMatteFinish(baffleFinish.ctx, 256, 256, { grain: 0.16, speck: 4 });
   baffleFinish.texture.wrapS = baffleFinish.texture.wrapT = THREE.RepeatWrapping;
-  baffleFinish.texture.repeat.set(0.75, 0.43);
-  baffleFinish.texture.offset.y = 0.5;
+  baffleFinish.texture.repeat.set(1.2, 1.2);
   speakerBaffleMat.map = baffleFinish.texture;
   const portTubeMat = runtime.core.toon("#141415");
   portTubeMat.side = THREE.DoubleSide;
@@ -582,7 +581,7 @@ export function createWorkstation(runtime) {
     // panels' corners, front and back, just inside them, so nothing of it shows past their edges.
     // The baffle fills the notch in its front between the two front curves, flush with them, and
     // is really pierced, so the drivers and port sit down inside their openings. Its top, back
-    // and face are the baffle's lacquer, its hidden ends the shell's grey.
+    // and face are the baffle's matte finish, its hidden ends the shell's grey.
     const BODY_R = 0.17;
     // (its ends sit past the panels' rounded inner edges, so none of it shows over them)
     const BODY_W = R1280.w - 2 * SIDE_PANEL + 2 * ROUND;
@@ -603,10 +602,10 @@ export function createWorkstation(runtime) {
     const bodyGeometry = new THREE.ExtrudeGeometry(bodyShape, { depth: BODY_W, bevelEnabled: false, curveSegments: 16 });
     bodyGeometry.translate(0, 0, -BODY_W / 2);
     bodyGeometry.rotateY(-Math.PI / 2);
-    // One lacquer over body and baffle: v runs up the face and on round the curves, over the top
-    // and under the bottom (further back, further from the middle), so the sheen and grain carry
+    // One finish over body and baffle: v runs up the face and on round the curves, over the top
+    // and under the bottom (further back, further from the middle), so its grain carries
     // across every join
-    const lacquerUv = (geometry, yAt, zAt) => {
+    const finishUv = (geometry, yAt, zAt) => {
       const position = geometry.attributes.position;
       const uv = geometry.attributes.uv;
       for (let i = 0; i < position.count; i++) {
@@ -614,7 +613,7 @@ export function createWorkstation(runtime) {
         uv.setXY(i, position.getX(i), y - R1280.h / 2 + (face - position.getZ(i) - zAt) * (2 * y / R1280.h - 1));
       }
     };
-    lacquerUv(bodyGeometry, 0, 0);
+    finishUv(bodyGeometry, 0, 0);
     // (no outline of its own: the left panel's hull rings the whole cabinet)
     const body = runtime.core.mesh(bodyGeometry, [speakerShellMat, speakerBaffleMat], { outline: 0 });
     body.name = "cabinet-body";
@@ -627,7 +626,7 @@ export function createWorkstation(runtime) {
       baffleShape.holes.push(hole);
     });
     const baffleGeometry = new THREE.ExtrudeGeometry(baffleShape, { depth: RECESS, bevelEnabled: false, curveSegments: 32 });
-    lacquerUv(baffleGeometry, R1280.h / 2, notchBack);
+    finishUv(baffleGeometry, R1280.h / 2, notchBack);
     const baffle = runtime.core.mesh(baffleGeometry, speakerBaffleMat, { outline: 0 });
     baffle.name = "front-baffle";
     baffle.position.set(0, R1280.h / 2, notchBack);
