@@ -426,7 +426,8 @@ export function createCoffee(runtime) {
         contactMatrix.compose(contactPlace.set(x, underside - height / 2, runtime.room.WALL_Z + 0.125), NO_TURN, contactScale.set(width, height, 1));
         contactDecals.setMatrixAt(i, contactMatrix);
         const sunWeight = lampKey ? 0 : direct;
-        contactAlpha.setX(i, (0.06 + 0.12 * Math.max(skyGlow, lampGlow) + 0.07 * sunWeight) * (1 - 0.35 * runtime.room.outside.rain));
+        // (a little deeper by day, when the room is bright enough for the shelter to show)
+        contactAlpha.setX(i, (0.06 + 0.04 * (1 - night) + 0.12 * Math.max(skyGlow, lampGlow) + 0.07 * sunWeight) * (1 - 0.35 * runtime.room.outside.rain));
         return;
       }
       if (entry.canopy) {
@@ -447,7 +448,9 @@ export function createCoffee(runtime) {
         contactMatrix.compose(contactPlace.set(x, entry.surfaceY + 0.008, z), contactTurn, contactScale.set(width, depth, 1));
         contactDecals.setMatrixAt(i, contactMatrix);
         const key = Math.max(skyGlow, lampGlow);
-        contactAlpha.setX(i, (0.08 + 0.16 * key + 0.12 * sunWeight) * (1 - 0.35 * runtime.room.outside.rain));
+        // The bright daytime room otherwise washes the rug under the top out to the open rug's
+        // grey, and the desk floats; by night the room is dark enough on its own.
+        contactAlpha.setX(i, (0.08 + 0.07 * (1 - night) + 0.16 * key + 0.12 * sunWeight) * (1 - 0.35 * runtime.room.outside.rain));
         return;
       }
       if (entry.shelfAt !== undefined) {
