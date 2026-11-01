@@ -48,10 +48,10 @@ const lastPicture = () => imageDraws.filter((draw) => draw.contextId === frameId
 desktop.launch('wallpaper');
 time = 2000;
 spots = desktop.draw(c);
-assert.equal(spots.filter((s) => s.id === 'wallpaperSelect').length, 6, 'the original sheet and five landscapes');
+assert.equal(spots.filter((s) => s.id === 'wallpaperSelect').length, 6, 'six toon wallpapers');
 for (const spot of spots) assert.ok(spot.x >= 0 && spot.y >= 0 && spot.x + spot.w <= 640 && spot.y + spot.h <= 384);
-desktop.click(spots.find((s) => s.id === 'wallpaperSelect' && s.wallpaper === 'mojave'));
-assert.deepEqual(JSON.parse(saved.get('desk-wallpaper')), { id: 'mojave' });
+desktop.click(spots.find((s) => s.id === 'wallpaperSelect' && s.wallpaper === 'dusk'));
+assert.deepEqual(JSON.parse(saved.get('desk-wallpaper')), { id: 'dusk' });
 desktop.setTheme(true);
 desktop.draw(c);
 time += 1600;
@@ -77,10 +77,10 @@ desktop.draw(c);
 assert.equal(lastPicture().alpha, 1);
 assert.equal(desktop.busy(), false, 'completed crossfade returns to idle');
 assert.equal(desktop.key({ key: 'ArrowRight' }), true);
-assert.equal(JSON.parse(saved.get('desk-wallpaper')).id, 'monterey');
+assert.equal(JSON.parse(saved.get('desk-wallpaper')).id, 'space-black');
 assert.equal(desktop.busy(), true, 'a new choice asks for a redraw');
 desktop.draw(c);
-assert.notEqual(lastPicture().image, darkSheet, 'the chosen landscape fades in');
+assert.notEqual(lastPicture().image, darkSheet, 'the chosen wallpaper fades in');
 time += 1600;
 desktop.draw(c);
 
@@ -119,12 +119,11 @@ desktop.key({ key: 'Enter' });
 assert.equal(desktop.active(), null, 'preview minimizes all windows');
 saved.set('desk-wallpaper', '{broken');
 vm.runInContext('globalThis.invalid = createWallpapers()', context);
-assert.equal(context.invalid.selection.id, 'monterey', 'a broken save falls back to Monterey');
+assert.equal(context.invalid.selection.id, 'big-sur', 'a broken save falls back to Big Sur');
 context.invalid.select('unknown');
-assert.equal(context.invalid.selection.id, 'monterey');
-// Every landscape paints in both appearances without throwing
+assert.equal(context.invalid.selection.id, 'big-sur');
+// Every wallpaper paints in both appearances without throwing
 for (const { id } of context.WALLPAPERS ?? vm.runInContext('WALLPAPERS', context)) {
-  if (id === 'original') continue;
   for (const mode of ['light', 'dark']) vm.runInContext(`paintScenery(document.createElement('canvas').getContext('2d'), ${JSON.stringify(id)}, ${JSON.stringify(mode)}, { halftone, grainOver, seeded })`, context);
 }
 console.log('Wallpaper picker, painted sheets, crossfade/reversal, window dragging/bounds/restore and persistence passed.');
