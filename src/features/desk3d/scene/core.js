@@ -62,10 +62,11 @@ export function createCore(runtime) {
     aoSamples: 16,
     denoiseSamples: 8,
     denoiseRadius: 8,
-    // Worked out at the frame's full size even on a Retina screen: at half size the thin
-    // contact shading (a sword rack's gap, a prop's foot) lost nearly half its depth, and the
-    // samples build up only while something moves, so full size costs little
-    halfRes: false,
+    // Occlusion is soft: on a Retina frame it's worked out at half size (about per CSS pixel,
+    // as before) and blended up with depth-aware upsampling, a quarter of the work. At full
+    // size there it was slow enough for the loader's frame-time probe to turn it off, losing
+    // the shade in the corners; at this 16 cm reach half size shades as deeply.
+    halfRes: renderer.getPixelRatio() > 1.5,
   });
   // The frame loop asks for fresh occlusion when anything moves (refreshAO), and now and
   // then while all is still, to follow slow idle motion (the cat's breathing): those top up

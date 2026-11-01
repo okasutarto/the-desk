@@ -131,19 +131,17 @@ export function drawWindowView(c, w, h, { t = 0, time = "day", rain = 0, glass =
     c.restore();
   };
 
-  // Sky in flat bands, lighter toward the horizon
+  // Sky in one smooth sweep, from a deeper zenith down to the light at the horizon (the hills
+  // cover it from halfway down)
   const SKY = look.sky.map(grey);
-  c.fillStyle = SKY[0];
+  const sweep = c.createLinearGradient(0, 0, 0, h * 0.5);
+  sweep.addColorStop(0, shade(SKY[0], dark ? 0.25 : 0.08));
+  sweep.addColorStop(0.3, SKY[0]);
+  sweep.addColorStop(0.55, mixHex(SKY[0], SKY[1], 0.5));
+  sweep.addColorStop(0.75, SKY[1]);
+  sweep.addColorStop(1, SKY[2]);
+  c.fillStyle = sweep;
   c.fillRect(0, 0, w, h);
-  // a deeper zenith and an in-between band, so the steps down to the horizon stay small
-  c.fillStyle = shade(SKY[0], dark ? 0.25 : 0.08);
-  c.fillRect(0, 0, w, h * 0.1);
-  c.fillStyle = mixHex(SKY[0], SKY[1], 0.5);
-  c.fillRect(0, h * 0.21, w, h * 0.09);
-  c.fillStyle = SKY[1];
-  c.fillRect(0, h * 0.3, w, h * 0.1);
-  c.fillStyle = SKY[2];
-  c.fillRect(0, h * 0.4, w, h * 0.1);
 
   if (dark && rain < 0.6) {
     VIEW_STARS.forEach((star) => {
