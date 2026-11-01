@@ -30,7 +30,7 @@ const monitorLight = new THREE.PointLight();
 monitor.add(panel, halo, hiddenPart, monitorLight);
 const context = vm.createContext({
   THREE, scene, katanaRack, track: value => value, noRaycast() {},
-  monitor, aoPass: { overrideVisibility() {} }, gauntlet: new THREE.Group(), nintendoSwitch: new THREE.Group(), focus: { name: 'swords' },
+  monitor, gauntlet: new THREE.Group(), nintendoSwitch: new THREE.Group(), focus: { name: 'swords' },
   camera: new THREE.PerspectiveCamera(), screenAxis: new THREE.Vector3(),
   DAYLIGHT: daylight, ambient, skyFill,
 });

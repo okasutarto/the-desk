@@ -8,9 +8,10 @@ export function installSceneShaders(benchmark, lowPower = false) {
   if (benchmark !== "no-pcss" && !THREE.ShaderChunk.shadowmap_pars_fragment.includes("pcssShadow")) {
     const pcss = `
       // a quick search for what's in the way, then a finer filter sized by how far it is
-      // (half as many on phones, where the coarser grain hides in the smaller pixels)
+      // (fewer on phones, where the coarser grain hides in the smaller pixels; on a desktop
+      // screen the wide, faint penumbrae on pale walls show grain below about two dozen)
       #define PCSS_SEARCH ${lowPower ? 4 : 8}
-      #define PCSS_SAMPLES ${lowPower ? 6 : 12}
+      #define PCSS_SAMPLES ${lowPower ? 6 : 24}
       // Five taps across the widest blur first: all lit, or all blocked, means this pixel is
       // nowhere near a shadow's edge, and only the edges (a sliver of the screen) pay for the rest
       const vec2 PCSS_PROBES[ 4 ] = vec2[]( vec2( 1.0, 0.0 ), vec2( -1.0, 0.0 ), vec2( 0.0, 1.0 ), vec2( 0.0, -1.0 ) );

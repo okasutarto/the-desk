@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
-import { GTAOPass } from "three/examples/jsm/postprocessing/GTAOPass.js";
+import { N8AOPass } from "n8ao";
 import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
 import { ShaderPass } from "three/examples/jsm/postprocessing/ShaderPass.js";
 import { createSceneMeshes } from "../sceneMeshes";
@@ -37,54 +37,45 @@ export function createCore(runtime) {
     new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, samples: 4, depthTexture: new THREE.DepthTexture(1, 1) }),
   );
   composer.addPass(new RenderPass(scene, camera));
-  const aoPass = new GTAOPass(scene, camera, 1, 1);
-  aoPass.depthRenderMaterial.defines.PERSPECTIVE_CAMERA = 0;
-  // Keep shallow wall gaps (sword racks, boards and shelf backs) readable even in diffuse
-  // light. More near-contact samples and a narrower denoise preserve thin silhouettes.
-  aoPass.updateGtaoMaterial({ radius: 1.6, thickness: 1.4, distanceExponent: 2, scale: 1.8, samples: 12 });
-  aoPass.updatePdMaterial({ radius: 2.5, samples: 8, rings: 2 });
-  // The occlusion is the costliest pass, and most of the time the room holds still: it's worked
-  // out afresh whenever the view or anything in it moves (see the frame loop), a few times a
-  // second otherwise (idle motion, the cat's breathing, is slow enough for the shading to trail
-  // it by a frame or two), and in between the last result is laid over the frame again
-  let aoDue = true;
-  const aoSetSize = aoPass.setSize.bind(aoPass);
-  // Occlusion is soft, so it's worked out per CSS pixel and blended up onto a Retina frame:
-  // a quarter of the work at 2×, where it was the heaviest pass by far
-  aoPass.setSize = (width, height) => {
-    aoDue = true;
-    const density = Math.max(1, renderer.getPixelRatio());
-    aoSetSize(Math.ceil(width / density), Math.ceil(height / density));
-  };
-  const aoRenderFresh = aoPass.render.bind(aoPass);
-  aoPass.render = (r, writeBuffer, readBuffer, ...rest) => {
-    if (aoDue || benchmark === "no-ao-cache") {
-      aoDue = false;
-      return aoRenderFresh(r, writeBuffer, readBuffer, ...rest);
-    }
-    // GTAOPass's own composite (OUTPUT.Default) over the cached, denoised occlusion
-    const into = aoPass.renderToScreen ? null : writeBuffer;
-    aoPass.copyMaterial.uniforms.tDiffuse.value = readBuffer.texture;
-    aoPass.copyMaterial.blending = THREE.NoBlending;
-    aoPass.renderPass(r, aoPass.copyMaterial, into);
-    aoPass.blendMaterial.uniforms.intensity.value = aoPass.blendIntensity;
-    aoPass.blendMaterial.uniforms.tDiffuse.value = aoPass.pdRenderTarget.texture;
-    aoPass.renderPass(r, aoPass.blendMaterial, into);
-  };
-  aoPass.blendIntensity = 0.88;
-  // Sprites (the gauntlet stones' halos, bubbles, cards) face the camera without writing depth;
-  // drawn into the occlusion's normal buffer they disagree with the depth behind them, and the
-  // occlusion speckles round every glow. GTAOPass already leaves points and lines out.
-  const aoHideDefaults = aoPass.overrideVisibility.bind(aoPass);
-  aoPass.overrideVisibility = () => {
-    aoHideDefaults();
-    scene.traverse((object) => {
-      if (object.isSprite) object.visible = false;
-    });
-  };
-  const useFrameDepth = () => aoPass.setGBuffer(composer.readBuffer.depthTexture);
+  // N8AO, worked out from the frame's own depth (normals rebuilt from it), so sprites and glows
+  // that don't write depth never reach it. Its samples build up while the room holds still,
+  // averaging out the grain a single frame's occlusion leaves (the blotchy halo behind the
+  // plant's leaves); when the view or anything in it moves it starts over from a spatially
+  // denoised frame. Once settled it stops working out anything new and lays the result over
+  // each frame, the costliest pass reduced to a composite.
+  const aoPass = new N8AOPass(scene, camera, 1, 1);
+  aoPass.beautyRenderTarget.dispose();
+  aoPass.autoDetectTransparency = false;
+  Object.assign(aoPass.configuration, {
+    autoRenderBeauty: false,
+    // (the output pass applies the sRGB curve)
+    gammaCorrection: false,
+    transparencyAware: false,
+    accumulate: true,
+    // Keep shallow wall gaps (sword racks, boards and shelf backs) readable even in diffuse
+    // light, within a 10 cm reach that leaves leaves and stems a hand's width off the wall
+    // only a faint shade on it
+    aoRadius: 1.0,
+    distanceFalloff: 1.0,
+    intensity: 3,
+    aoSamples: 16,
+    denoiseSamples: 8,
+    denoiseRadius: 8,
+    // Worked out at the frame's full size even on a Retina screen: at half size the thin
+    // contact shading (a sword rack's gap, a prop's foot) lost nearly half its depth, and the
+    // samples build up only while something moves, so full size costs little
+    halfRes: false,
+  });
+  // The frame loop asks for fresh occlusion when anything moves (refreshAO), and now and
+  // then while all is still, to follow slow idle motion (the cat's breathing): those top up
+  // the settled average with a few more frames rather than starting it over
+  const AO_SETTLED = 1024 / aoPass.configuration.aoSamples;
+  function refreshAO(restart) {
+    if (restart) aoPass.needsFrame = true;
+    else aoPass.frame = Math.min(aoPass.frame, AO_SETTLED - 4);
+  }
+  const useFrameDepth = () => (aoPass.beautyRenderTarget = composer.readBuffer);
   useFrameDepth();
-  [aoPass.gtaoMaterial, aoPass.pdMaterial].forEach((m) => (m.needsUpdate = true));
   composer.addPass(aoPass);
   // Lights off, for the room waiting behind the loader: everything darkens but the screen
   // (`rect`: its centre and half size in the frame's 0–1 coordinates) and the cool spill from
@@ -196,46 +187,24 @@ export function createCore(runtime) {
   const readabilityFill = new THREE.DirectionalLight(0xdde4ff, 0);
   readabilityFill.position.set(-4, 6, 8);
   scene.add(readabilityFill);
-  const sun = new THREE.DirectionalLight(0xfff1cc, 1.8);
-  // Broad sky/room bounce from the open front-left side gives all props a soft cast shadow.
-  // Its direction stays stable while the direct sunlight moves through the window.
-  sun.position.set(-7, 12, 8);
-  sun.target.position.set(1, -0.5, -2.5);
+  // The room's diffuse daylight: the sky seen through the window, spread across the room. It
+  // shines from just inside the glass (placed there by windowLighting) through a wide, soft
+  // cone, fading with distance from the window, so every prop's soft shadow falls away from
+  // it. The sky doesn't move through the day as the sun does, so neither does this; the
+  // direct sunbeam beside it carries the time of day. Its strength is given as the light it
+  // casts at the middle of the desk, SKY_REACH from the glass (see theme).
+  const SKY_REACH = 12;
+  const sun = new THREE.SpotLight(0xfff1cc, 0.55 * SKY_REACH, 0, 1.1, 0.35, 1);
   sun.castShadow = true;
   const SUN_MAP = lowPower ? 1024 : 2048;
   sun.shadow.mapSize.set(SUN_MAP, SUN_MAP);
-  Object.assign(sun.shadow.camera, { left: -20, right: 20, top: 20, bottom: -20, near: 1, far: 60 });
+  Object.assign(sun.shadow.camera, { near: 0.5, far: 45 });
   sun.shadow.bias = -0.0004;
   sun.shadow.normalBias = 0.02;
+  // A broad source: its shadows spread wide away from what casts them
   // (in texels, so a smaller map keeps the same penumbra with a smaller radius)
-  sun.shadow.radius = 14 * SUN_MAP / 2048;
+  sun.shadow.radius = 20 * SUN_MAP / 2048;
   scene.add(sun, sun.target);
-  // Square, so texels stay square and the blur round; see fitSunShadow
-  const SUN_SPAN = 40;
-  const SUN_BLUR = sun.shadow.radius * SUN_SPAN;
-  const sunCasters = new THREE.Box3();
-  const sunCorner = new THREE.Vector3();
-  const sunFootprint = new THREE.Box3();
-  function fitSunShadow() {
-    if (sunCasters.isEmpty()) return;
-    const cam = sun.shadow.camera;
-    cam.position.copy(sun.position);
-    cam.lookAt(sun.target.position);
-    cam.updateMatrixWorld();
-    sunFootprint.makeEmpty();
-    for (let i = 0; i < 8; i++) {
-      sunCorner.set(i & 1 ? sunCasters.max.x : sunCasters.min.x, i & 2 ? sunCasters.max.y : sunCasters.min.y, i & 4 ? sunCasters.max.z : sunCasters.min.z);
-      sunFootprint.expandByPoint(sunCorner.applyMatrix4(cam.matrixWorldInverse));
-    }
-    const half = Math.min(SUN_SPAN, Math.max(sunFootprint.max.x - sunFootprint.min.x, sunFootprint.max.y - sunFootprint.min.y) + 1) / 2;
-    const cx = (sunFootprint.min.x + sunFootprint.max.x) / 2;
-    const cy = (sunFootprint.min.y + sunFootprint.max.y) / 2;
-    Object.assign(cam, { left: cx - half, right: cx + half, bottom: cy - half, top: cy + half });
-    cam.updateProjectionMatrix();
-    // the same penumbra in world units, now drawn from finer texels
-    sun.shadow.radius = SUN_BLUR / (half * 2);
-    sun.shadow.needsUpdate = true;
-  }
 
   const timers = [];
   let destroyed = false;
@@ -306,7 +275,7 @@ export function createCore(runtime) {
     redrawers,
     readabilityFill,
     sun,
-    fitSunShadow,
+    SKY_REACH,
     pickables,
     entryFor,
     outlineResolution,
@@ -316,9 +285,7 @@ export function createCore(runtime) {
     get triangles() { return triangles; },
     get renderMs() { return renderMs; },
     get gpuMs() { return gpuMs; },
-    sunCasters,
-    get aoDue() { return aoDue; },
-    set aoDue(value) { aoDue = value; },
+    refreshAO,
     updatePaperFlex,
     renderFrame,
     standbyPass,

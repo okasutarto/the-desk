@@ -436,7 +436,7 @@ export function createGauntlet(runtime) {
       object.position.copy(centre).addScaledVector(position.clone().sub(centre), shrink.k);
     };
     gsap.to(shrink, { k: 0, delay: delay + 0.3, duration: 1.1, ease: "power2.in", onUpdate: apply });
-    if (shadow) gsap.to(shadow.plane.scale, { x: 0.001, y: 0.001, z: 0.001, delay: delay + 0.6, duration: 0.8 });
+    if (shadow) gsap.to(shadow, { size: 0.001, delay: delay + 0.6, duration: 0.8 });
     // ...and back again, exactly where it was
     runtime.core.timers.push(setTimeout(() => {
       gsap.to(shrink, {
@@ -446,7 +446,7 @@ export function createGauntlet(runtime) {
           object.position.copy(position);
         },
       });
-      if (shadow) gsap.to(shadow.plane.scale, { x: 1, y: 1, z: 1, duration: 0.6 });
+      if (shadow) gsap.to(shadow, { size: 1, duration: 0.6 });
     }, (delay + 4.2) * 1000));
   }
   const snapPoint = new THREE.Vector3();

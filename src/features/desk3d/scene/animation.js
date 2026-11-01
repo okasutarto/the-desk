@@ -84,24 +84,10 @@ export function createAnimation(runtime) {
       const neonShadows = runtime.room.shadowedNeons.some((light) => light.castShadow);
       const intervals = [...frameIntervals].sort((a, b) => a - b);
       const p95 = intervals[Math.min(intervals.length - 1, Math.floor(intervals.length * 0.95))] || 0;
-      perfReadout.textContent = `${(1000 / frameMs).toFixed(0)} fps (budget ${(1000 / refreshMs).toFixed(0)}) · resolution locked\npost ${postDensity().toFixed(2)}× · GTAO ${runtime.core.aoPass.enabled ? "on" : "off"} · neon shadows ${neonShadows ? "on" : "off"}${lowPower ? " · low power" : ""}${probeMs === null ? "" : ` · probe ${probeMs.toFixed(1)}ms`}\n${runtime.core.drawCalls.toFixed(0)} draws · ${(runtime.core.triangles / 1000).toFixed(0)}k triangles\nCPU submit ${runtime.core.renderMs.toFixed(1)}ms · GPU ${runtime.core.gpuMs === null ? "n/a" : runtime.core.gpuMs.toFixed(1) + "ms"} · frame p95 ${p95.toFixed(1)}ms${benchmark ? " · " + benchmark : ""}`;
+      perfReadout.textContent = `${(1000 / frameMs).toFixed(0)} fps (budget ${(1000 / refreshMs).toFixed(0)}) · resolution locked\npost ${postDensity().toFixed(2)}× · AO ${runtime.core.aoPass.enabled ? "on" : "off"} · neon shadows ${neonShadows ? "on" : "off"}${lowPower ? " · low power" : ""}${probeMs === null ? "" : ` · probe ${probeMs.toFixed(1)}ms`}\n${runtime.core.drawCalls.toFixed(0)} draws · ${(runtime.core.triangles / 1000).toFixed(0)}k triangles\nCPU submit ${runtime.core.renderMs.toFixed(1)}ms · GPU ${runtime.core.gpuMs === null ? "n/a" : runtime.core.gpuMs.toFixed(1) + "ms"} · frame p95 ${p95.toFixed(1)}ms${benchmark ? " · " + benchmark : ""}`;
     }, 500));
   }
 
-  // The sun's map only has to cover what can throw a shadow: seen along the light, nothing
-  // outside the casters' footprint can be shadowed by them. Fitting the map to that footprint
-  // (rather than a fixed 40-unit square) packs far more texels onto the props for the same cost.
-  runtime.core.scene.updateMatrixWorld(true);
-  const casterBox = new THREE.Box3();
-  runtime.core.scene.traverse((o) => {
-    // (the window's own occluders cast for the window's light alone)
-    if (!o.isMesh || !o.castShadow || o.userData.windowShadow) return;
-    // pooled bits (crumble dust) wait far below the floor until they're used
-    if (casterBox.setFromObject(o).max.y > runtime.room.FLOOR_Y - 5) runtime.core.sunCasters.union(casterBox);
-  });
-  // room for props that get dragged, knocked or jumped on a little beyond where they start
-  runtime.core.sunCasters.expandByScalar(0.5);
-  runtime.core.fitSunShadow();
 
   // Shadow samplers share the fragment-stage limit with printed textures, toon ramps and
   // bump maps. Reserve those slots before enabling shadows, including close-up-only lights.
@@ -291,11 +277,12 @@ export function createAnimation(runtime) {
       runtime.room.dioramaShadow.position.copy(viewRight).multiplyScalar(nudge).addScaledVector(viewUp, -nudge)
         .addScaledVector(dir, (runtime.core.camera.position.dot(dir) - runtime.core.camera.far + 3));
     }
-    // the occlusion is redone when the view has shifted at all, or anything's moving, and a
-    // few times a second otherwise (see aoPass.render)
-    if (moving || now >= aoFreshAt || runtime.core.camera.zoom !== aoCamZoom || runtime.core.camera.position.distanceToSquared(aoCamPos) > 1e-10 || 1 - Math.abs(runtime.core.camera.quaternion.dot(aoCamTurn)) > 1e-10) {
-      runtime.core.aoDue = true;
-      aoFreshAt = now + 1000 / 15;
+    // the occlusion starts over when the view has shifted at all, or anything's moving, and is
+    // topped up a few times a second otherwise (see refreshAO)
+    const viewMoved = runtime.core.camera.zoom !== aoCamZoom || runtime.core.camera.position.distanceToSquared(aoCamPos) > 1e-10 || 1 - Math.abs(runtime.core.camera.quaternion.dot(aoCamTurn)) > 1e-10;
+    if (moving || viewMoved || now >= aoFreshAt) {
+      runtime.core.refreshAO(moving || viewMoved);
+      aoFreshAt = now + 1000 / 4;
       aoCamPos.copy(runtime.core.camera.position);
       aoCamTurn.copy(runtime.core.camera.quaternion);
       aoCamZoom = runtime.core.camera.zoom;
@@ -334,17 +321,7 @@ export function createAnimation(runtime) {
       runtime.mouse.mouse.position.x += (runtime.mouse.mouseAim.x - runtime.mouse.mouse.position.x) * blend;
       runtime.mouse.mouse.position.z += (runtime.mouse.mouseAim.z - runtime.mouse.mouse.position.z) * blend;
     }
-    for (const { object, plane, baseY, strength } of runtime.coffee.contactShadows) {
-      const lift = Math.max(0, object.position.y - baseY);
-      plane.position.x = object.position.x;
-      plane.position.z = object.position.z;
-      plane.rotation.z = -object.rotation.y;
-      plane.scale.setScalar(1 + lift * 0.3);
-      // Ambient occlusion now darkens the contact itself; this only softens it under a prop
-      // and carries the shadow while the prop is lifted
-      plane.material.opacity = THREE.MathUtils.lerp(0.16, 0.115, runtime.core.roomLight.night) * (1 - 0.2 * runtime.room.outside.rain) * strength / (1 + lift * 3);
-      plane.visible = object.visible;
-    }
+    runtime.coffee.updateContactShadows();
     if (now - lastBlink > 530) {
       lastBlink = now;
       runtime.workstation.cursorOn = !runtime.workstation.cursorOn;

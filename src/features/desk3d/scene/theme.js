@@ -103,9 +103,9 @@ export function createTheme(runtime) {
     runtime.core.readabilityFill.intensity = isDark ? 0.12 : 0.18;
     runtime.lamp.jointMat.color.set(isDark ? "#3d3749" : "#1a1714");
     runtime.core.sun.color.set(isDark ? "#aabfff" : "#fff1cc");
-    // Broad room bounce retains faint cast shadows for every prop, including wall-mounted
-    // objects outside the direct window patch. The directional key remains the window light.
-    runtime.core.sun.intensity = isDark ? 0.24 : 0.55;
+    // The sky through the window spreads faint soft shadows across the whole room, wall-mounted
+    // objects included, outside the direct window patch. The key remains the direct beam.
+    runtime.core.sun.intensity = (isDark ? 0.24 : 0.55) * runtime.core.SKY_REACH;
     runtime.core.sun.castShadow = true;
     runtime.windowLighting.windowLight.color.set(isDark ? "#94b5ff" : "#ffe5ad");
     // Sun or moon, it comes in through the glass, shadowed by the wall, the bars and the blind
@@ -138,7 +138,6 @@ export function createTheme(runtime) {
     const part = isDark ? "night" : runtime.room.daylightPart;
     runtime.core.printGlow.level = PRINT_GLOW[part];
     runtime.wastebasket.net.material.color.setScalar(HOOP_NET[part]);
-    runtime.core.fitSunShadow();
   }
   const PRINT_GLOW = { morning: 0.6, day: 0.6, evening: 0.22, night: 0.08 };
   const HOOP_NET = { morning: 1, day: 1, evening: 0.62, night: 0.4 };
@@ -159,7 +158,7 @@ export function createTheme(runtime) {
   function applyDaylight() {
     const light = DAYLIGHT[runtime.room.daylightPart];
     runtime.core.sun.color.set(light.sun);
-    runtime.core.sun.intensity = light.sunPower * (runtime.room.daylightPart === "evening" ? 0.3 : 0.5);
+    runtime.core.sun.intensity = light.sunPower * (runtime.room.daylightPart === "evening" ? 0.3 : 0.5) * runtime.core.SKY_REACH;
     runtime.core.skyFill.color.set(light.sky);
     runtime.core.skyFill.intensity = light.skyPower;
     runtime.core.ambient.intensity = light.ambient;
@@ -213,11 +212,16 @@ export function createTheme(runtime) {
     // Clouds remove the direct beam much more than diffuse sky/bounce light.
     runtime.windowLighting.windowLight.intensity *= 1 - 0.88 * runtime.room.outside.rain;
     runtime.core.sun.intensity *= 1 - 0.6 * runtime.room.outside.rain;
+    // The blind drawn down shuts out most of the sky's light, as it does the sun's
+    runtime.core.sun.intensity *= THREE.MathUtils.lerp(0.25, 1, runtime.windowBlind.blind.lift);
     runtime.core.skyFill.intensity *= 1 - 0.38 * runtime.room.outside.rain;
     runtime.core.ambient.intensity *= 1 - 0.25 * runtime.room.outside.rain;
-    // Overcast light loses its sharp window outline; indoor lamp/neon shadows stay intact.
+    // The sun (or moon) is half a degree across, so its shadows soften by about 1 cm for each
+    // metre they fall: the widest spread, about the window bars' reach across the desk, still
+    // stays crisp where a prop meets it (PCSS sizes the blur by distance). Overcast light loses
+    // the outline altogether; indoor lamp/neon shadows stay intact.
     // (in texels of a 2048 map; a smaller map scales it down to the same blur)
-    runtime.windowLighting.windowLight.shadow.radius = (THREE.MathUtils.lerp(3, 5, runtime.core.roomLight.night) + runtime.room.outside.rain * 9) * runtime.windowLighting.windowLight.shadow.mapSize.x / 2048;
+    runtime.windowLighting.windowLight.shadow.radius = (THREE.MathUtils.lerp(12, 14, runtime.core.roomLight.night) + runtime.room.outside.rain * 16) * runtime.windowLighting.windowLight.shadow.mapSize.x / 2048;
     if (Math.abs(runtime.windowLighting.cookieRain - runtime.room.outside.rain) > 0.02) runtime.windowLighting.drawGlassCookie();
     dryWindowColor.copy(runtime.windowLighting.windowLight.color);
     runtime.windowLighting.windowLight.color.lerp(rainLightColor, runtime.room.outside.rain * 0.65);
@@ -351,8 +355,10 @@ export function createTheme(runtime) {
     // in auto), or the morning when that part is the night itself
     if (isDark) runtime.room.daylightPart = "night";
     else if (runtime.room.daylightPart === "night") runtime.room.daylightPart = partFor(timeMode) === "night" ? "morning" : partFor(timeMode);
-    // Remove rain attenuation from the captured intensities; updateLighting applies it once.
-    const rainScales = [1 - 0.25 * runtime.room.outside.rain, 1 - 0.38 * runtime.room.outside.rain, 1, 1 - 0.6 * runtime.room.outside.rain, 1 - 0.88 * runtime.room.outside.rain];
+    // Remove rain (and the blind's hold on the sky) from the captured intensities;
+    // updateLighting applies them once.
+    const blindSky = THREE.MathUtils.lerp(0.25, 1, runtime.windowBlind.blind.lift);
+    const rainScales = [1 - 0.25 * runtime.room.outside.rain, 1 - 0.38 * runtime.room.outside.rain, 1, (1 - 0.6 * runtime.room.outside.rain) * blindSky, 1 - 0.88 * runtime.room.outside.rain];
     const from = captureLighting();
     from.colors[lightingColors.indexOf(runtime.windowLighting.windowLight.color)].copy(dryWindowColor);
     rainScales.forEach((scale, i) => (from.values[i] /= scale));

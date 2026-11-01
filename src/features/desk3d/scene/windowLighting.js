@@ -23,10 +23,15 @@ export function createWindowLighting(runtime) {
   windowLight.shadow.camera.far = WINDOW_SUN_FAR + 40;
   windowLight.shadow.bias = -0.0002;
   windowLight.shadow.normalBias = 0.02;
-  windowLight.shadow.radius = 3;
+  windowLight.shadow.radius = 12;
   runtime.core.scene.add(windowLight, windowLight.target);
   runtime.room.windowGroup.updateWorldMatrix(true, false);
   const windowGlass = runtime.room.windowGroup.localToWorld(new THREE.Vector3(0, 0, 0.06));
+  // The sky's diffuse light (core.sun) comes in through the same glass: from the middle of
+  // the opening, just in front of the blind, out across the room. The blind's drop dims it
+  // (see theme) rather than casting its outline, which so broad a source wouldn't show.
+  runtime.core.sun.position.copy(runtime.room.windowGroup.localToWorld(new THREE.Vector3(0, 0, 0.6)));
+  runtime.core.sun.target.position.set(6, -5, 1);
   const windowRay = new THREE.Vector3();
   // The light's cookie: the glass, as the light sees it, white in black (edges a touch soft, as
   // the sun isn't a point), so it shines only through the window. Redrawn whenever it's aimed.

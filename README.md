@@ -172,9 +172,10 @@ Broad, overlapping light samples approximate the desk and monitor LED strips; th
 sources follow its movement. Shelf lighting is independent. A dim point light sits inside the
 exposed bulb, while the monitor lightbar illuminates the work surface.
 
-GTAO at CSS-pixel resolution and contact shadows give objects depth in every phase. The AO is
-composited onto the higher-density frame. A broad shadowed
-room fill complements the direct lights, and PCSS softens cast shadows with separation. This
+N8AO ambient occlusion and contact shadows give objects depth in every phase. The AO builds up
+over still frames and is composited onto the higher-density frame. The sky's diffuse light
+comes in through the window as a broad, shadowed fill that fades across the room, complementing
+the direct beam, and PCSS softens cast shadows with separation. This
 is an artistic diorama setup, rather than a physical daylight or global-illumination simulation.
 
 </details>
@@ -201,7 +202,7 @@ licenses live in `public/sfx/`; the lo-fi music is generated in the browser.
 <summary><strong>⚙️ Rendering details and tradeoffs</strong></summary>
 
 - **Stable sharpness.** The main scene and final composite follow the canvas resolution;
-  GTAO runs at CSS-pixel resolution and is blended up. Slow frames do not lower image density.
+  AO runs at the frame's full resolution and settles over still frames. Slow frames do not lower image density.
   Active camera moves and interactions follow browser frames.
 - **Reuse work while idle.** AO and shadow maps are cached and refreshed on schedules, with
   more frequent updates while things move. Unsupported batching falls back to original meshes.

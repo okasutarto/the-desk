@@ -765,12 +765,6 @@ export function createSwordEffects(runtime) {
   spotlight.renderOrder = 10;
   spotlight.visible = false;
   runtime.core.scene.add(spotlight);
-  // (kept out of the ambient-occlusion pass, which would read it as a wall across the screen)
-  const aoOverride = runtime.core.aoPass.overrideVisibility.bind(runtime.core.aoPass);
-  runtime.core.aoPass.overrideVisibility = () => {
-    aoOverride();
-    spotlight.visible = false;
-  };
   const spotAt = new THREE.Vector3();
   const spotEdge = new THREE.Vector3();
   // The monitor, gauntlet and handheld step aside for the sword close-up. Only what they

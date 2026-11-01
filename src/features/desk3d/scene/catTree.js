@@ -9,8 +9,9 @@ export function createCatTree(runtime) {
   // dangling under it, and a round bed on top at 67 cm. The bed is one of her spots: she naps
   // there between moves, and clicking the tree calls her up to it (the pom-pom gets a swat).
   const tree = new THREE.Group();
-  // Back against the wall under the About board, centred on it, clear of the wastebasket
-  tree.position.set(runtime.aboutBoard.aboutBoard.position.x, runtime.room.FLOOR_Y, runtime.room.WALL_Z + 0.12 + 2.05);
+  // Back by the wall under the About board, centred on it, clear of the wastebasket. The top
+  // bed reaches furthest back (2.1 behind the origin); it stands 15 mm off the wall's face.
+  tree.position.set(runtime.aboutBoard.aboutBoard.position.x, runtime.room.FLOOR_Y, runtime.room.WALL_Z + 0.12 + 2.25);
   runtime.core.scene.add(tree);
   const carpet = runtime.core.toon("#b9a8e6");
   const carpetDark = runtime.core.toon("#8f7cc4");
