@@ -139,9 +139,12 @@ export function createTheme(runtime) {
     const part = isDark ? "night" : runtime.room.daylightPart;
     runtime.core.printGlow.level = PRINT_GLOW[part];
     runtime.wastebasket.net.material.color.setScalar(HOOP_NET[part]);
+    runtime.badge.sleeveMat.color.setScalar(SLEEVE_SHEEN[part]);
   }
   const PRINT_GLOW = { morning: 0.6, day: 0.6, evening: 0.22, night: 0.08 };
   const HOOP_NET = { morning: 1, day: 1, evening: 0.62, night: 0.4 };
+  // The badge sleeve's gloss is a reflection of the room's light, so it fades with it
+  const SLEEVE_SHEEN = { morning: 1, day: 1, evening: 0.55, night: 0.3 };
   // Match the randomly selected sky: warm morning, bright midday or amber evening.
   const DAYLIGHT = {
     // Warm key, cool fill: the sky's blue lifts what the sun can't reach, so shadows read as
@@ -181,7 +184,7 @@ export function createTheme(runtime) {
   const lightingColors = [runtime.core.ambient.color, runtime.core.skyFill.color, runtime.core.sun.color, runtime.windowLighting.windowLight.color,
     runtime.lamp.jointMat.color, runtime.room.floorMat.color, runtime.room.backWallMat.color, runtime.room.sideWallMat.color, runtime.room.trimMat.color,
     runtime.room.deskMat.color, runtime.workstation.riserMat.color, runtime.workstation.riserLegMat.color, runtime.core.shadowFill.color,
-    runtime.wastebasket.net.material.color];
+    runtime.wastebasket.net.material.color, runtime.badge.sleeveMat.color];
   // Keep a stable background Color so it can be interpolated like the wall paint.
   setTheme(runtime.options.dark);
   lightingColors.push(runtime.core.scene.background);

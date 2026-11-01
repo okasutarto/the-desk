@@ -212,34 +212,38 @@ export function createLamp(runtime) {
   });
 
   // Family keepsake: the anime-style family portrait in a white aluminium gallery frame with a
-  // thin black lip setting it off from the off-white mat round the photo, a brushed brass plate
-  // on the bottom rail, on a black easel leg.
+  // thin black lip round the photo and a brushed brass plate on the bottom rail, standing on
+  // its own deep profile.
   const familyFrame = new THREE.Group();
-  // The tilted easel's rear edge extends below its local origin.
-  familyFrame.position.set(-5.75, 0.034, -1.2);
+  // Leant back a touch, its rear bottom edge dips just below its local origin.
+  familyFrame.position.set(-5.75, 0.003, -1.2);
   familyFrame.scale.setScalar(0.8);
-  familyFrame.rotation.set(-0.08, 0.08, 0);
-  const FY = 1.08;
+  familyFrame.rotation.set(-0.03, 0.08, 0);
+  // (the frame's bottom edge on its local origin)
+  const FY = 1.04;
   const frameMetal = runtime.core.toon("#f4f3ef");
   const frameBack = runtime.core.mesh(runtime.core.rbox(1.36, 2.08, 0.1, 0.04), frameMetal, { outline: 0.018 });
   frameBack.position.y = FY;
   familyFrame.add(frameBack);
-  // the profile: four squared bars standing proud, with a thin black lip inside them
-  [[0, 0.96, 1.36, 0.16], [0, -0.96, 1.36, 0.16], [0.6, 0, 0.16, 1.76], [-0.6, 0, 0.16, 1.76]].forEach(([x, y, w, h]) => {
-    familyFrame.add(runtime.core.at(runtime.core.mesh(runtime.core.rbox(w, h, 0.16, 0.025), frameMetal, { outline: 0.014 }), x, FY + y, 0.05));
-  });
-  [[0, 0.875, 1.06, 0.025], [0, -0.875, 1.06, 0.025], [0.515, 0, 0.025, 1.74], [-0.515, 0, 0.025, 1.74]].forEach(([x, y, w, h]) => {
-    familyFrame.add(runtime.core.at(runtime.core.mesh(runtime.core.rbox(w, h, 0.04, 0.008), runtime.core.toon("#1a1714"), { outline: 0.006 }), x, FY + y, 0.075));
-  });
-  // off-white mat, a thin ink edge and the photo
-  const frameMat = new THREE.Mesh(runtime.core.track(new THREE.PlaneGeometry(1.03, 1.75)), runtime.core.track(new THREE.MeshBasicMaterial({ color: "#f4f1ea" })));
-  frameMat.position.set(0, FY, 0.056);
-  const photoBorder = new THREE.Mesh(runtime.core.track(new THREE.PlaneGeometry(0.92, 1.69)), runtime.core.track(new THREE.MeshBasicMaterial({ color: "#171717" })));
-  photoBorder.position.set(0, FY, 0.06);
-  // its sky follows the room: blue by day, moon and stars by night
-  const familyPhoto = runtime.core.printed(0.88, 1.65, 818, (c, w, h) => drawFamilyPortrait(c, w, h, { night: runtime.core.roomLight.night > 0.5 }));
+  // A rounded rectangle with a rectangular window through it, its edges softly bevelled, `d`
+  // deep and centred on z = 0: the frame's profile and its lip are each one piece, so their
+  // corners are mitred rather than four bars butted together
+  const ring = (w, h, r, hw, hh, d, b) => {
+    const shape = runtime.core.roundedRectShape(w - 2 * b, h - 2 * b, r - b);
+    // (the bevel pushes into the window too, so it's cut that much wider to end at hw × hh)
+    shape.holes.push(runtime.core.roundedRectShape(hw + 2 * b, hh + 2 * b, b));
+    const geo = new THREE.ExtrudeGeometry(shape, { depth: d - 2 * b, bevelEnabled: true, bevelThickness: b, bevelSize: b, bevelSegments: 2, curveSegments: 6 });
+    geo.translate(0, 0, -(d - 2 * b) / 2);
+    return geo;
+  };
+  // the profile, standing proud, with a thin black lip inside it right on the photo's edge
+  familyFrame.add(runtime.core.at(runtime.core.mesh(ring(1.36, 2.08, 0.025, 1.04, 1.76, 0.16, 0.012), frameMetal, { outline: 0.014 }), 0, FY, 0.05));
+  familyFrame.add(runtime.core.at(runtime.core.mesh(ring(1.055, 1.775, 0.008, 1.005, 1.725, 0.04, 0.004), runtime.core.toon("#1a1714"), { outline: 0.006 }), 0, FY, 0.075));
+  // its sky follows the room: blue by day, moon and stars by night. It fills the lip's window,
+  // its edge a hair under the lip so no gap shows
+  const familyPhoto = runtime.core.printed(1.015, 1.735, 818, (c, w, h) => drawFamilyPortrait(c, w, h, { night: runtime.core.roomLight.night > 0.5 }));
   familyPhoto.position.set(0, FY, 0.064);
-  familyFrame.add(frameMat, photoBorder, familyPhoto);
+  familyFrame.add(familyPhoto);
   // a brushed brass plate on the bottom rail
   const plate = runtime.core.printed(0.4, 0.085, 700, (c, w, h) => {
     const sheen = c.createLinearGradient(0, 0, w, 0);
@@ -259,18 +263,10 @@ export function createLamp(runtime) {
   });
   plate.position.set(0, FY - 0.96, 0.132);
   familyFrame.add(plate);
-  // the easel stand behind it
-  const easel = runtime.core.toon("#1a1714");
-  const frameFoot = runtime.core.mesh(runtime.core.rbox(1.12, 0.07, 0.65, 0.02), easel, { outline: 0.016 });
-  frameFoot.position.set(0, 0.035, -0.12);
-  const frameLeg = runtime.core.mesh(runtime.core.rbox(0.14, 1.15, 0.12, 0.02), easel, { outline: 0.012 });
-  frameLeg.position.set(0, 0.6, -0.31);
-  frameLeg.rotation.x = -0.42;
-  familyFrame.add(frameFoot, frameLeg);
   runtime.core.scene.add(familyFrame);
   runtime.core.register(familyFrame, {
     focus: "family",
-    onHover: (on) => gsap.to(familyFrame.rotation, { x: on ? -0.015 : -0.08, y: on ? 0.14 : 0.08, duration: 0.35, ease: "power2.out", overwrite: true }),
+    onHover: (on) => gsap.to(familyFrame.rotation, { x: on ? 0 : -0.03, y: on ? 0.14 : 0.08, duration: 0.35, ease: "power2.out", overwrite: true }),
   });
 
   // Public state used by the other scene parts.

@@ -180,16 +180,19 @@ export function drawKitetsuBlade(c, w, h, { bow, length, width, yMin, yMax }) {
 }
 
 // TubeGeometry uses u along the saya, v around it. Highlights wrap seamlessly.
-export function drawSayaLacquer(c, w, h, { color }) {
+// `sheen` lays the round saya's gloss band across it; a flat shell can leave it off
+export function drawSayaLacquer(c, w, h, { color, sheen: glossy = true }) {
   c.fillStyle = color;
   c.fillRect(0, 0, w, h);
-  const sheen = c.createLinearGradient(0, 0, 0, h);
-  [[0, "rgba(0,0,0,.08)"], [0.2, "rgba(0,0,0,.22)"],
-    [0.43, "rgba(255,255,255,.04)"], [0.5, "rgba(255,255,255,.3)"],
-    [0.57, "rgba(255,255,255,.04)"], [0.8, "rgba(0,0,0,.22)"],
-    [1, "rgba(0,0,0,.08)"]].forEach(([at, tone]) => sheen.addColorStop(at, tone));
-  c.fillStyle = sheen;
-  c.fillRect(0, 0, w, h);
+  if (glossy) {
+    const sheen = c.createLinearGradient(0, 0, 0, h);
+    [[0, "rgba(0,0,0,.08)"], [0.2, "rgba(0,0,0,.22)"],
+      [0.43, "rgba(255,255,255,.04)"], [0.5, "rgba(255,255,255,.3)"],
+      [0.57, "rgba(255,255,255,.04)"], [0.8, "rgba(0,0,0,.22)"],
+      [1, "rgba(0,0,0,.08)"]].forEach(([at, tone]) => sheen.addColorStop(at, tone));
+    c.fillStyle = sheen;
+    c.fillRect(0, 0, w, h);
+  }
   // Restrained lengthwise lacquer grain and small handling marks.
   let seed = 9413;
   const rand = () => ((seed = seed * 16807 % 2147483647) / 2147483647);

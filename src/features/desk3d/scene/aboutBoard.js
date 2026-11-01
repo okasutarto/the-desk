@@ -109,8 +109,10 @@ export function createAboutBoard(runtime) {
       const tapeGeo = new THREE.PlaneGeometry(0.36, 0.1, 12, 2)
         .rotateZ(tx * ty * 0.75)
         .translate(tx * (w / 2 - 0.04), ty * (h / 2 - 0.03), 0.03);
-      const tape = new THREE.Mesh(runtime.core.track(curlPaper(tapeGeo, w, h, curl, side)), runtime.core.track(new THREE.MeshBasicMaterial({ color: note.id === "resume" ? "#00e0c6" : "#ff90e8", transparent: true, opacity: 0.85 })));
+      // (paper itself, so it settles into the room's light with the note under it)
+      const tape = new THREE.Mesh(runtime.core.track(curlPaper(tapeGeo, w, h, curl, side)), runtime.core.printMaterial(null, { transparent: true, opacity: 0.85 }, note.id === "resume" ? "#00e0c6" : "#ff90e8"));
       tape.position.y = -pinY;
+      tape.receiveShadow = true;
       sheet.add(tape);
     }
     const pin = new THREE.Group();

@@ -12,7 +12,7 @@ const registrations = new Map();
 const scene = new THREE.Scene();
 const runtime = { options: { dark: false }, core: {
   scene, camera: new THREE.PerspectiveCamera(), timers: [], UP: new THREE.Vector3(0, 1, 0),
-  track: value => value, toon: color => new THREE.MeshToonMaterial({ color }),
+  track: value => value, toon: color => new THREE.MeshToonMaterial({ color }), printMaterial: () => new THREE.MeshToonMaterial(),
   mesh: (geo, mat) => new THREE.Mesh(geo, mat), rbox: (w, h, d) => new THREE.BoxGeometry(w, h, d),
   at: (obj, x, y, z = 0, rz = 0) => { obj.position.set(x, y, z); obj.rotation.z = rz; return obj; },
   rod: (a, b, radius, mat) => {

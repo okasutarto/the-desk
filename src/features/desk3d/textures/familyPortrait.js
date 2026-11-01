@@ -8,14 +8,18 @@ import { mixHex } from "./windowView";
 // in front in a little straw hat, throwing a peace sign. Heads lean in toward each other; flat
 // colours, thick ink lines and big shiny eyes, like the rest of the room. By `night` the sky
 // behind them turns dark with a crescent moon and stars.
+// It's laid out 360 wide by 675 tall and scaled to the print's height: a wider print centres
+// it and carries the sky and the lawn out to the sides.
 export function drawFamilyPortrait(c, w, h, { night = false } = {}) {
-  const u = w / 360;
+  const u = h / 675;
   const INK = "#1a1714";
   const SKIN = "#f6d2b4";
   const SKIN_SHADE = "#e9b894";
   c.save();
   c.scale(u, u);
-  const H = h / u;
+  const H = 675;
+  const PAD = (w / u - 360) / 2;
+  c.translate(PAD, 0);
   const line = (width = 4) => {
     c.lineWidth = width;
     c.strokeStyle = INK;
@@ -181,7 +185,7 @@ export function drawFamilyPortrait(c, w, h, { night = false } = {}) {
   const sky = c.createLinearGradient(0, 0, 0, H);
   (night ? [[0, "#141a3d"], [0.6, "#2b3a78"], [1, "#4b5f9e"]] : [[0, "#7cc4f2"], [0.6, "#b8e2fb"], [1, "#e2f4fd"]]).forEach(([at, color]) => sky.addColorStop(at, color));
   c.fillStyle = sky;
-  c.fillRect(0, 0, 360, H);
+  c.fillRect(-PAD, 0, 360 + 2 * PAD, H);
   if (night) {
     // the moon's halo, a few soft rings, then the crescent with its craters
     c.save();
@@ -256,10 +260,10 @@ export function drawFamilyPortrait(c, w, h, { night = false } = {}) {
     [[64, 120, 7], [292, 160, 9], [320, 470, 6], [44, 250, 6]].forEach(([x, y, r]) => sparkle(x, y, r));
   }
   shape(night ? "#5d8a7a" : "#a7d7a5", () => {
-    c.moveTo(0, 560);
-    c.quadraticCurveTo(180, 530, 360, 560);
-    c.lineTo(360, H);
-    c.lineTo(0, H);
+    c.moveTo(-PAD, 560);
+    c.quadraticCurveTo(180, 530, 360 + PAD, 560);
+    c.lineTo(360 + PAD, H);
+    c.lineTo(-PAD, H);
     c.closePath();
   });
   // short blades of grass across the lawn, darker toward the front
@@ -268,7 +272,7 @@ export function drawFamilyPortrait(c, w, h, { night = false } = {}) {
   let seed = 11;
   const rand = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
   for (let i = 0; i < 140; i++) {
-    const x = rand() * 360;
+    const x = -PAD + rand() * (360 + 2 * PAD);
     const y = 552 + rand() * (H - 552);
     c.strokeStyle = i % 3 ? "rgba(30,70,60,.4)" : `rgba(255,255,255,${night ? 0.18 : 0.35})`;
     c.lineWidth = 1.4;

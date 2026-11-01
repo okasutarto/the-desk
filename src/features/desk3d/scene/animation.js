@@ -404,6 +404,7 @@ export function createAnimation(runtime) {
     }
     runtime.badge.updateLanyard(dt);
     runtime.shelf.updateShelfLeds(now);
+    runtime.keyboard.updateRgb(now);
     runtime.cat.updateCatWatch(now);
     runtime.cat.updateCatLife(now);
     runtime.cat.updateCatNeck();

@@ -14,8 +14,10 @@ const THREE = require('three');
     THREE, toon, at, group, shelf, printed: (w,h) => new THREE.Mesh(new THREE.PlaneGeometry(w,h), new THREE.MeshBasicMaterial()), black: toon('#1a1714'), white: toon('#fffdf5'), shelfMat: toon('#f3d3b0'),
     track: (value) => value, mesh: (geometry, material) => new THREE.Mesh(geometry, material),
     neonLight: (color, intensity) => new THREE.PointLight(color, intensity),
-    canvasTexture: () => ({ ctx: { fillRect() {} }, texture: new THREE.Texture() }), drawSatinFinish() {}, drawLeatherGrain() {}, drawMatteFinish() {}, drawPsSymbols() {}, noRaycast() {},
+    canvasTexture: () => { const texture = new THREE.Texture(); return { ctx: { fillRect() {}, texture }, texture }; }, drawSatinFinish() {}, drawLeatherGrain() {}, drawMatteFinish() {}, drawPsSymbols() {}, noRaycast() {},
+    drawSayaLacquer: (ctx, w, h, { color }) => { ctx.texture.userData.lacquer = color; },
     rbox: (w, h, d, r = 0.08) => new RoundedBoxGeometry(w, h, d, 2, Math.min(r, Math.min(w,h,d)/2 - 1e-3)),
+    phoneSlab: (w, h, d) => new THREE.BoxGeometry(w, h, d),
     rod: (a, b, radius, mat) => {
       const part = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius, a.distanceTo(b)), mat);
       part.position.copy(a).add(b).multiplyScalar(0.5);
@@ -69,9 +71,10 @@ const THREE = require('three');
     assert.ok(box.min.z > -0.75 && box.max.z < 0.75, 'props remain on the shelf');
   }
   const padBody = model.pad2.userData.moves.children[0];
-  assert.equal(padBody.material.color.getHexString(), 'fffdf5', 'second controller is white');
+  assert.equal(padBody.material.map.userData.lacquer, '#fffdf5', 'second controller is white lacquer');
   const darkPadBody = model.pad1.userData.moves.children[0];
-  assert.equal(darkPadBody.material.color.getHexString(), '141414', 'first controller uses neutral matte black');
+  assert.equal(darkPadBody.material.map.userData.lacquer, '#141414', 'first controller uses neutral black lacquer');
+  assert.equal(padBody.material.color.getHexString(), 'ffffff', 'the lacquer texture carries the shell colour, as on the sayas');
   assert.ok(bounds(model.holder).max.y < bounds(model.pad1).max.y, 'holder never sticks above the upper pad');
   assert.equal(model.holder.children[0].material.color.getHexString(), 'fffdf5', 'reference holder is white');
   assert.ok(darkPadBody.material.map && padBody.material.map, 'both controllers have a textured shell');

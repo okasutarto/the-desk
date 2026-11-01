@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import gsap from "gsap";
-import { canvasTexture, drawSatinFinish, drawMatteFinish, drawPsSymbols } from "../textures";
+import { canvasTexture, drawSatinFinish, drawMatteFinish, drawPsSymbols, drawSayaLacquer } from "../textures";
 
 export function createShelfConsole(runtime) {
   const PALETTE = ["#ff6b6b", "#ffdd00", "#00e0c6", "#ff90e8", "#8fd694", "#3b82f6", "#ffb35c", "#c4b5fd", "#fffdf5"];
@@ -38,11 +38,12 @@ export function createShelfConsole(runtime) {
   };
   const ends = (k) => (t) => THREE.MathUtils.smoothstep(Math.min(t, 1 - t), 0, k);
   // A side panel's outline, in (z, y): back edge straight, front edge leaning in a little up
-  // to the fins, then flaring out past the core toward the top
+  // to the fins, then flaring out past the core toward the top. It never dips behind the
+  // core's face, so the light in the seam is screened evenly down its length.
   const z0 = -PS_D / 2;
   const z1 = PS_D / 2;
   const v2 = (z, y) => new THREE.Vector2(z, y);
-  const frontLow = new THREE.QuadraticBezierCurve(v2(z1 - 0.035, 0.05), v2(z1 - 0.14, PS_H * 0.45), v2(z1 - 0.02, PS_H * 0.8));
+  const frontLow = new THREE.QuadraticBezierCurve(v2(z1 - 0.035, 0.05), v2(z1 - 0.07, PS_H * 0.45), v2(z1 - 0.02, PS_H * 0.8));
   const frontFlare = new THREE.QuadraticBezierCurve(v2(z1 - 0.02, PS_H * 0.8), v2(z1 + 0.1, PS_H * 0.97), v2(z1 + 0.01, PS_H));
   // The vents: three slots cut right through each panel, slanting up toward the front as on
   // the PS5 Pro, from just inside its back edge to just short of its front edge. Each is a
@@ -124,38 +125,42 @@ export function createShelfConsole(runtime) {
   [0.2, 0.27].forEach((y) => consoleBody.add(runtime.core.at(runtime.core.mesh(runtime.core.rbox(0.07, 0.024, 0.01, 0.011), portMat, { outline: 0, cast: false }), 0, y, CORE_FRONT + 0.001)));
   const powerButton = runtime.core.at(runtime.core.mesh(runtime.core.rbox(0.05, 0.05, 0.012, 0.02), runtime.core.toon("#2a2e36"), { outline: 0.004, cast: false }), 0, 0.37, CORE_FRONT + 0.003);
   consoleBody.add(powerButton);
-  // The light: set into a dark channel down each front corner of the core, where it meets a
-  // panel, so it seems to shine out of the seam. Each is a rounded light pipe that fades in
-  // and out at its ends, with a soft glow that spills over the core's face and the panel's
-  // inner edge. `ledPulse` is a brighter band that runs up the pipes as the console boots.
+  // The light: a pipe half sunk into each rounded front corner of the core, where it meets a
+  // panel, so it seems to shine out of the seam itself. It fades in and out at its ends, and
+  // a soft glow spreads from it over the flat of the core's face. `ledPulse` is a brighter band that runs up the pipes as the console boots.
   const led = new THREE.Group();
   const ledMat = runtime.core.track(new THREE.MeshBasicMaterial({ color: "#4f6bff", transparent: true, depthWrite: false,
-    alphaMap: lightFalloff(64, 1, ends(0.12), () => 1) }));
+    alphaMap: lightFalloff(64, 1, ends(0.22), () => 1) }));
   const ledGlowMat = runtime.core.track(new THREE.MeshBasicMaterial({ color: "#4f6bff", transparent: true, opacity: 0.55, depthWrite: false,
-    blending: THREE.AdditiveBlending, alphaMap: lightFalloff(32, 64, (t) => Math.exp(-((t - 0.5) ** 2) * 40), ends(0.18)) }));
+    side: THREE.DoubleSide, blending: THREE.AdditiveBlending, alphaMap: lightFalloff(32, 64, (t) => Math.exp(-((1 - t) ** 2) * 9), ends(0.3)) }));
   const pulseBand = (t) => Math.exp(-((t - 0.5) ** 2) * 90);
   const ledPulseTex = lightFalloff(64, 1, pulseBand, () => 1);
   const ledPulseMat = runtime.core.track(new THREE.MeshBasicMaterial({ color: "#ffffff", transparent: true, opacity: 0, depthWrite: false,
     blending: THREE.AdditiveBlending, alphaMap: ledPulseTex }));
-  const ledPulseGlowTex = lightFalloff(16, 64, (t) => Math.exp(-((t - 0.5) ** 2) * 30), pulseBand);
+  const ledPulseGlowTex = lightFalloff(16, 64, (t) => Math.exp(-((1 - t) ** 2) * 7), pulseBand);
   const ledPulseGlowMat = runtime.core.track(new THREE.MeshBasicMaterial({ color: "#b8c8ff", transparent: true, opacity: 0, depthWrite: false,
-    blending: THREE.AdditiveBlending, alphaMap: ledPulseGlowTex }));
-  const channelMat = runtime.core.toon("#07080c");
+    side: THREE.DoubleSide, blending: THREE.AdditiveBlending, alphaMap: ledPulseGlowTex }));
   const LED_Y0 = PS_H * 0.06;
   const LED_Y1 = PS_H * 0.93;
+  // The core's corners are rounded to CORE_R: the pipe runs on that curve, halfway round it
+  const CORE_R = 0.04;
+  const FLAT = CORE_T / 2 - CORE_R;
   [-1, 1].forEach((side) => {
-    const x = side * (CORE_T / 2 - 0.012);
-    const channel = runtime.core.at(runtime.core.mesh(runtime.core.rbox(0.03, LED_Y1 - LED_Y0 + 0.03, 0.01, 0.006), channelMat, { outline: 0, cast: false }), x, (LED_Y0 + LED_Y1) / 2, CORE_FRONT + 0.001);
-    const path = new THREE.LineCurve3(new THREE.Vector3(x, LED_Y0, CORE_FRONT + 0.004), new THREE.Vector3(x, LED_Y1, CORE_FRONT + 0.004));
-    const pipe = new THREE.Mesh(runtime.core.track(new THREE.TubeGeometry(path, 1, 0.0075, 8, false)), ledMat);
-    const pulse = new THREE.Mesh(runtime.core.track(new THREE.TubeGeometry(path, 1, 0.011, 8, false)), ledPulseMat);
-    const glowGeo = runtime.core.track(new THREE.PlaneGeometry(0.14, LED_Y1 - LED_Y0 + 0.12));
+    const x = side * (FLAT + CORE_R * Math.SQRT1_2);
+    const z = CORE_FRONT - CORE_R * (1 - Math.SQRT1_2);
+    const path = new THREE.LineCurve3(new THREE.Vector3(x, LED_Y0, z), new THREE.Vector3(x, LED_Y1, z));
+    const pipe = new THREE.Mesh(runtime.core.track(new THREE.TubeGeometry(path, 1, 0.009, 12, false)), ledMat);
+    const pulse = new THREE.Mesh(runtime.core.track(new THREE.TubeGeometry(path, 1, 0.012, 12, false)), ledPulseMat);
+    // the glow lies flat on the face, brightest where the face turns into the lit corner
+    // (turned round on the left so its bright edge is outermost there too)
+    const glowGeo = runtime.core.track(new THREE.PlaneGeometry(0.06, LED_Y1 - LED_Y0));
     const glow = new THREE.Mesh(glowGeo, ledGlowMat);
-    glow.position.set(side * (CORE_T / 2 - 0.02), (LED_Y0 + LED_Y1) / 2, CORE_FRONT + 0.008);
+    glow.position.set(side * (FLAT - 0.03), (LED_Y0 + LED_Y1) / 2, CORE_FRONT + 0.0025);
+    if (side < 0) glow.rotation.y = Math.PI;
     const pulseGlow = new THREE.Mesh(glowGeo, ledPulseGlowMat);
-    pulseGlow.position.copy(glow.position).setZ(CORE_FRONT + 0.009);
+    pulseGlow.position.copy(glow.position).setZ(CORE_FRONT + 0.003);
+    pulseGlow.rotation.y = glow.rotation.y;
     [pipe, pulse, glow, pulseGlow].forEach((part) => (part.raycast = runtime.core.noRaycast));
-    consoleBody.add(channel);
     led.add(pipe, pulse, glow, pulseGlow);
   });
   // The LED's glow on the shelf round the console, blue in standby and brighter once it boots
@@ -258,8 +263,14 @@ export function createShelfConsole(runtime) {
     bodyGeo.translate(0, 0, -0.06);
     bodyGeo.rotateX(-Math.PI / 2);
     const light = color === "#fffdf5";
-    const body = runtime.core.toon(light ? color : "#141414");
-    body.map = light ? padFinish.texture : darkPadFinish.texture;
+    // The shell is lacquered like the katana sayas: the same colour and fine grain, without
+    // the saya's gloss band (a round scabbard's reflection, out of place on a flat pad)
+    const lacquer = canvasTexture(1024, 128);
+    runtime.core.track(lacquer.texture);
+    drawSayaLacquer(lacquer.ctx, 1024, 128, { color: light ? color : "#141414", sheen: false });
+    lacquer.texture.wrapS = lacquer.texture.wrapT = THREE.RepeatWrapping;
+    const body = runtime.core.toon("#ffffff");
+    body.map = lacquer.texture;
     if (!light) {
       body.emissive.set("#303030");
       body.emissiveIntensity = 0.04;

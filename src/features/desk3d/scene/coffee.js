@@ -16,7 +16,8 @@ export function createCoffee(runtime) {
   corkMat.map = corkTex.texture;
   const coaster = runtime.core.mesh(new THREE.CylinderGeometry(0.74, 0.74, 0.06, 32), corkMat, { outline: 0.03, cast: false });
   coaster.position.set(mug.position.x, 0.03, mug.position.z);
-  const coasterRing = new THREE.Mesh(runtime.core.track(new THREE.TorusGeometry(0.6, 0.02, 6, 40)), runtime.core.track(new THREE.MeshBasicMaterial({ color: "#6e4520" })));
+  const coasterRing = new THREE.Mesh(runtime.core.track(new THREE.TorusGeometry(0.6, 0.02, 6, 40)), runtime.core.toon("#6e4520"));
+  coasterRing.receiveShadow = true;
   coasterRing.rotation.x = Math.PI / 2;
   coasterRing.position.set(mug.position.x, 0.062, mug.position.z);
   coasterRing.raycast = runtime.core.noRaycast;

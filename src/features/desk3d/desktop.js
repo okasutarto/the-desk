@@ -21,7 +21,7 @@ export function createDesktop({ terminal, player, actions }) {
     terminal: { id: "terminal", title: "the@desk: ~", home: { x: 18, y: 32, w: 368, h: 212 }, bar: "#ff7a1a", ink: "#000", open: true },
     spotifree: { id: "spotifree", title: "Spotifree", home: { x: 376, y: 40, w: 250, h: 272 }, bar: "#000", ink: "#fff", open: false },
     code: { id: "code", title: "portfolio — VS Kode", home: { x: 44, y: 38, w: 420, h: 268 }, bar: "#13141c", ink: "#fff", open: false },
-    wallpaper: { id: "wallpaper", title: "Wallpaper — cut paper", home: { x: 46, y: 38, w: 548, h: 192 }, bar: "#b7c8ff", ink: "#000", open: false },
+    wallpaper: { id: "wallpaper", title: "Wallpaper — toon prints", home: { x: 46, y: 38, w: 548, h: 192 }, bar: "#b7c8ff", ink: "#000", open: false },
     snake: { id: "snake", title: "Snake", home: { x: 404, y: 52, w: 212, h: 238 }, bar: "#8fd694", ink: "#000", open: false },
   };
   const wallpaper = createWallpapers();
@@ -119,7 +119,7 @@ export function createDesktop({ terminal, player, actions }) {
     c.textAlign = "left";
     c.fillStyle = theme.ink;
     c.font = `700 11px ${BODY}`;
-    c.fillText("Landscapes, cut from the desk's own paper.", 14, 18);
+    c.fillText("Classic wallpapers, redrawn as toon prints.", 14, 18);
     c.font = `500 9px ${BODY}`;
     c.fillText("Light and dark follow the room automatically.", 14, 36);
     const gap = 10, left = 14, cw = (w - left * 2 - gap * (WALLPAPERS.length - 1)) / WALLPAPERS.length;
