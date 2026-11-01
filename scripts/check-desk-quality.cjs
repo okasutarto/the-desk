@@ -132,6 +132,11 @@ assert.deepEqual([allHeavy.ao, allHeavy.decorShed], [false, true], 'decorative s
 // shadow pace, while anything else that moves (flags, fidgets, tweened props) redraws them every frame.
 {
   const gsap = require('gsap').gsap;
+  // gsap's own clock follows real time, so a tween ticked within the millisecond it was made
+  // hasn't rendered yet and isn't active: drive the root timeline by hand instead
+  gsap.ticker.remove(gsap.updateRoot);
+  let gsapTime = gsap.globalTimeline.time();
+  const advance = () => gsap.updateRoot((gsapTime += 0.05));
   const cam = { zoom: 1 };
   const userView = { zoom: 1, x: 0, y: 0 };
   const tweenSource = source.slice(source.indexOf('  const isViewTarget ='), source.indexOf('  let aoFreshAt ='));
@@ -154,7 +159,7 @@ assert.deepEqual([allHeavy.ao, allHeavy.decorShed], [false, true], 'decorative s
   }
   const viewTween = gsap.to(userView, { zoom: 2, duration: 10 });
   const camTween = gsap.to(cam, { zoom: 2, duration: 10 });
-  gsap.ticker.tick();
+  advance();
   const panned = frames({ viewMoved: true });
   assert.ok(panned >= 11 && panned <= 13, 'a pan or zoom alone keeps the 12 Hz shadow pace');
   assert.equal(frames({ viewMoved: false }), 60, 'input without a view change still redraws shadows each frame');
@@ -163,10 +168,10 @@ assert.deepEqual([allHeavy.ao, allHeavy.decorShed], [false, true], 'decorative s
   const prop = { y: 0 };
   const propTween = gsap.to(prop, { y: 1, duration: 10 });
   gsap.delayedCall(10, () => {});
-  gsap.ticker.tick();
+  advance();
   assert.equal(frames({ viewMoved: true }), 60, 'a tweened prop redraws shadows while the view moves');
   propTween.kill();
-  gsap.ticker.tick();
+  advance();
   const delayed = frames({ viewMoved: true });
   assert.ok(delayed >= 11 && delayed <= 13, 'delayed calls and camera tweens are not prop motion');
   const still = frames({ moving: false });
@@ -174,6 +179,8 @@ assert.deepEqual([allHeavy.ao, allHeavy.decorShed], [false, true], 'decorative s
   viewTween.kill();
   camTween.kill();
   gsap.globalTimeline.clear();
+  // with the root driven by hand the ticker would otherwise keep the process alive
+  gsap.ticker.sleep();
 }
 
 // Execute the real scheduler, stopping immediately before scene updates.
@@ -242,23 +249,28 @@ const background = scene.background;
 const camera = new THREE.OrthographicCamera();
 const overlay = new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshBasicMaterial({ depthTest: false }));
 scene.add(overlay, overlay.clone());
+const lamp = new THREE.PointLight();
+scene.add(lamp);
 let overlayRenders = 0;
 const renderContext = vm.createContext({ scene, camera, noRaycast() {},
   performance: { now: () => 10 }, perfParams: { has: () => true },
-  renderer: { autoClear: true, info: { reset() {}, render: { calls: 2, triangles: 24 } }, render(root, cam) {
+  renderer: { autoClear: true, shadowMap: { autoUpdate: true }, info: { reset() {}, render: { calls: 2, triangles: 24 } }, render(root, cam) {
     assert.equal(root, scene);
+    assert.ok(lamp.layers.test(cam.layers), 'the overlay pass sees the same lights, so the light state stays put');
+    assert.equal(renderContext.renderer.shadowMap.autoUpdate, false, 'the overlay pass never redraws shadow maps');
     assert.equal(root.background, null, 'overlay pass must not clear the composed scene');
     assert.equal(cam.layers.mask, 2);
     overlayRenders++;
   } },
-  composer: { render() { assert.ok(scene.children.every((o) => !o.visible)); } },
+  composer: { render() { assert.ok(scene.children.filter((o) => o.isMesh).every((o) => !o.visible)); } },
   useFrameDepth() {}, gpuQuery: null, gpuTimer: null, renderMs: 0, drawCalls: 0, triangles: 0,
 });
 const renderStart = source.indexOf('  const overlays =');
 vm.runInContext(source.slice(renderStart, source.indexOf('  // Daylight enters', renderStart)), renderContext);
 vm.runInContext('renderFrame()', renderContext);
 assert.equal(overlayRenders, 1);
+assert.equal(renderContext.renderer.shadowMap.autoUpdate, true);
 assert.equal(camera.layers.mask, 1);
 assert.equal(scene.background, background);
-assert.ok(scene.children.every((o) => o.visible && o.layers.isEnabled(0)));
+assert.ok(scene.children.filter((o) => o.isMesh).every((o) => o.visible && o.layers.isEnabled(0)));
 console.log('Locked resolution: Retina/zoom, sustained overload, jitter-aware pacing, visibility, view-only shadow pace and shadow budgets passed.');

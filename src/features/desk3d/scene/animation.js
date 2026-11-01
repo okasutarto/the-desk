@@ -88,8 +88,48 @@ export function createAnimation(runtime) {
       const neonShadows = runtime.room.shadowedNeons.some((light) => light.castShadow);
       const intervals = [...frameIntervals].sort((a, b) => a - b);
       const p95 = intervals[Math.min(intervals.length - 1, Math.floor(intervals.length * 0.95))] || 0;
-      perfReadout.textContent = `${(1000 / frameMs).toFixed(0)} fps (budget ${(1000 / refreshMs).toFixed(0)}) · resolution locked\npost ${postDensity().toFixed(2)}× · AO ${runtime.core.aoPass.enabled ? "on" : "off"} · neon shadows ${neonShadows ? "on" : "off"}${lowPower ? " · low power" : ""}${probeMs === null ? "" : ` · probe ${probeMs.toFixed(1)}ms`}\n${runtime.core.drawCalls.toFixed(0)} draws · ${(runtime.core.triangles / 1000).toFixed(0)}k triangles\nCPU submit ${runtime.core.renderMs.toFixed(1)}ms · GPU ${runtime.core.gpuMs === null ? "n/a" : runtime.core.gpuMs.toFixed(1) + "ms"} · frame p95 ${p95.toFixed(1)}ms${benchmark ? " · " + benchmark : ""}`;
+      const seconds = Math.max((performance.now() - perfWindowAt) / 1000, 0.001);
+      const share = (count) => `${Math.round((count / Math.max(perfFrames, 1)) * 100)}%`;
+      const reasons = [...motionFrames].sort((a, b) => b[1] - a[1]).map(([name, count]) => `${name} ${share(count)}`).join(" · ");
+      const redraws = [...shadowRedraws].sort((a, b) => b[1] - a[1]).map(([name, count]) => `${name} ${(count / seconds).toFixed(0)}`).join(" · ");
+      const motion = `moving ${share(movingFrames)}${reasons ? ": " + reasons : ""}\nshadow maps/s ${redraws || "none"}`;
+      motionFrames.clear();
+      shadowRedraws.clear();
+      perfFrames = movingFrames = 0;
+      perfWindowAt = performance.now();
+      perfReadout.textContent = `${(1000 / frameMs).toFixed(0)} fps (budget ${(1000 / refreshMs).toFixed(0)}) · resolution locked\npost ${postDensity().toFixed(2)}× · AO ${runtime.core.aoPass.enabled ? "on" : "off"} · neon shadows ${neonShadows ? "on" : "off"}${lowPower ? " · low power" : ""}${probeMs === null ? "" : ` · probe ${probeMs.toFixed(1)}ms`}\n${runtime.core.drawCalls.toFixed(0)} draws · ${(runtime.core.triangles / 1000).toFixed(0)}k triangles\nCPU submit ${runtime.core.renderMs.toFixed(1)}ms · GPU ${runtime.core.gpuMs === null ? "n/a" : runtime.core.gpuMs.toFixed(1) + "ms"} · frame p95 ${p95.toFixed(1)}ms${benchmark ? " · " + benchmark : ""}\n${motion}`;
     }, 500));
+  }
+  // ...and why the room counts as moving, and which shadow maps are drawn how often (a point
+  // light's is six renders of the room), so a heavy moment says what it's spending on
+  const motionReasons = [
+    ["input", (now) => now < runtime.core.responsiveUntil],
+    ["camera", () => gsap.isTweening(runtime.camera.cam)],
+    ["lighting", () => runtime.theme.lightingBlending],
+    ["cat", () => runtime.cat.catBusy || runtime.cat.catIdleTl?.isActive()],
+    ["blind", () => gsap.isTweening(runtime.windowBlind.blind)],
+    ["mouse", () => runtime.mouse.mouseRunning],
+    ["lamp", () => runtime.lamp.lampHopping],
+    ["trophy", () => runtime.shelfCollectibles.trophyCelebrating],
+    ["drag", () => runtime.pointer.lanyardDrag || runtime.pointer.hatDrag || runtime.aboutBoard.noteDrag || runtime.pointer.shelfDrag || runtime.pointer.stickyDrag || runtime.pointer.chairDrag],
+    ["screen", () => gsap.isTweening(runtime.workstation.screenPower)],
+  ];
+  const motionFrames = new Map();
+  const shadowRedraws = new Map();
+  let perfFrames = 0;
+  let movingFrames = 0;
+  let perfWindowAt = performance.now();
+  function countPerfFrame(now, moving) {
+    perfFrames++;
+    if (moving) movingFrames++;
+    motionReasons.forEach(([name, active]) => {
+      if (active(now)) motionFrames.set(name, (motionFrames.get(name) || 0) + 1);
+    });
+    shadowLights.forEach((light) => {
+      if (!light.castShadow || !(light.shadow.autoUpdate || light.shadow.needsUpdate)) return;
+      const name = shadowNames.get(light) || "neon";
+      shadowRedraws.set(name, (shadowRedraws.get(name) || 0) + 1);
+    });
   }
 
 
@@ -105,6 +145,7 @@ export function createAnimation(runtime) {
     });
   });
   const shadowLights = [...new Set([runtime.swordEffects.swordSpotlight, runtime.windowLighting.windowLight, runtime.core.sun, runtime.lamp.lampLight, runtime.workstation.lightbarLight, runtime.shelf.signLight, runtime.workstation.screenLight, ...runtime.room.shadowedNeons])];
+  const shadowNames = new Map([[runtime.swordEffects.swordSpotlight, "sword"], [runtime.windowLighting.windowLight, "window"], [runtime.core.sun, "sun"], [runtime.lamp.lampLight, "lamp"], [runtime.workstation.lightbarLight, "lightbar"], [runtime.shelf.signLight, "sign"], [runtime.workstation.screenLight, "screen"]]);
   const lightTextureSlots = shadowLights.filter((light) => light.map).length;
   const shadowTextureLimit = Math.max(0, runtime.core.renderer.capabilities.maxTextures - materialTextureSlots - lightTextureSlots);
   const decorativeShadows = new Set(runtime.room.shadowedNeons);
@@ -442,6 +483,7 @@ export function createAnimation(runtime) {
     // before anyone switches the lamp on (see warmShaders)
     updateShadowBudget(firstFrame ? !decorShed : decorWanted());
     if (runtime.core.standbyPass.enabled) aimStandbyGlow();
+    if (perfReadout) countPerfFrame(now, moving);
     const drawStarted = probe ? performance.now() : 0;
     runtime.core.renderFrame();
     if (firstFrame) {

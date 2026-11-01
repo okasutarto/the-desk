@@ -152,6 +152,10 @@ export function createCore(runtime) {
     overlays.length = 0;
     overlaySet.clear();
     scene.traverseVisible((o) => {
+      // Lights are filtered by the camera's layers, so the overlay pass (layer 1) would set up
+      // an empty light state and the next frame's full one: two changes a frame, and every lit
+      // material re-checked for its program. Lit on layer 1 too, both passes share one state.
+      if (o.isLight) o.layers.enable(1);
       if (o.material?.depthTest !== false) return;
       for (let p = o.parent; p; p = p.parent) if (overlaySet.has(p)) return;
       overlaySet.add(o);
@@ -169,7 +173,10 @@ export function createCore(runtime) {
       const background = scene.background;
       camera.layers.set(1);
       scene.background = null;
+      // the lights now in this pass mustn't redraw shadow maps the scene already has
+      renderer.shadowMap.autoUpdate = false;
       renderer.render(scene, camera);
+      renderer.shadowMap.autoUpdate = true;
       scene.background = background;
       camera.layers.mask = layers;
       renderer.autoClear = true;
