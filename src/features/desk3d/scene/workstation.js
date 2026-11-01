@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import gsap from "gsap";
 import { hoverSound, sfx, GROOVE_BEAT, setRainLevel, initializeAudio } from "@/shared/composables/useSfx";
-import { canvasTexture, drawTerminal, drawWoodTop, drawBrushedMetal, drawStudioTop, drawVentSlots, drawPowerScreen } from "../textures";
+import { canvasTexture, drawTerminal, drawWoodTop, drawBrushedMetal, drawSayaLacquer, drawStudioTop, drawVentSlots, drawPowerScreen } from "../textures";
 import { createDesktop, SCREEN_W, SCREEN_H } from "../desktop";
 import { createLofi, TRACKS } from "../lofi";
 import { PALETTES } from "../sceneConfig";
@@ -469,10 +469,15 @@ export function createWorkstation(runtime) {
   coneWeave.texture.wrapS = coneWeave.texture.wrapT = THREE.RepeatWrapping;
   coneWeave.texture.repeat.set(6, 1);
   wooferConeMat.map = coneWeave.texture;
-  // The baffle's fine metallic finish
-  const baffleFinish = canvasTexture(256, 256);
+  // The baffle's glossy lacquer, the katana saya's finish as a light tile its material tints.
+  // The baffle and body map their uv in scene units (across × up the face and on over the top),
+  // so one tile is stretched across the face with the sheen's bright band through the middle.
+  const baffleFinish = canvasTexture(1024, 128);
   runtime.core.track(baffleFinish.texture);
-  drawBrushedMetal(baffleFinish.ctx, 256, 256);
+  drawSayaLacquer(baffleFinish.ctx, 1024, 128, { color: "#c8c8c8" });
+  baffleFinish.texture.wrapS = baffleFinish.texture.wrapT = THREE.RepeatWrapping;
+  baffleFinish.texture.repeat.set(0.75, 0.43);
+  baffleFinish.texture.offset.y = 0.5;
   speakerBaffleMat.map = baffleFinish.texture;
   const portTubeMat = runtime.core.toon("#141415");
   portTubeMat.side = THREE.DoubleSide;
@@ -535,11 +540,8 @@ export function createWorkstation(runtime) {
     // thick and really pierced, so the drivers and port sit down inside their openings.
     const cabinet = new THREE.Group();
     cabinet.name = "r1280dbs-cabinet";
-    // (its back stops just short of the panels', so nothing of it shows past their edges)
-    const core = runtime.core.mesh(runtime.core.rbox(R1280.w - 2 * SIDE_PANEL + 0.02, R1280.h - 0.06, R1280.d - RECESS - 0.03, 0.03), speakerShellMat, { outline: 0 });
-    core.position.set(0, R1280.h / 2, -RECESS / 2 + 0.015);
-    cabinet.add(core);
     const ROUND = 0.03;
+    const face = BAFFLE_Z - 0.005;
     // The active speaker's controls sit in a tall well cut into its outer side panel
     const CONTROL = { z: BAFFLE_Z - 0.4, y: 1.6, w: 0.46, h: 1.0 };
     [-1, 1].forEach((side) => {
@@ -559,27 +561,76 @@ export function createWorkstation(runtime) {
         const v = Math.abs(sideNormal.getY(i)) > 0.7 ? 0.5 + sidePosition.getX(i) / R1280.d : sidePosition.getY(i) / R1280.h + 0.5;
         sideUv.setXY(i, u, v);
       }
-      const panel = runtime.core.mesh(sideGeometry, speakerWoodMat, { outline: 0.012 });
+      // The cabinet is inked as one box: the left panel's outline is drawn round the panels'
+      // profile carried right across the speaker, and the right panel has none. An inside face
+      // of either would show as a broken line wherever the panels' rounded edges meet the grey.
+      let outline = 0;
+      let hull;
+      if (side === -1) {
+        outline = 0.012;
+        hull = new THREE.ExtrudeGeometry(roundedPlate(R1280.d - 2 * ROUND, R1280.h - 2 * ROUND, 0.14), { depth: R1280.w - 2 * ROUND, bevelEnabled: true, bevelSize: ROUND, bevelThickness: ROUND, bevelSegments: 4, curveSegments: 12 });
+        hull.translate(0, 0, -(R1280.w - 2 * ROUND) / 2);
+        hull.rotateY(-Math.PI / 2);
+        hull.translate((R1280.w - SIDE_PANEL) / 2, 0, 0);
+      }
+      const panel = runtime.core.mesh(sideGeometry, speakerWoodMat, { outline, hull });
       panel.name = "wood-side-panel";
       panel.position.set(side * (R1280.w / 2 - SIDE_PANEL / 2), R1280.h / 2, 0);
       cabinet.add(panel);
     });
-    // The top, between the side panels and back to the baffle, in the baffle's own metallic grey
-    const topPanel = runtime.core.mesh(runtime.core.rbox(R1280.w - 2 * SIDE_PANEL + 0.02, 0.05, R1280.d - RECESS, 0.012), speakerBaffleMat, { outline: 0.012 });
-    topPanel.name = "top-panel";
-    topPanel.position.set(0, R1280.h - 0.025, -RECESS / 2);
-    cabinet.add(topPanel);
-    const face = BAFFLE_Z - 0.005;
-    const baffleShape = roundedPlate(R1280.w - 2 * SIDE_PANEL + 0.01, R1280.h - 0.06, 0.04);
+    // The grey body between the side panels: its profile sweeps round the same curves as the
+    // panels' corners, front and back, just inside them, so nothing of it shows past their edges.
+    // The baffle fills the notch in its front between the two front curves, flush with them, and
+    // is really pierced, so the drivers and port sit down inside their openings. Its top, back
+    // and face are the baffle's lacquer, its hidden ends the shell's grey.
+    const BODY_R = 0.17;
+    // (its ends sit past the panels' rounded inner edges, so none of it shows over them)
+    const BODY_W = R1280.w - 2 * SIDE_PANEL + 2 * ROUND;
+    const [bodyBack, bodyBottom, top] = [-R1280.d / 2 + 0.01, 0.01, R1280.h];
+    const [notchLow, notchHigh, notchBack] = [bodyBottom + BODY_R, top - BODY_R, face - RECESS];
+    const bodyShape = new THREE.Shape();
+    bodyShape.moveTo(face - BODY_R, bodyBottom);
+    bodyShape.quadraticCurveTo(face, bodyBottom, face, notchLow);
+    bodyShape.lineTo(notchBack, notchLow);
+    bodyShape.lineTo(notchBack, notchHigh);
+    bodyShape.lineTo(face, notchHigh);
+    bodyShape.quadraticCurveTo(face, top, face - BODY_R, top);
+    bodyShape.lineTo(bodyBack + BODY_R, top);
+    bodyShape.quadraticCurveTo(bodyBack, top, bodyBack, top - BODY_R);
+    bodyShape.lineTo(bodyBack, bodyBottom + BODY_R);
+    bodyShape.quadraticCurveTo(bodyBack, bodyBottom, bodyBack + BODY_R, bodyBottom);
+    bodyShape.lineTo(face - BODY_R, bodyBottom);
+    const bodyGeometry = new THREE.ExtrudeGeometry(bodyShape, { depth: BODY_W, bevelEnabled: false, curveSegments: 16 });
+    bodyGeometry.translate(0, 0, -BODY_W / 2);
+    bodyGeometry.rotateY(-Math.PI / 2);
+    // One lacquer over body and baffle: v runs up the face and on round the curves, over the top
+    // and under the bottom (further back, further from the middle), so the sheen and grain carry
+    // across every join
+    const lacquerUv = (geometry, yAt, zAt) => {
+      const position = geometry.attributes.position;
+      const uv = geometry.attributes.uv;
+      for (let i = 0; i < position.count; i++) {
+        const y = position.getY(i) + yAt;
+        uv.setXY(i, position.getX(i), y - R1280.h / 2 + (face - position.getZ(i) - zAt) * (2 * y / R1280.h - 1));
+      }
+    };
+    lacquerUv(bodyGeometry, 0, 0);
+    // (no outline of its own: the left panel's hull rings the whole cabinet)
+    const body = runtime.core.mesh(bodyGeometry, [speakerShellMat, speakerBaffleMat], { outline: 0 });
+    body.name = "cabinet-body";
+    cabinet.add(body);
+    // Square-edged, so its face runs straight on into the body's curves
+    const baffleShape = roundedPlate(BODY_W, notchHigh - notchLow, 0.001, 0, (notchHigh + notchLow) / 2 - R1280.h / 2);
     [[TWEETER_AT.x, TWEETER_AT.y, 0.17], [BASS_PORT_AT.x, BASS_PORT_AT.y, 0.15], [0, WOOFER_AT, 0.5]].forEach(([hx, hy, r]) => {
       const hole = new THREE.Path();
       hole.absarc(hx, hy - R1280.h / 2, r, 0, Math.PI * 2, true);
       baffleShape.holes.push(hole);
     });
-    const baffleGeometry = new THREE.ExtrudeGeometry(baffleShape, { depth: RECESS - 0.02, bevelEnabled: true, bevelSize: 0.015, bevelThickness: 0.015, bevelSegments: 3, curveSegments: 32 });
+    const baffleGeometry = new THREE.ExtrudeGeometry(baffleShape, { depth: RECESS, bevelEnabled: false, curveSegments: 32 });
+    lacquerUv(baffleGeometry, R1280.h / 2, notchBack);
     const baffle = runtime.core.mesh(baffleGeometry, speakerBaffleMat, { outline: 0 });
     baffle.name = "front-baffle";
-    baffle.position.set(0, R1280.h / 2, face - RECESS + 0.005);
+    baffle.position.set(0, R1280.h / 2, notchBack);
     cabinet.add(baffle);
     speaker.add(cabinet);
     // The tweeter on its own thick round black plate, chamfered round its rim and held by four
