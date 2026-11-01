@@ -79,9 +79,31 @@ function load(file, name, context) {
     install(null);
     const patchedShadow = THREE.ShaderChunk.shadowmap_pars_fragment;
     const patchedGradient = THREE.ShaderChunk.gradientmap_pars_fragment;
+    function checkDisk(shader, search, samples) {
+      const constants = shader.match(/const vec2 PCSS_DISK\[ \d+ \] = vec2\[\]\( (.*?) \);/)[1];
+      const points = [...constants.matchAll(/vec2\(([-\d.]+), ([-\d.]+)\)/g)].map(m => [Number(m[1]), Number(m[2])]);
+      assert.equal(points.length, search + samples);
+      let offset = 0;
+      for (const count of [search, samples]) {
+        for (let i = 0; i < count; i++) {
+          const [x, y] = points[offset++];
+          // Preserve the old kernel, including the per-fragment rotation, to rounding precision.
+          for (const spin of [0, 0.73, 3.1]) {
+            const angle = spin + i * 2.39996;
+            const radius = Math.sqrt((i + 0.5) / count);
+            assert.ok(Math.abs(x * Math.cos(spin) - y * Math.sin(spin) - Math.cos(angle) * radius) < 1e-8);
+            assert.ok(Math.abs(x * Math.sin(spin) + y * Math.cos(spin) - Math.sin(angle) * radius) < 1e-8);
+          }
+        }
+      }
+    }
+    checkDisk(patchedShadow, 8, 24);
     install(null);
     assert.equal(THREE.ShaderChunk.shadowmap_pars_fragment, patchedShadow, 'shader patches are idempotent');
     assert.equal(THREE.ShaderChunk.gradientmap_pars_fragment, patchedGradient);
+    THREE.ShaderChunk.shadowmap_pars_fragment = originalShadow;
+    install(null, true);
+    checkDisk(THREE.ShaderChunk.shadowmap_pars_fragment, 4, 6);
   } finally {
     THREE.ShaderChunk.shadowmap_pars_fragment = originalShadow;
     THREE.ShaderChunk.gradientmap_pars_fragment = originalGradient;
