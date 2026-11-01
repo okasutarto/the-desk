@@ -28,10 +28,10 @@ export function drawHakiAura(c, w, h) {
   c.save();
   c.scale(1, h / w);
   const g = c.createRadialGradient(w / 2, w / 2, 0, w / 2, w / 2, w / 2);
-  g.addColorStop(0, "rgba(46,14,80,.82)");
-  g.addColorStop(0.35, "rgba(110,40,190,.58)");
-  g.addColorStop(0.7, "rgba(168,85,247,.24)");
-  g.addColorStop(1, "rgba(168,85,247,0)");
+  g.addColorStop(0, "rgba(78,20,130,.92)");
+  g.addColorStop(0.35, "rgba(145,50,230,.82)");
+  g.addColorStop(0.7, "rgba(190,100,255,.44)");
+  g.addColorStop(1, "rgba(190,100,255,0)");
   c.fillStyle = g;
   c.fillRect(0, 0, w, w);
   c.restore();
