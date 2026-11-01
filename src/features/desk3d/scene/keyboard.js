@@ -77,24 +77,61 @@ export function createKeyboard(runtime) {
     });
   });
   const keyCaseMat = runtime.core.toon("#24262b");
-  const lowerFinish = canvasTexture(256, 128);
-  runtime.core.track(lowerFinish.texture);
-  lowerFinish.ctx.fillStyle = "#d4d4d4";
-  lowerFinish.ctx.fillRect(0, 0, 256, 128);
-  for (let x = 0; x < 256; x += 4) {
-    lowerFinish.ctx.fillStyle = "rgba(0,0,0,.22)";
-    lowerFinish.ctx.fillRect(x, 0, 1, 128);
-    lowerFinish.ctx.fillStyle = "rgba(255,255,255,.13)";
-    lowerFinish.ctx.fillRect(x + 1, 0, 1, 128);
+  // The V2's halo: the bottom case is smoky, fluted acrylic with the RGB inside it, so the light
+  // comes through diffused, brightest at the foot and dimming up toward the aluminium. Two
+  // prints: the rainbow behind (its map scrolls) and the flutes in front (as its occlusion, which
+  // keeps a transform of its own, so the ribs stay put while the colour runs past them)
+  const shellPrint = canvasTexture(256, 4);
+  runtime.core.track(shellPrint.texture);
+  for (let x = 0; x < 256; x++) {
+    shellPrint.ctx.fillStyle = `hsl(${(x / 256) * 360}, 85%, 60%)`;
+    shellPrint.ctx.fillRect(x, 0, 1, 4);
   }
-  const lowerShellMat = runtime.core.toon("#45484d");
-  lowerShellMat.map = lowerFinish.texture;
-  lowerShellMat.bumpMap = lowerFinish.texture;
-  lowerShellMat.bumpScale = 0.003;
-  const keyBottom = runtime.core.mesh(runtime.core.rbox(CASE_W, 0.12, CASE_D, 0.06), lowerShellMat, { outline: 0.02 });
-  keyBottom.position.y = 0.06;
-  const keyBase = runtime.core.mesh(runtime.core.rbox(CASE_W - 0.02, 0.15, CASE_D - 0.02, 0.06), keyCaseMat, { outline: 0.02 });
-  keyBase.position.y = 0.19;
+  shellPrint.texture.wrapS = THREE.RepeatWrapping;
+  // (the shell's walls are uv'd in room units round its outline: about 1.5 rainbows round it)
+  shellPrint.texture.repeat.x = 0.12;
+  const flutes = canvasTexture(512, 64);
+  runtime.core.track(flutes.texture);
+  {
+    const c = flutes.ctx;
+    // canvas top is the shell's top: smoky there, the light gathering toward the foot
+    const depth = c.createLinearGradient(0, 0, 0, 64);
+    depth.addColorStop(0, "#3a3a3a");
+    depth.addColorStop(0.45, "#8a8a8a");
+    depth.addColorStop(0.85, "#e6e6e6");
+    depth.addColorStop(1, "#ffffff");
+    c.fillStyle = depth;
+    c.fillRect(0, 0, 512, 64);
+    // each flute bright down its crest and dark in its groove, the light bending through it
+    for (let x = 0; x < 512; x += 4) {
+      c.fillStyle = "rgba(0,0,0,.28)";
+      c.fillRect(x, 0, 1, 64);
+      c.fillStyle = "rgba(255,255,255,.14)";
+      c.fillRect(x + 2, 0, 1, 64);
+    }
+  }
+  flutes.texture.colorSpace = THREE.NoColorSpace;
+  flutes.texture.wrapS = THREE.RepeatWrapping;
+  const lowerShellMat = runtime.core.track(new THREE.MeshBasicMaterial({ map: shellPrint.texture, aoMap: flutes.texture, aoMapIntensity: 1 }));
+  // Acrylic and aluminium share one outline in plan, its corners well rounded, so the case reads
+  // as one body: the acrylic's walls run straight up into the aluminium, which is bevelled only
+  // where it turns onto its top. (A rounded box rounds every edge alike: the two met in a groove
+  // and their corners stayed sharp.)
+  const CASE_R = 0.16;
+  const CASE_BEVEL = 0.03;
+  const CASE_FOOT = 0.115; // where the aluminium starts
+  const SHELL_H = CASE_FOOT + CASE_BEVEL;
+  const shellGeo = new THREE.ExtrudeGeometry(runtime.core.roundedRectShape(CASE_W - 0.008, CASE_D - 0.008, CASE_R), { depth: SHELL_H, bevelEnabled: false, curveSegments: 10 });
+  shellGeo.rotateX(-Math.PI / 2);
+  // walls are uv'd with their height as v: the fade and the flutes span it
+  flutes.texture.repeat.set(0.22, 1 / SHELL_H);
+  const keyBottom = runtime.core.mesh(shellGeo, lowerShellMat, { outline: 0.012 });
+  const baseGeo = new THREE.ExtrudeGeometry(runtime.core.roundedRectShape(CASE_W - 2 * CASE_BEVEL, CASE_D - 2 * CASE_BEVEL, CASE_R - CASE_BEVEL), {
+    depth: 0.15 - 2 * CASE_BEVEL, bevelEnabled: true, bevelThickness: CASE_BEVEL, bevelSize: CASE_BEVEL, bevelSegments: 3, curveSegments: 10,
+  });
+  baseGeo.rotateX(-Math.PI / 2);
+  baseGeo.translate(0, CASE_FOOT + CASE_BEVEL, 0);
+  const keyBase = runtime.core.mesh(baseGeo, keyCaseMat, { outline: 0.02 });
   keyboard.add(keyBottom, keyBase);
   const haloMat = runtime.core.track(new THREE.MeshBasicMaterial({ color: "#38bdf8" }));
   const haloBar = new THREE.Mesh(runtime.core.track(new THREE.BoxGeometry(0.03, 0.012, KEY_UNIT * 1.6)), haloMat);
@@ -105,6 +142,56 @@ export function createKeyboard(runtime) {
   const switchPlate = runtime.core.mesh(runtime.core.rbox(KEYS_W + 0.025, 0.025, KEYS_D + 0.025, 0.035), runtime.core.toon("#111317"), { outline: 0, cast: false });
   switchPlate.position.y = 0.27;
   keyboard.add(switchPlate);
+  // The Halo's per-key RGB: a rainbow wave across the plate, seen in the gaps between the caps.
+  // One plane under all of them, its print scrolled sideways, rather than a light per key.
+  const rgbPrint = canvasTexture(256, 4);
+  runtime.core.track(rgbPrint.texture);
+  for (let x = 0; x < 256; x++) {
+    rgbPrint.ctx.fillStyle = `hsl(${(x / 256) * 360}, 100%, 55%)`;
+    rgbPrint.ctx.fillRect(x, 0, 1, 4);
+  }
+  rgbPrint.texture.wrapS = THREE.RepeatWrapping;
+  rgbPrint.texture.repeat.x = 0.6;
+  const backlightMat = runtime.core.track(new THREE.MeshBasicMaterial({ map: rgbPrint.texture }));
+  const backlight = new THREE.Mesh(runtime.core.track(new THREE.PlaneGeometry(KEYS_W, KEYS_D)), backlightMat);
+  backlight.rotation.x = -Math.PI / 2;
+  backlight.position.y = 0.27 + 0.0125 + 0.002;
+  backlight.raycast = runtime.core.noRaycast;
+  keyboard.add(backlight);
+  // The halo spills onto the mat round the keyboard once the room is dark
+  const spillTex = canvasTexture(256, 128);
+  runtime.core.track(spillTex.texture);
+  {
+    const c = spillTex.ctx;
+    c.filter = "blur(14px)";
+    c.fillStyle = "#ffffff";
+    c.beginPath();
+    c.roundRect(40, 40, 176, 48, 20);
+    c.fill();
+  }
+  const spillMat = runtime.core.track(new THREE.MeshBasicMaterial({ map: spillTex.texture, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending }));
+  const spill = new THREE.Mesh(runtime.core.track(new THREE.PlaneGeometry((CASE_W + 0.9) * KEYBOARD_SCALE, (CASE_D + 0.9) * KEYBOARD_SCALE)), spillMat);
+  spill.rotation.x = -Math.PI / 2;
+  spill.position.set(keyboard.position.x, MAT_TOP + 0.004, keyboard.position.z);
+  spill.raycast = runtime.core.noRaycast;
+  runtime.core.scene.add(spill);
+  // A key flashes white under its cap as it's pressed, fading back into the wave
+  const flashMat = runtime.core.track(new THREE.MeshBasicMaterial({ color: "#ffffff", transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending }));
+  const flashGeo = runtime.core.track(new THREE.PlaneGeometry(1, 1));
+  // Faint by day, where the room's light washes it out, and bright once the lights go down
+  const backlightDim = new THREE.Color("#3a3d44");
+  const rgbColor = new THREE.Color();
+  function updateRgb(now) {
+    const night = runtime.core.roomLight.night;
+    rgbPrint.texture.offset.x = (now / 6000) % 1;
+    shellPrint.texture.offset.x = (now / 6000) % 1;
+    backlightMat.color.copy(backlightDim).lerp(rgbColor.set("#ffffff"), 0.35 + 0.65 * night);
+    // by day the smoke shows more than the light behind it
+    lowerShellMat.color.copy(backlightDim).lerp(rgbColor.set("#ffffff"), 0.45 + 0.55 * night);
+    haloMat.color.setHSL((now / 6000) % 1, 1, 0.55 + 0.1 * night);
+    spillMat.color.copy(haloMat.color);
+    spillMat.opacity = 0.55 * night;
+  }
   const portRim = runtime.core.mesh(runtime.core.rbox(0.24, 0.075, 0.022, 0.025), runtime.core.toon("#737982"), { outline: 0.006, cast: false });
   portRim.position.set(-1.55, 0.19, -CASE_D / 2 - 0.006);
   const usbPort = runtime.core.mesh(runtime.core.rbox(0.19, 0.045, 0.025, 0.018), runtime.core.toon("#0c0e12"), { outline: 0, cast: false });
@@ -213,6 +300,15 @@ export function createKeyboard(runtime) {
         key.add(homing);
       }
       keyboard.add(key);
+      // (on the keyboard, not the cap, so it stays on the plate while the cap travels)
+      const flash = new THREE.Mesh(flashGeo, flashMat.clone());
+      runtime.core.track(flash.material);
+      flash.scale.set(w + KEY_GAP, d + KEY_GAP, 1);
+      flash.rotation.x = -Math.PI / 2;
+      flash.position.set(key.position.x, backlight.position.y + 0.001, key.position.z);
+      flash.raycast = runtime.core.noRaycast;
+      keyboard.add(flash);
+      key.userData.flash = flash;
       keyByCode.set(code, key);
       cursor += width;
     });
@@ -223,6 +319,7 @@ export function createKeyboard(runtime) {
     const key = keyByCode.get(code);
     if (!key) return;
     gsap.fromTo(key.position, { y: KEY_Y - 0.11 }, { y: KEY_Y, duration: 0.28, ease: "back.out(3)", overwrite: true });
+    gsap.fromTo(key.userData.flash.material, { opacity: 0.9 }, { opacity: 0, duration: 0.5, ease: "power2.out", overwrite: true });
     if (sound) code === "Space" ? sfx.thud({ strength: 0.25 }) : sfx.key();
     runtime.options.onEvent("keys", { count: ++keysPressed });
   }
@@ -313,6 +410,7 @@ export function createKeyboard(runtime) {
   // Public state used by the other scene parts.
   return {
     pressKey,
+    updateRgb,
     keyboard,
     MAT_TOP,
     KEY_Y,
