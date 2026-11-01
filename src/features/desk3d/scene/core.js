@@ -52,13 +52,12 @@ export function createCore(runtime) {
     gammaCorrection: false,
     transparencyAware: false,
     accumulate: true,
-    // Keep shallow wall gaps (sword racks, boards and shelf backs) readable even in diffuse
-    // light, within a 6 cm reach that fades fast: anything hung just off the wall (the clock,
-    // the swords) would otherwise shade a band of wall round its outline that reads as a
-    // heavier line, and leaves and stems a hand's width off the wall leave only a faint shade.
-    // The contact decals carry the darkness right under props.
-    aoRadius: 0.6,
-    distanceFalloff: 0.5,
+    // A 16 cm reach, as the room had from the start: it keeps shallow wall gaps (sword racks,
+    // boards and shelf backs) readable even in diffuse light, shades the wall's corners and
+    // the wall under the window's sill and apron (which cast no shadow of their own), and
+    // leaves a soft shade round whatever hangs just off the wall
+    aoRadius: 1.6,
+    distanceFalloff: 1.0,
     intensity: 3,
     aoSamples: 16,
     denoiseSamples: 8,
