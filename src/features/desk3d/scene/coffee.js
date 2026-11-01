@@ -304,7 +304,7 @@ export function createCoffee(runtime) {
     addContact({
       object, shelfAt: runtime.shelf.standOn(level), follow, strength, box,
       local: new THREE.Vector3(centre.x - object.position.x, 0, centre.z - object.position.z),
-      width: size.x * 1.15, depth: size.z * 1.15, baseY: object.position.y,
+      width: size.x * 1.15, depth: size.z * 1.15, baseY: object.position.y, restX: object.position.x, restZ: object.position.z,
     });
   };
   // Something that moves about the room on its own (the cat, a dumbbell in a rep, crumpled
@@ -403,8 +403,8 @@ export function createCoffee(runtime) {
       if (entry.shelfAt !== undefined) {
         const bookcase = runtime.shelf.shelf;
         const lift = entry.follow ? Math.max(0, object.position.y - entry.baseY) : 0;
-        const x = (entry.follow ? object.position.x : entry.restX ??= object.position.x) + entry.local.x;
-        const z = (entry.follow ? object.position.z : entry.restZ ??= object.position.z) + entry.local.z;
+        const x = (entry.follow ? object.position.x : entry.restX) + entry.local.x;
+        const z = (entry.follow ? object.position.z : entry.restZ) + entry.local.z;
         const spread = (1 + lift * 0.3) * entry.size;
         // trimmed to the board, never pushed off it
         const halfW = Math.min(entry.width * spread / 2, SHELF_INSIDE.x - Math.abs(x));
