@@ -149,6 +149,15 @@ export function drawGateWeather(c, { weather, place, t }) {
 
 // ---------- 2. GitHub contributions ----------
 const GREENS = ["#161b22", "#0e4429", "#006d32", "#26a641", "#39d353"];
+// the streak's flame
+const FLAME = [
+  "..o..",
+  ".oo..",
+  ".oyo.",
+  "oyyyo",
+  ".ooo.",
+];
+
 const OCTOCAT = [
   ".k.....k.",
   ".kk...kk.",
@@ -163,7 +172,8 @@ export function drawGateGithub(c, { github, t }) {
   px(c, 0, 0, "#0d1117", GATE_PX, GATE_PX);
   px(c, 0, 0, "#f0f6fc", GATE_PX, 9);
   // Everything below the header shares one column, the width of the week grid (and of
-  // CONTRIBUTIONS, which is the same 51 pixels), so the edges line up all the way down.
+  // CONTRIBUTIONS, the same 51 pixels): the total with the streak beside it, the weeks, and
+  // what the total counts, "CONTRIBUTIONS / IN 1 YEAR", along the bottom.
   const COLS = 13;
   const LEFT = 6;
   const RIGHT = LEFT + COLS * 4 - 1;
@@ -171,14 +181,25 @@ export function drawGateGithub(c, { github, t }) {
   pixelText(c, "GITHUB", LEFT + 12, 2, "#0d1117");
   const days = github?.days;
   const total = github?.total;
-  // the total and its span on one line, the word spelled out in full on the next
   const w = pixelText(c, total === undefined ? "--" : String(total).slice(-5), LEFT, 11, "#39d353", 2);
-  const span = ["1 YEAR", "1YR"].find((text) => LEFT + w + 3 + pixelTextWidth(text) <= RIGHT);
-  if (span) pixelText(c, span, RIGHT - pixelTextWidth(span), 16, "#8b949e");
-  pixelText(c, "CONTRIBUTIONS", RIGHT - pixelTextWidth("CONTRIBUTIONS"), 23, "#8b949e");
+  // a flame and the run of days, right-aligned on the number's two lines (dropped if a long
+  // total leaves no room for it)
+  const fits = (width) => LEFT + w + 3 + width <= RIGHT;
+  if (github?.error) {
+    if (fits(pixelTextWidth("OFFLINE"))) pixelText(c, "OFFLINE", RIGHT - pixelTextWidth("OFFLINE"), 16, "#f85149");
+  } else if (github?.streak !== undefined) {
+    const count = String(github.streak);
+    const unit = github.streak === 1 ? "DAY" : "DAYS";
+    if (fits(Math.max(6 + pixelTextWidth(count), pixelTextWidth(unit)))) {
+      const countX = RIGHT - pixelTextWidth(count);
+      sprite(c, FLAME, countX - 6, 11, { o: github.streak ? "#f0883e" : "#484f58", y: github.streak ? "#ffd33d" : "#6e7681" });
+      pixelText(c, count, countX, 11, github.streak ? "#f0883e" : "#8b949e");
+      pixelText(c, unit, RIGHT - pixelTextWidth(unit), 16, "#8b949e");
+    }
+  }
   // the last thirteen weeks, a column a week, Sunday at the top
-  const at = (col, row) => [LEFT + col * 4, 30 + row * 4];
-  const sweep = (t * 6) % 26;
+  const at = (col, row) => [LEFT + col * 4, 23 + row * 4];
+  const sweep = (t * 6) % (COLS * 2);
   for (let col = 0; col < COLS; col++) {
     for (let row = 0; row < 7; row++) {
       const cell = days?.[col * 7 + row];
@@ -198,9 +219,9 @@ export function drawGateGithub(c, { github, t }) {
       px(c, x, y, "#ffffff", 3, 3);
     }
   }
-  // centred on the column, a pixel clear of the grid above and of the screen's edge below
-  const footer = github?.error ? "OFFLINE" : github?.streak ? `${github.streak} DAY STREAK` : "";
-  pixelText(c, footer, LEFT + Math.floor((RIGHT - LEFT - pixelTextWidth(footer)) / 2), 58, github?.error ? "#f85149" : "#8b949e");
+  // down to a pixel off the screen's edge
+  pixelText(c, "CONTRIBUTIONS", LEFT, 52, "#8b949e");
+  pixelText(c, "IN 1 YEAR", LEFT, 58, "#8b949e");
 }
 
 // ---------- 3. visitors ----------
