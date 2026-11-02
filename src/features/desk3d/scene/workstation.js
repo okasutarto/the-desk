@@ -947,7 +947,6 @@ export function createWorkstation(runtime) {
       sfx.buzz();
     }
     termLines = termLines.slice(-12);
-    gsap.fromTo(body.scale, { x: 1.03, y: 0.97 }, { x: 1, y: 1, duration: 0.4, ease: "elastic.out(1.2, 0.4)" });
     redrawTerminal();
   }
 
