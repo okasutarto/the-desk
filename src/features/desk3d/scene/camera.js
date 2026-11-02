@@ -132,6 +132,11 @@ export function createCamera(runtime) {
       const portrait = runtime.options.container.clientWidth < runtime.options.container.clientHeight;
       return { target: screenPos.toArray(), dir: screenNormal.toArray(), fit: portrait ? [6.6, 8.6] : [13, 8.6] };
     },
+    // Square on the Times Gate's five screens, clipped short of the keyboard in front of it
+    timesgate: () => {
+      runtime.timesGate.gate.localToWorld(screenPos.set(0, runtime.timesGate.GATE_CY + 0.04, 0.2));
+      return { target: screenPos.toArray(), dir: [0.06, 0.28, 1], fit: [2.9, 1.25], depth: 0.75 };
+    },
     keyboard: () => ({ target: [runtime.keyboard.keyboard.position.x, 0.3 * runtime.keyboard.KEYBOARD_SCALE, runtime.keyboard.keyboard.position.z], dir: [0.1, 1, 0.75], fit: [5.4 * runtime.keyboard.KEYBOARD_SCALE, 2.6 * runtime.keyboard.KEYBOARD_SCALE] }),
     // A higher angle pushes the plant above the frame and leaves room for the sip quote.
     mug: () => ({ target: [runtime.coffee.mug.position.x - 0.3, 0.95 + runtime.coffee.MUG_Y, runtime.coffee.mug.position.z - 0.45], dir: [-0.2, 1, 0.45], fit: [3.1, 4.1] }),

@@ -27,3 +27,4 @@ export * from "./textures/weather";
 export * from "./textures/shelfBooks";
 export * from "./textures/finishes";
 export * from "./textures/smallProps";
+export * from "./textures/timesGate";
