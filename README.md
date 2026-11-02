@@ -34,6 +34,7 @@ Prefer a classic page? The same content lives at [`/2d`](https://okasp.dev/2d).
 
 - 🧭 **30-odd props to poke**, with close-ups, sounds and 20 hidden discoveries around the room
 - 🖥️ **A real little desktop** on the monitor: dock, terminal, music player, Snake and an AI chat
+- 🟧 **A pixel display** under the monitor: live weather, GitHub contributions, visitors, FPS and a pixel pet
 - 🏴‍☠️ **A whole shoot-'em-up** on the console: *Straw Hat Strike*, Going Merry vs. the Marines
 - 🌦️ **A living room**: morning to moonlight, rain, neon and a kitten with a cat tree of her own
 - 🎨 **Make it yours**: repaint the walls, lay a new floor, swap the wood and the grain of the furniture
@@ -46,8 +47,9 @@ Prefer a classic page? The same content lives at [`/2d`](https://okasp.dev/2d).
 | --- | --- |
 | 🪪 **ID badge** | Flips to reveal the links. Drag its pin to re-pin it anywhere on the wall, or pull the lanyard and let it swing. |
 | 📌 **About board** | Notes about me, pinned up. Drag them around and they pin back in place. |
-| 🖥️ **Monitor** | A tiny desktop with a draggable dock: a working terminal (`help`, `whoami`, `projects`, `sudo hire oka`), the Spotifree lo-fi player, VS Kode, Snake, a picker of six cut-paper wallpapers and more. |
-| ⌨️ **Keyboard** | A Halo75 V2-inspired board with sculpted keycaps, a ribbed lower shell and a tilted chassis. Physical keys animate their matching modeled keys; `1`–`5` jump between sections. |
+| 🖥️ **Monitor** | A tiny desktop with a draggable dock: a working terminal (`help`, `whoami`, `projects`, `sudo hire oka`), the Spotifree lo-fi player, VS Kode, Snake, a picker of six cel-shaded toon wallpapers and more. |
+| ⌨️ **Keyboard** | A Halo75 V2-inspired board with sculpted keycaps, a smoky fluted acrylic case and a tilted chassis. A rainbow RGB halo runs under the caps and spills onto the mat at night. Physical keys flash and animate their matching modeled keys; `1`–`5` jump between sections. |
+| 🟧 **Times Gate** | A Divoom Times Gate 2 at real size, standing in front of the riser. Its five pixel screens show the weather where you are, my GitHub contributions, a visit counter, the room's FPS and Byte, a pixel pet that wanders, sleeps at night and crackles happily when you click to pet it. The screens glow onto the desk, faintly by day and fully at night. |
 | 🖥️ **Mac Studio** | Powers the monitor desktop off or starts its boot sequence, with a green power LED and startup chime. |
 | 🗂️ **Drawer** | Project files: flip through the tabs, pull one out and turn its pages. |
 | 🎫 **Boarding passes** | My experience, one pass per job. Hold one up, flip it for the itinerary. |
@@ -57,9 +59,9 @@ Prefer a classic page? The same content lives at [`/2d`](https://okasp.dev/2d).
 | 💡 **Lamp** | Day and night, by hand. |
 | 🔦 **Monitor lightbar** | Toggle the task light on or off during the night shift. |
 | 🔊 **Speakers** | Sound on or off, with a little groove when it comes on. |
-| 🪟 **Window & blind** | Morning, midday, sunset and moonlight scenery with birds, stars and rain. Pull the blind or its chain; three quick knocks toggle rain. Its close-up shows the weather where you are as a chip: place, temperature and conditions. |
+| 🪟 **Window & blind** | Morning, midday, sunset and moonlight scenery with birds, stars and rain. Pull the blind or its chain; three quick knocks toggle rain. |
 | 🪴 **Plant** | Each click blooms a flower. Three blooms call a butterfly. |
-| 🖱️ **Mouse** | Grows ears and a tail, and scampers off for a lap. |
+| 🖱️ **Mouse** | A life-size wireless gaming mouse that grows ears and a tail, and scampers off for a lap. |
 | 🪑 **Chair** | A Titan Evo-inspired gaming chair, traced from photos. Click to spin it, or drag it round on its post. |
 | 🖼️ **Painting** | A small gallery: it flips to the next picture. |
 | 🕰️ **Clock** | Spins its hands round and chimes. |
@@ -94,7 +96,7 @@ Chain kills for a multiplier, and if you go down you get your own wanted poster.
 ## 🎨 Make it your room
 
 The ⚙️ gear next to **2D site** opens the room settings, grouped into **Time & weather**,
-**Wall**, **Floor** and **Furniture** sections that expand one at a time. Every pick applies instantly and is
+**Wall**, **Floor**, **Furniture** and **Times Gate** sections that expand one at a time. Every pick applies instantly and is
 remembered in your browser. Close the panel with its ✕, the gear or Esc.
 
 | Part | Choices | Default |
@@ -108,6 +110,7 @@ remembered in your browser. Close the panel with its ✕, the gear or Esc.
 | 🔊 **Speakers** | Wood sides (six woods × planks or cathedral) or all black | Cherry wood sides, planks |
 | 🪟 **Window frame** | Six woods × planks or knotty, or painted in six coats or any colour | Cherry, planks |
 | 🎮 **Game shelf** | Six woods × planks, cathedral, knotty or plywood | Cherry, planks |
+| 🟧 **Times Gate** | Silver · Pink · White · Yellow | Silver |
 
 "Where you are" comes from your browser's time zone (`Asia/Jakarta` is Jakarta), looked up
 with Open-Meteo's geocoder: no location prompt, and Pontianak when the zone doesn't name a city.
@@ -235,6 +238,7 @@ licenses live in `public/sfx/`; the lo-fi music is generated in the browser.
 | Contact | EmailJS |
 | AI chat | Node.js + Express API (`my-portfolio-api/`), OpenAI, server-sent events |
 | Live weather | Open-Meteo forecast and geocoding APIs, fetched by the browser |
+| Times Gate widgets | GitHub contributions via `github-contributions-api.jogruber.de`, visit count via an Abacus counter |
 | Analytics | Vercel Analytics / Speed Insights and PostHog |
 | Hosting | Vercel |
 
