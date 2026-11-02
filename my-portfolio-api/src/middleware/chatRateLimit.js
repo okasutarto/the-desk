@@ -1,5 +1,5 @@
 const { Ratelimit } = require('@upstash/ratelimit');
-const { Redis } = require('@upstash/redis');
+const redis = require('../services/redis');
 
 /**
  * Chat rate limiting
@@ -21,10 +21,6 @@ const LIMITS = [
 // How long a request may wait on Redis before the instance's own counters decide instead
 const REDIS_TIMEOUT_MS = 1000;
 
-// Vercel's integration names the variables either way
-const redisUrl = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
-const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN;
-const redis = redisUrl && redisToken ? new Redis({ url: redisUrl, token: redisToken }) : null;
 if (!redis) console.warn('Upstash Redis is not configured; chat rate limits are counted per instance');
 
 const sharedLimiters = redis && Object.fromEntries(LIMITS.map((limit) => [limit.name, new Ratelimit({

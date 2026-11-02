@@ -2,18 +2,16 @@ import * as THREE from "three";
 import gsap from "gsap";
 import { TIMES_GATE_FINISHES, DEFAULT_TIMES_GATE_FINISH } from "../timesGateFinishes";
 import { hoverSound, sfx } from "@/shared/composables/useSfx";
+import { getVisits } from "@/shared/services/visitsApi";
 import {
   canvasTexture, drawBrushedMetal, GATE_PX, drawGateWeather, drawGateGithub, drawGateVisitors, drawGatePerformance, drawGatePet,
 } from "../textures";
 
 // Where the widgets read their numbers from. The contributions are GitHub's own calendar, as
-// served (no key) by github-contributions-api.jogruber.de; the visit count is a free Abacus
-// counter, bumped once a browser session on the live site and only read on a local one.
+// served (no key) by github-contributions-api.jogruber.de; the visit count is the portfolio
+// API's, which counts each person once (see visitsApi).
 const GITHUB_USER = "okasutarto";
 const GITHUB_URL = `https://github-contributions-api.jogruber.de/v4/${GITHUB_USER}?y=last`;
-const COUNTER_URL = "https://abacus.jasoncameron.dev";
-const COUNTER_KEY = "okasputra-desk/visits";
-const COUNTED_FLAG = "desk-visit-counted";
 
 export function createTimesGate(runtime) {
   // ---------- Divoom Times Gate: five pixel screens on an open frame ----------
@@ -657,16 +655,8 @@ export function createTimesGate(runtime) {
   // 3. How many have come by, counted up on the flaps when it arrives
   const visitors = { count: null, shown: 0, error: false };
   async function loadVisitors() {
-    let counted = false;
-    try { counted = sessionStorage.getItem(COUNTED_FLAG) === "1"; } catch { /* Storage is optional. */ }
-    const bump = process.env.NODE_ENV === "production" && !counted;
     try {
-      const res = await fetch(`${COUNTER_URL}/${bump ? "hit" : "get"}/${COUNTER_KEY}`);
-      // (a counter nobody has bumped yet isn't there to read)
-      if (res.status === 404) visitors.count = 0;
-      else if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      else visitors.count = (await res.json()).value ?? 0;
-      if (bump) try { sessionStorage.setItem(COUNTED_FLAG, "1"); } catch { /* Storage is optional. */ }
+      visitors.count = await getVisits();
     } catch {
       visitors.error = true;
     }

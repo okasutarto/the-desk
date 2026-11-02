@@ -148,7 +148,14 @@ UPSTASH_REDIS_REST_URL=https://your-db.upstash.io
 UPSTASH_REDIS_REST_TOKEN=your-token
 # Optional: questions per day for all visitors together (default 300)
 CHAT_DAILY_CAP=300
+# Salts the visitor hashes behind the visit count. Any long random string; keep it fixed,
+# since changing it counts everyone again
+VISITS_SECRET=your-random-secret
 ```
+
+Visit count: `POST /api/visits` counts the caller once (a keyed hash of address and browser,
+kept in a Redis set; bots and link previews are skipped) and returns `{ total }`; `GET` only
+reads it (`src/controllers/visitsController.js`). Without Upstash it answers 503.
 
 Chat limits: 10 questions per 10 minutes and 50 per day per visitor, plus the daily cap for
 everyone (`src/middleware/chatRateLimit.js`).
