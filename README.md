@@ -238,7 +238,7 @@ licenses live in `public/sfx/`; the lo-fi music is generated in the browser.
 | Contact | EmailJS |
 | AI chat | Node.js + Express API (`my-portfolio-api/`), OpenAI, server-sent events |
 | Live weather | Open-Meteo forecast and geocoding APIs, fetched by the browser |
-| Times Gate widgets | GitHub contributions via `github-contributions-api.jogruber.de`, visit count via an Abacus counter |
+| Times Gate widgets | GitHub contributions via `github-contributions-api.jogruber.de`, visit count from the portfolio API's `/api/visits` (each person once, bots skipped, both pages count) |
 | Analytics | Vercel Analytics / Speed Insights and PostHog |
 | Hosting | Vercel |
 

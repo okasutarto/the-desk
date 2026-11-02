@@ -112,9 +112,69 @@ async function main() {
     assert.match(chatErrorReply({ status: 429, scope: 'visitor', retryAfter: 120 }), /2 minutes/);
     assert.match(chatErrorReply({ status: 429, scope: 'visitor', retryAfter: 30 }), /1 minute to/);
     assert.match(chatErrorReply({ status: 429, scope: 'everyone', retryAfter: 9000 }), /tomorrow/);
+
+    // The visit count: the live site counts a tab once, a local one only reads, and the room and
+    // the app share one request
+    const session = new Map();
+    global.sessionStorage = { getItem: key => session.get(key) ?? null, setItem: (key, value) => session.set(key, value) };
+    const requests = [];
+    global.fetch = async (url, { method }) => { requests.push(method); return { ok: true, json: async () => ({ total: 7 }) }; };
+    let fresh = 0;
+    const loadVisits = () => import('data:text/javascript;base64,' + Buffer.from(source('src/shared/services/visitsApi.js') + `\n// ${fresh++}`).toString('base64'));
+    const originalEnv = process.env.NODE_ENV;
+    try {
+      process.env.NODE_ENV = 'production';
+      let { getVisits } = await loadVisits();
+      assert.deepEqual(await Promise.all([getVisits(), getVisits()]), [7, 7]);
+      ({ getVisits } = await loadVisits());
+      await getVisits();
+      assert.deepEqual(requests, ['POST', 'GET']);
+      process.env.NODE_ENV = 'development';
+      session.clear();
+      ({ getVisits } = await loadVisits());
+      await getVisits();
+      assert.equal(requests.at(-1), 'GET');
+      global.fetch = async () => ({ ok: false, status: 503 });
+      ({ getVisits } = await loadVisits());
+      await assert.rejects(getVisits(), (error) => error.status === 503);
+      global.fetch = async () => ({ ok: true, json: async () => ({ total: 8 }) });
+      assert.equal(await getVisits(), 8, 'a failed count is asked again');
+    } finally {
+      process.env.NODE_ENV = originalEnv;
+      delete global.sessionStorage;
+    }
   } finally {
     global.fetch = originalFetch;
   }
-  console.log('App checks passed: safe chat formatting, storage fallback, CORS, and SSE completion/errors.');
+
+  // The API counts each person once, and not the bots
+  const people = new Set();
+  const visitsApi = { exports: {} };
+  vm.runInNewContext(source('my-portfolio-api/src/controllers/visitsController.js'), {
+    module: visitsApi, process: { env: { VISITS_SECRET: 'test' } }, console: { warn() {}, error() {} },
+    require(name) {
+      if (name === 'crypto') return require('node:crypto');
+      if (name === '../services/redis') return { sadd: async (key, id) => people.add(id), scard: async () => people.size };
+      if (name === '../middleware/chatRateLimit') return { visitorIp: req => req.ip };
+      throw Error('Unexpected dependency: ' + name);
+    },
+  });
+  const visit = async (method, ip, agent) => {
+    let body;
+    await visitsApi.exports.visits(
+      { method, ip, get: header => (header === 'user-agent' ? agent : undefined) },
+      { setHeader() {}, status() { return this; }, json(value) { body = value; } },
+    );
+    return body.total;
+  };
+  const browser = 'Mozilla/5.0 (Macintosh) Safari/605.1.15';
+  assert.equal(await visit('POST', '1.1.1.1', browser), 1);
+  assert.equal(await visit('POST', '1.1.1.1', browser), 1, 'a second visit adds nobody');
+  assert.equal(await visit('POST', '2.2.2.2', browser), 2);
+  assert.equal(await visit('GET', '3.3.3.3', browser), 2, 'reading counts nobody');
+  for (const agent of ['Googlebot/2.1', 'WhatsApp/2.23', 'curl/8.4.0', 'Mozilla/5.0 HeadlessChrome/120', undefined]) {
+    assert.equal(await visit('POST', '4.4.4.4', agent), 2, String(agent));
+  }
+  console.log('App checks passed: safe chat formatting, storage fallback, CORS, SSE completion/errors and the visit count.');
 }
 main().catch(error => { console.error(error); process.exitCode = 1; });
