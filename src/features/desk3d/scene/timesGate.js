@@ -181,14 +181,16 @@ export function createTimesGate(runtime) {
   // Sharp pixel art at any size: plain nearest sampling at 2.3 screen pixels per art pixel draws
   // some 2 px wide and some 3, so strokes and glyphs come out uneven. Sample each texel's centre
   // instead and blend only across its edge, one screen pixel wide, so every pixel is the same
-  // size and its edges stay crisp; seen from afar it falls back to the mipmaps.
+  // size and its edges stay crisp; seen from afar it falls back to the mipmaps. The chunk is
+  // still an #include when this runs, so it's spelled out first or the patch finds nothing.
   function sharpPixels(shader) {
-    shader.fragmentShader = shader.fragmentShader.replace("vec4 sampledDiffuseColor = texture2D( map, vMapUv );", `
+    const mapFragment = THREE.ShaderChunk.map_fragment.replace("vec4 sampledDiffuseColor = texture2D( map, vMapUv );", `
       vec2 texels = vec2( textureSize( map, 0 ) );
       vec2 texel = vMapUv * texels;
       vec2 seam = floor( texel + 0.5 );
       vec2 across = clamp( ( texel - seam ) / max( fwidth( texel ), 1e-4 ), -0.5, 0.5 );
       vec4 sampledDiffuseColor = textureGrad( map, ( seam + across ) / texels, dFdx( vMapUv ), dFdy( vMapUv ) );`);
+    shader.fragmentShader = shader.fragmentShader.replace("#include <map_fragment>", mapFragment);
   }
   const screens = [];
   function addScreen(i, draw, every) {
