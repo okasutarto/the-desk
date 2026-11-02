@@ -96,7 +96,8 @@ for (let i = 0; i < coverPositions.count; i++) {
 assert.ok(covers.every(cover => !cover.material.depthWrite && !cover.castShadow), 'clear covers cannot occlude pixels or shadow widgets');
 for (let i = 0; i < 5; i++) {
   const material = parts(`times-gate-pixels-${i}`)[0].material;
-  const shader = { fragmentShader: THREE.ShaderLib.basic.fragmentShader.replace('#include <map_fragment>', THREE.ShaderChunk.map_fragment) };
+  // three hands onBeforeCompile the source with its #includes unexpanded
+  const shader = { fragmentShader: THREE.ShaderLib.basic.fragmentShader };
   material.onBeforeCompile(shader);
   assert.match(shader.fragmentShader, /textureGrad\( map, \( seam \+ across \)/, 'panels sample texel centres so every pixel is the same size');
 }
