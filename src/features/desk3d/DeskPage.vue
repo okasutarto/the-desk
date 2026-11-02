@@ -48,7 +48,7 @@
               </button>
             </header>
             <div class="settings-body overflow-y-auto flex flex-col gap-2.5 p-3">
-              <!-- Three groups, one open at a time, so the panel stays short -->
+              <!-- One group open at a time keeps the panel short. -->
               <section v-for="group in SETTINGS_GROUPS" :key="group.key" class="settings-card" :class="{ 'settings-card--open': openGroup === group.key }">
                 <button
                   class="settings-group-head"
@@ -185,6 +185,21 @@
                       </button>
                     </div>
                   </div>
+                  <template v-else-if="group.key === 'timesgate'">
+                    <h3 class="settings-sublabel">Body colour</h3>
+                    <div class="flex flex-wrap gap-1.5">
+                      <button
+                        v-for="(finish, key) in TIMES_GATE_FINISHES"
+                        :key="key"
+                        class="pattern-chip flex items-center gap-1.5"
+                        :class="{ 'pattern-chip--on': settings.timesGateFinish === key }"
+                        :aria-pressed="settings.timesGateFinish === key"
+                        @click="setTimesGateFinish(key)">
+                        <span class="inline-block w-3 h-3 rounded-full border border-black/30" :style="{ background: finish.shell }" aria-hidden="true"></span>
+                        {{ finish.name }}
+                      </button>
+                    </div>
+                  </template>
                   <template v-else>
                     <div v-for="(label, part) in WOOD_TARGETS" :key="part" class="settings-sub">
                       <h3 class="settings-sublabel">
@@ -293,14 +308,6 @@
             </button>
           </div>
         </transition>
-        <transition name="hud-pop">
-          <div
-            v-if="focus === 'window' && weather"
-            class="inline-flex items-center gap-2 bg-white text-black font-bold text-xs md:text-sm px-3 py-1.5 border-3 border-black shadow-neo-sm">
-            <span aria-hidden="true">{{ weatherEmoji }}</span>
-            {{ weather.place }} · {{ weather.temp }}° · {{ weather.label }}
-          </div>
-        </transition>
         <transition name="hud-pop" mode="out-in">
           <div
             v-if="hint"
@@ -331,6 +338,7 @@ import { WOODS, WOOD_PATTERNS, PART_PATTERNS, WOOD_TARGETS, FLOOR_LAYOUTS, FRAME
 import { DAY_PARTS, TIME_MODES, RAIN_MODES, partOfDay, partFor } from "@/features/desk3d/daylight";
 
 import { useDeskSettings, SETTINGS_GROUPS, WALL_PAINTS, WALL_PATTERNS } from "./composables/useDeskSettings";
+import { TIMES_GATE_FINISHES } from "./timesGateFinishes";
 
 const COMMAND_CHIPS = ["help", "whoami", "projects", "hobbies", "sudo hire oka"];
 const SECRET_NAMES = {
@@ -364,19 +372,9 @@ const introPlaying = ref(true);
 const projectOpen = ref(false);
 const consoleOn = ref(false);
 const secretToast = ref(null);
-// The real weather where the visitor is, once the scene has it
-const weather = ref(null);
-const WEATHER_EMOJI = { clear: "☀️", partly: "⛅", cloudy: "☁️", fog: "🌫️", rain: "🌧️", snow: "❄️", storm: "⛈️" };
-const weatherEmoji = computed(() => {
-  if (!weather.value) return "";
-  const { kind, isDay } = weather.value;
-  if (!isDay && kind === "clear") return "🌙";
-  if (!isDay && kind === "partly") return "☁️";
-  return WEATHER_EMOJI[kind] || "☁️";
-});
 const settingsOpen = ref(false);
 const openGroup = ref("sky");
-const { settings, wallIsPreset, groupSummary, woodLabel, isDarkColour, setWall, setWallPattern, setWallBrick, setWallSlats, setWood, setFloor, setTime, setRain } = useDeskSettings(scene);
+const { settings, wallIsPreset, groupSummary, woodLabel, isDarkColour, setWall, setWallPattern, setWallBrick, setWallSlats, setWood, setFloor, setTime, setRain, setTimesGateFinish } = useDeskSettings(scene);
 let secretTimer = null;
 const zoomed = computed(() => focus.value !== "overview");
 const isDesktop = useMediaQuery("(min-width: 768px)");
@@ -461,9 +459,6 @@ function onEvent(name, payload = {}) {
   else if (name === "focus") {
     focus.value = payload.name;
   }
-  else if (name === "weather") {
-    weather.value = payload;
-  }
 }
 
 watch(isDark, (dark) => scene.value?.setTheme(dark));
@@ -497,6 +492,7 @@ onMounted(async () => {
       wallPattern: { pattern: settings.wallPattern, brick: settings.wallBrick, wood: settings.wallSlats },
       woods: JSON.parse(JSON.stringify(settings.woods)),
       floor: { ...settings.floor },
+      timesGateFinish: settings.timesGateFinish,
       time: settings.time,
       rain: settings.rain,
       onEvent,

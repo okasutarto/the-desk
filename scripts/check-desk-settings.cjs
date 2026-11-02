@@ -4,7 +4,7 @@ const vm = require('node:vm');
 const { reactive, computed, ref } = require('vue');
 const root = `${__dirname}/../src/features/desk3d/`;
 const source = file => fs.readFileSync(root + file, 'utf8').replace(/^import .*;\n/gm, '').replace(/\bexport /g, '');
-const dependencies = vm.runInNewContext(source('woods.js') + source('daylight.js') + '; ({ WOODS, WOOD_PATTERNS, PART_PATTERNS, WOOD_TARGETS, DEFAULT_WOODS, FLOOR_LAYOUTS, DEFAULT_FLOOR, FRAME_PAINTS, DEFAULT_FRAME_PAINT, BRICKS, DEFAULT_BRICK, DEFAULT_SLATS, TIME_MODES, RAIN_MODES, DEFAULT_TIME, DEFAULT_RAIN })');
+const dependencies = vm.runInNewContext(source('woods.js') + source('daylight.js') + source('timesGateFinishes.js') + '; ({ WOODS, WOOD_PATTERNS, PART_PATTERNS, WOOD_TARGETS, DEFAULT_WOODS, FLOOR_LAYOUTS, DEFAULT_FLOOR, FRAME_PAINTS, DEFAULT_FRAME_PAINT, BRICKS, DEFAULT_BRICK, DEFAULT_SLATS, TIME_MODES, RAIN_MODES, DEFAULT_TIME, DEFAULT_RAIN, TIMES_GATE_FINISHES, DEFAULT_TIMES_GATE_FINISH })');
 let stored = null;
 let blocked = false;
 const context = vm.createContext({ ...dependencies, reactive, computed, localStorage: {
@@ -28,7 +28,7 @@ ui.setWall('#ffffff'); // Safe before scene initialization, even without storage
 assert.equal(ui.wallName.value, 'White');
 assert.equal(ui.wallIsPreset.value, true);
 blocked = false;
-scene.value = Object.fromEntries(['setWallColor', 'setWallPattern', 'setWood', 'setFloor', 'setTime', 'setRain'].map(name => [name, (...args) => calls.push([name, ...args])]));
+scene.value = Object.fromEntries(['setWallColor', 'setWallPattern', 'setWood', 'setFloor', 'setTime', 'setRain', 'setTimesGateFinish'].map(name => [name, (...args) => calls.push([name, ...args])]));
 ui.setWall('#123456');
 ui.setWallPattern('brick');
 ui.setWallBrick('charcoal');
@@ -55,6 +55,17 @@ assert.equal(readSettings().time, 'night');
 assert.ok(ui.woodLabel('desk').length > 0);
 assert.equal(ui.isDarkColour('#000000'), true);
 assert.equal(ui.isDarkColour('#ffffff'), false);
+for (const finish of ['silver', 'pink', 'white', 'bumblebee']) {
+  ui.setTimesGateFinish(finish);
+  assert.equal(readSettings().timesGateFinish, finish);
+  assert.equal(calls.at(-1)[0], 'setTimesGateFinish');
+  assert.equal(calls.at(-1)[1], finish);
+  assert.ok(ui.groupSummary.value.timesgate.length > 0);
+}
+ui.setTimesGateFinish('constructor');
+assert.equal(readSettings().timesGateFinish, 'bumblebee', 'invalid live finishes are ignored');
+stored = JSON.stringify({ timesGateFinish: 'toString' });
+assert.equal(readSettings().timesGateFinish, 'silver', 'invalid saved finishes fall back to silver');
 stored = JSON.stringify({ wallPattern: 'toString', wallBrick: 'gold', wallSlats: 'constructor' });
 assert.equal(readSettings().wallPattern, 'plain', 'unknown wall patterns fall back to plain');
 assert.equal(readSettings().wallBrick, 'red');

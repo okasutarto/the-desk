@@ -1,4 +1,5 @@
 import { reactive, computed } from "vue";
+import { TIMES_GATE_FINISHES, DEFAULT_TIMES_GATE_FINISH } from "../timesGateFinishes";
 import { WOODS, WOOD_PATTERNS, PART_PATTERNS, WOOD_TARGETS, DEFAULT_WOODS, FLOOR_LAYOUTS, DEFAULT_FLOOR, FRAME_PAINTS, DEFAULT_FRAME_PAINT, BRICKS, DEFAULT_BRICK, DEFAULT_SLATS } from "../woods";
 import { TIME_MODES, RAIN_MODES, DEFAULT_TIME, DEFAULT_RAIN } from "../daylight";
 
@@ -10,6 +11,7 @@ export const SETTINGS_GROUPS = [
   { key: "wall", label: "Wall", icon: "🧱", accent: "#ff90e8" },
   { key: "floor", label: "Floor", icon: "🟫", accent: "#ff7a45" },
   { key: "wood", label: "Furniture", icon: "🪵", accent: "#00e0c6" },
+  { key: "timesgate", label: "Times Gate", icon: "▦", accent: "#b7a5ff" },
 ];
 export const WALL_PAINTS = [
   { name: "White", hex: "#ffffff" },
@@ -58,6 +60,7 @@ export function readSettings() {
   return {
     time: TIME_MODES[saved.time] ? saved.time : DEFAULT_TIME,
     rain: RAIN_MODES[saved.rain] ? saved.rain : DEFAULT_RAIN,
+    timesGateFinish: Object.hasOwn(TIMES_GATE_FINISHES, saved.timesGateFinish) ? saved.timesGateFinish : DEFAULT_TIMES_GATE_FINISH,
     wall: /^#[0-9a-f]{6}$/i.test(saved.wall || "") ? saved.wall : DEFAULT_WALL,
     wallPattern: Object.hasOwn(WALL_PATTERNS, saved.wallPattern) ? saved.wallPattern : "plain",
     wallBrick: Object.hasOwn(BRICKS, saved.wallBrick) ? saved.wallBrick : DEFAULT_BRICK,
@@ -88,6 +91,7 @@ export function useDeskSettings(scene) {
       wall: wallLabel.value,
       floor: `${WOODS[settings.floor.wood].name}, ${FLOOR_LAYOUTS[settings.floor.layout].toLowerCase()}`,
       wood: woods.size === 1 ? WOODS[[...woods][0]].name : "Mixed",
+      timesgate: TIMES_GATE_FINISHES[settings.timesGateFinish].name,
     };
   });
   // A part's wood and cut at a glance (a painted one by its paint)
@@ -151,5 +155,12 @@ export function useDeskSettings(scene) {
     saveSettings();
   }
 
-  return { settings, wallIsPreset, wallName, groupSummary, woodLabel, isDarkColour, setWall, setWallPattern, setWallBrick, setWallSlats, setWood, setFloor, setTime, setRain };
+  function setTimesGateFinish(finish) {
+    if (!Object.hasOwn(TIMES_GATE_FINISHES, finish)) return;
+    settings.timesGateFinish = finish;
+    scene.value?.setTimesGateFinish(finish);
+    saveSettings();
+  }
+
+  return { settings, wallIsPreset, wallName, groupSummary, woodLabel, isDarkColour, setWall, setWallPattern, setWallBrick, setWallSlats, setWood, setFloor, setTime, setRain, setTimesGateFinish };
 }

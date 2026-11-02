@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import gsap from "gsap";
+import { TIMES_GATE_FINISHES, DEFAULT_TIMES_GATE_FINISH } from "../timesGateFinishes";
 import { hoverSound, sfx } from "@/shared/composables/useSfx";
 import {
   canvasTexture, drawBrushedMetal, GATE_PX, drawGateWeather, drawGateGithub, drawGateVisitors, drawGatePerformance, drawGatePet,
@@ -15,15 +16,16 @@ const COUNTER_KEY = "okasputra-desk/visits";
 const COUNTED_FLAG = "desk-visit-counted";
 
 export function createTimesGate(runtime) {
-  // ---------- Divoom Times Gate 2: five pixel screens on an open frame ----------
+  // ---------- Divoom Times Gate: five pixel screens on an open frame ----------
+  // Shape reference: https://divoom.com/products/time-gate and supplied front/three-quarter photos.
   // Stood on the desk in front of the riser, under the monitor, at its real 283 × 47 × 97 mm:
-  // four chrome rails frame five domed 1.44" LCDs on a black spine, left open (no glass in
-  // front, so the pixels show clean), clamped top and bottom by a silver block, between two brushed-silver arcs
+  // two thin clear acrylic sheets frame five 1.44" LCDs on a black spine, each with a domed
+  // clear cover that leaves its central pixels unchanged, between two brushed-silver arcs
   // that bow out at either end. Inside each arc a white panel carries a chrome grab handle and
   // an RGB strip glowing round the arc's inner edge; the arcs stand on chrome hinges over
   // orange rubber feet that splay out past them.
   const gate = new THREE.Group();
-  gate.name = "times-gate-2";
+  gate.name = "times-gate";
   // its back a centimetre off the riser's front edge
   gate.position.set(-1, 0, -1.55);
   runtime.core.scene.add(gate);
@@ -44,6 +46,10 @@ export function createTimesGate(runtime) {
   brushed.texture.needsUpdate = true;
   const silverMat = runtime.core.toon("#d6dade");
   silverMat.map = brushed.texture;
+  const clampMat = runtime.core.toon("#d6dade");
+  clampMat.map = brushed.texture;
+  const lowerDeckMat = runtime.core.toon("#d6dade");
+  lowerDeckMat.map = brushed.texture;
   const panelMat = runtime.core.toon("#eef0f3");
   const insetMat = runtime.core.toon("#2a2e36");
   const spineMat = runtime.core.toon("#262a31");
@@ -53,64 +59,286 @@ export function createTimesGate(runtime) {
   chromeMat.emissiveIntensity = 0.12;
   const orangeMat = runtime.core.toon("#ff6b2c");
   const buttonMat = runtime.core.toon("#9aa2ac");
+  const rubberMat = runtime.core.toon("#25282d");
+  const glintMat = runtime.core.track(new THREE.MeshBasicMaterial({ color: "#e3edf7" }));
+  function setTimesGateFinish(finish) {
+    const coat = TIMES_GATE_FINISHES[Object.hasOwn(TIMES_GATE_FINISHES, finish) ? finish : DEFAULT_TIMES_GATE_FINISH];
+    silverMat.color.set(coat.shell);
+    clampMat.color.set(coat.clamp);
+    lowerDeckMat.color.set(finish === "bumblebee" ? coat.shell : coat.clamp);
+    panelMat.color.set(coat.panel);
+    insetMat.color.set(coat.inset);
+    orangeMat.color.set(coat.accent);
+  }
+  setTimesGateFinish(runtime.options.timesGateFinish);
   const flat = (part) => ((part.raycast = runtime.core.noRaycast), part);
+  // Repeated small parts share geometry and one draw call per set, without outline hulls.
+  function details(parent, geometry, material, positions) {
+    const parts = flat(runtime.core.track(new THREE.InstancedMesh(runtime.core.track(geometry), material, positions.length)));
+    const transform = new THREE.Object3D();
+    positions.forEach(([x, y, z, rz = 0], i) => {
+      transform.position.set(x, y, z);
+      transform.rotation.z = rz;
+      transform.updateMatrix();
+      parts.setMatrixAt(i, transform.matrix);
+    });
+    parent.add(parts);
+    return parts;
+  }
+  const boltGeo = new THREE.CylinderGeometry(0.016, 0.016, 0.008, 6);
+  boltGeo.rotateX(Math.PI / 2);
+  const boltSocketGeo = new THREE.CylinderGeometry(0.006, 0.006, 0.009, 6);
+  boltSocketGeo.rotateX(Math.PI / 2);
 
   // ---------- the capsule ----------
   // The black spine the screens are mounted on
-  const spine = runtime.core.mesh(runtime.core.rbox(CAP_HALF * 2 + 0.02, TUBE_H - 0.06, 0.24, 0.05), spineMat, { outline: 0.008 });
+  const spine = runtime.core.mesh(runtime.core.rbox(CAP_HALF * 2 + 0.02, TUBE_H - 0.12, 0.16, 0.05), spineMat, { outline: 0.006 });
   spine.position.set(0, CY, -0.06);
   gate.add(spine);
   // Five rounded modules, each a glossy black bezel round its 26 mm square 128 × 128 panel.
   // The panels show their pixels square and sharp (no smoothing when the camera's close).
-  const MODULE = { w: 0.33, h: 0.42, d: 0.08, pitch: 0.37 };
+  const MODULE = { w: 0.357, h: 0.46, d: 0.1, pitch: 0.37 };
   const PANEL = 0.26;
   const MODULE_FRONT = 0.1 + MODULE.d / 2;
+  const coverW = MODULE.w - 0.006;
+  const coverH = MODULE.h - 0.006;
+  const coverZ = (x, y) => MODULE_FRONT + 0.006 + 0.026 * (1 - (x / (coverW / 2)) ** 4) * (1 - (y / (coverH / 2)) ** 4);
+  const coverGeo = runtime.core.track(new THREE.PlaneGeometry(coverW, coverH, 24, 32));
+  const coverPosition = coverGeo.attributes.position;
+  const coverColors = [];
+  for (let i = 0; i < coverPosition.count; i++) {
+    let x = coverPosition.getX(i), y = coverPosition.getY(i);
+    // Round the grid's corners, then bow the front outward with a smooth clear centre.
+    const cx = THREE.MathUtils.clamp(x, -coverW / 2 + 0.075, coverW / 2 - 0.075);
+    const cy = THREE.MathUtils.clamp(y, -coverH / 2 + 0.075, coverH / 2 - 0.075);
+    const distance = Math.hypot(x - cx, y - cy);
+    if (distance > 0.075) {
+      x = cx + (x - cx) * 0.075 / distance;
+      y = cy + (y - cy) * 0.075 / distance;
+    }
+    coverPosition.setXYZ(i, x, y, coverZ(x, y));
+    const edge = THREE.MathUtils.smoothstep(Math.abs(x), PANEL / 2 + 0.008, coverW / 2)
+      + THREE.MathUtils.smoothstep(Math.abs(y), PANEL / 2 + 0.012, coverH / 2);
+    coverColors.push(1, 1, 1, Math.min(0.4, edge * 0.3));
+  }
+  coverGeo.setAttribute("color", new THREE.Float32BufferAttribute(coverColors, 4));
+  coverGeo.computeVertexNormals();
+  // A smooth dielectric coat reflects broad light sources instead of painted-on
+  // strokes. This shared lighting map is sampled by view direction, not printed
+  // on the plastic; it adds no texture, refraction pass or haze over the pixels.
+  const coverEnvironment = canvasTexture(512, 256);
+  runtime.core.track(coverEnvironment.texture);
+  const environment = coverEnvironment.ctx;
+  environment.fillStyle = "#111315";
+  environment.fillRect(0, 0, 512, 256);
+  [[80, 22, 70, 128], [332, 45, 100, 95], [200, 5, 160, 28]].forEach(([x, y, w, h]) => {
+    const light = environment.createLinearGradient(x, y, x + w, y + h);
+    light.addColorStop(0, "#41464c");
+    light.addColorStop(0.25, "#dfe6eb");
+    light.addColorStop(0.65, "#ffffff");
+    light.addColorStop(1, "#50565d");
+    environment.fillStyle = light;
+    environment.fillRect(x, y, w, h);
+  });
+  coverEnvironment.texture.mapping = THREE.EquirectangularReflectionMapping;
+  coverEnvironment.texture.needsUpdate = true;
+  const coverMat = runtime.core.track(new THREE.MeshPhysicalMaterial({
+    color: "#050608", metalness: 0, roughness: 0.09,
+    clearcoat: 1, clearcoatRoughness: 0.07, ior: 1.49,
+    envMap: coverEnvironment.texture, envMapIntensity: 2.4,
+    vertexColors: true, transparent: true, depthWrite: false,
+  }));
+  // The screens' glow on the desk and riser: each picture is boiled down to its mean colour as
+  // it redraws, and one light in front of the row carries their blend. It's faint by day,
+  // comes up as the room goes dark, and brightens on hover.
+  const glowSample = document.createElement("canvas");
+  glowSample.width = glowSample.height = 8;
+  const glowCtx = glowSample.getContext("2d", { willReadFrequently: true });
+  const screenColors = [];
+  const screenTint = { color: new THREE.Color("#9fc4ff") };
+  let screenLevel = 0.5;
+  let glowBoost = 1;
+  const glowLevel = () => (0.15 + 0.85 * runtime.core.roomLight.night) * glowBoost;
+  function sampleScreen(i, canvas) {
+    if (!canvas || !glowCtx) return;
+    glowCtx.drawImage(canvas, 0, 0, 8, 8);
+    const { data } = glowCtx.getImageData(0, 0, 8, 8);
+    const rgb = [0, 0, 0];
+    for (let p = 0; p < data.length; p += 4) {
+      rgb[0] += data[p];
+      rgb[1] += data[p + 1];
+      rgb[2] += data[p + 2];
+    }
+    screenColors[i] = rgb.map((v) => v / 64 / 255);
+    const drawn = screenColors.filter(Boolean);
+    const mean = [0, 1, 2].map((c) => drawn.reduce((sum, colour) => sum + colour[c], 0) / drawn.length);
+    const peak = Math.max(...mean);
+    // mostly dark pictures still glow a little; the hue comes from whatever is lit
+    screenLevel = Math.min(1, 0.35 + peak * 2);
+    if (peak > 0.02) screenTint.color.setRGB(mean[0] / peak, mean[1] / peak, mean[2] / peak, THREE.SRGBColorSpace);
+  }
+  const screenGlow = runtime.room.neonLight("#9fc4ff", 0.7, () => glowLevel() * screenLevel, { distance: 2.4, tint: screenTint });
+  screenGlow.position.set(0, CY, MODULE_FRONT + 0.45);
+  gate.add(screenGlow);
   const screens = [];
   function addScreen(i, draw, every) {
     const x = (i - 2) * MODULE.pitch;
     const module = runtime.core.mesh(runtime.core.phoneSlab(MODULE.w, MODULE.h, MODULE.d, 0.08), bezelMat, { outline: 0.006 });
     module.position.set(x, CY, 0.1);
+    module.name = `times-gate-module-${i}`;
     gate.add(module);
+    // Thin frame behind the clear cover.
+    const rim = flat(runtime.core.mesh(runtime.core.phoneSlab(MODULE.w + 0.008, MODULE.h + 0.008, 0.028, 0.075), buttonMat, { outline: 0, cast: false }));
+    rim.position.set(x, CY, 0.067);
+    gate.add(rim);
     const tex = canvasTexture(GATE_PX, GATE_PX);
     runtime.core.track(tex.texture);
     tex.texture.magFilter = THREE.NearestFilter;
     const panel = flat(new THREE.Mesh(runtime.core.track(new THREE.PlaneGeometry(PANEL, PANEL)), runtime.core.track(new THREE.MeshBasicMaterial({ map: tex.texture }))));
     panel.position.set(x, CY, MODULE_FRONT + 0.002);
+    panel.name = `times-gate-pixels-${i}`;
     gate.add(panel);
+    const cover = flat(new THREE.Mesh(coverGeo, coverMat));
+    cover.name = "times-gate-screen-cover";
+    cover.position.set(x, CY, 0);
+    gate.add(cover);
     const screen = {
       panel, every, at: -Infinity,
       redraw(t) {
         draw(tex.ctx, t);
         tex.texture.needsUpdate = true;
+        sampleScreen(i, tex.canvas);
       },
     };
     screens.push(screen);
     return screen;
   }
-  // A chrome rail along each of the frame's four long edges
-  [-1, 1].forEach((sy) => [-1, 1].forEach((sz) => {
-    gate.add(runtime.core.rod(new THREE.Vector3(-CAP_HALF - 0.02, CY + sy * (TUBE_H / 2 + 0.005), sz * 0.17), new THREE.Vector3(CAP_HALF + 0.02, CY + sy * (TUBE_H / 2 + 0.005), sz * 0.17), 0.018, chromeMat, 0.007));
+  // The top/bottom are flat clear acrylic, not round metal rails. Their polished
+  // rectangular edges catch light; the sheet ends stop before the shield bevels.
+  const ACRYLIC_HALF = CAP_HALF - 0.05;
+  const LOWER_ACRYLIC_Y = CY - TUBE_H / 2 - 0.005;
+  const acrylicMat = runtime.core.track(new THREE.MeshPhongMaterial({
+    color: "#dce8ee", specular: "#ffffff", shininess: 110,
+    transparent: true, opacity: 0.24, depthWrite: false,
   }));
-  // The clamps across the middle: a silver block over the top (up to 9.7 cm) with its two
-  // buttons in a recessed tray, a lower block under the bottom with a ribbed grip
-  const clampTop = runtime.core.mesh(runtime.core.rbox(0.84, 0.16, DEPTH, 0.035), silverMat, { outline: 0.012 });
-  clampTop.position.y = 0.97 - 0.08 - 0.02;
-  const tray = runtime.core.mesh(runtime.core.rbox(0.6, 0.01, 0.28, 0.004), buttonMat, { outline: 0, cast: false });
-  tray.position.y = 0.951;
-  gate.add(clampTop, tray);
-  [-0.13, 0.13].forEach((x) => {
-    const button = runtime.core.mesh(runtime.core.rbox(0.17, 0.02, 0.11, 0.008), panelMat, { outline: 0.005 });
-    button.position.set(x, 0.96, 0);
-    gate.add(button);
+  const acrylicEdgeMat = runtime.core.track(new THREE.LineBasicMaterial({ color: "#e4edf2", transparent: true, opacity: 0.65 }));
+  const acrylicGeo = runtime.core.track(new THREE.BoxGeometry(ACRYLIC_HALF * 2, 0.016, 0.36));
+  const acrylicEdges = runtime.core.track(new THREE.EdgesGeometry(acrylicGeo));
+  [-1, 1].forEach(sy => {
+    const sheet = flat(new THREE.Mesh(acrylicGeo, acrylicMat));
+    sheet.name = "times-gate-acrylic-sheet";
+    // The lower sheet is seated in the saddle's middle channel, below its upper deck.
+    sheet.position.set(0, sy < 0 ? LOWER_ACRYLIC_Y : CY + TUBE_H / 2 + 0.005, 0);
+    const edges = flat(new THREE.LineSegments(acrylicEdges, acrylicEdgeMat));
+    sheet.add(edges);
+    gate.add(sheet);
   });
-  const clampBottom = runtime.core.mesh(runtime.core.rbox(0.8, 0.16, DEPTH, 0.035), silverMat, { outline: 0.012 });
-  clampBottom.position.y = CY - TUBE_H / 2 - 0.07;
-  gate.add(clampBottom);
-  for (let i = -3; i <= 3; i++) {
-    const rib = flat(runtime.core.mesh(runtime.core.rbox(0.035, 0.08, 0.006, 0.002), spineMat, { outline: 0, cast: false }));
-    rib.position.set(i * 0.08, clampBottom.position.y, DEPTH / 2 + 0.002);
-    gate.add(rib);
+  // The top control housing has two textured paddles, a central power key and a
+  // stepped front ledge. Printed hatching stays on the paddles, not across the rim.
+  const clampTop = runtime.core.mesh(runtime.core.rbox(0.84, 0.12, DEPTH, 0.025), clampMat, { outline: 0.006 });
+  clampTop.position.y = 0.866;
+  const topRim = runtime.core.mesh(runtime.core.rbox(0.85, 0.015, 0.475, 0.006), panelMat, { outline: 0 });
+  topRim.position.y = 0.925;
+  const tray = runtime.core.mesh(runtime.core.rbox(0.79, 0.009, 0.405, 0.004), insetMat, { outline: 0, cast: false });
+  tray.position.y = 0.935;
+  gate.add(clampTop, topRim, tray);
+  const controlPrint = canvasTexture(1024, 256);
+  runtime.core.track(controlPrint.texture);
+  const ink = controlPrint.ctx;
+  ink.clearRect(0, 0, 1024, 256);
+  ink.save();
+  ink.strokeStyle = "rgba(255,255,255,0.22)";
+  ink.lineWidth = 2;
+  for (let x = -256; x < 1280; x += 12) {
+    ink.beginPath(); ink.moveTo(x, 0); ink.lineTo(x + 256, 256); ink.stroke();
   }
+  ink.fillStyle = "#f1f4f6";
+  ink.font = "bold 42px sans-serif";
+  ink.textAlign = "center";
+  ink.textBaseline = "middle";
+  ink.fillText("LIGHT", 256, 135);
+  ink.fillText("MODE", 768, 135);
+  ink.restore();
+  controlPrint.texture.needsUpdate = true;
+  const controlPrintMat = runtime.core.track(new THREE.MeshBasicMaterial({ map: controlPrint.texture, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1 }));
+  [-1, 1].forEach(side => {
+    const padShape = new THREE.Shape([[-0.15, -0.16], [0.15, -0.16], [0.15, 0.035], [0.075, 0.135], [-0.15, 0.135]].map(([x, z]) => new THREE.Vector2(side * x, -z)));
+    const padGeo = new THREE.ExtrudeGeometry(padShape, { depth: 0.021, bevelEnabled: true, bevelSize: 0.006, bevelThickness: 0.004, bevelSegments: 2 });
+    padGeo.rotateX(-Math.PI / 2);
+    const pad = runtime.core.mesh(padGeo, clampMat, { outline: 0 });
+    pad.name = side < 0 ? "times-gate-light-control" : "times-gate-mode-control";
+    pad.position.set(side * 0.22, 0.941, 0);
+    gate.add(pad);
+    const labelGeo = runtime.core.track(new THREE.PlaneGeometry(0.27, 0.215));
+    const uv = labelGeo.attributes.uv;
+    for (let i = 0; i < uv.count; i++) uv.setX(i, uv.getX(i) * 0.5 + (side > 0 ? 0.5 : 0));
+    const label = flat(new THREE.Mesh(labelGeo, controlPrintMat));
+    label.rotation.x = -Math.PI / 2;
+    label.position.set(0, 0.0255, -0.035);
+    pad.add(label);
+  });
+  const power = runtime.core.mesh(runtime.core.rbox(0.105, 0.025, 0.15, 0.006), buttonMat, { outline: 0.002 });
+  power.name = "times-gate-power-control";
+  power.position.set(0, 0.952, -0.065);
+  gate.add(power);
+  const powerArc = new THREE.TorusGeometry(0.025, 0.0025, 5, 20, Math.PI * 1.5);
+  powerArc.rotateZ(Math.PI * 0.75);
+  powerArc.rotateX(-Math.PI / 2);
+  const powerIcon = flat(runtime.core.mesh(powerArc, glintMat, { outline: 0, cast: false }));
+  powerIcon.position.set(0, 0.966, -0.065);
+  gate.add(powerIcon);
+  const powerStem = flat(runtime.core.mesh(new THREE.BoxGeometry(0.004, 0.002, 0.023), glintMat, { outline: 0, cast: false }));
+  powerStem.position.set(0, 0.966, -0.085);
+  gate.add(powerStem);
+  const frontLedge = runtime.core.mesh(runtime.core.rbox(0.56, 0.034, 0.075, 0.012), panelMat, { outline: 0 });
+  frontLedge.position.set(0, 0.947, 0.15);
+  gate.add(frontLedge);
+  details(gate, new THREE.BoxGeometry(0.075, 0.002, 0.005), glintMat, [-0.16, 0.16].map(x => [x, 0.965, 0.15]));
+  const microphone = flat(runtime.core.mesh(new THREE.CircleGeometry(0.0035, 10), spineMat, { outline: 0, cast: false }));
+  microphone.position.set(0, 0.875, DEPTH / 2 + 0.001);
+  gate.add(microphone);
+  // The lower saddle is a single swept profile: a sloping grip deck, rounded
+  // upper/lower lips and an inset horizontal channel across the front and back.
+  const lowerProfile = [
+    [-0.225, 0.12], [0.225, 0.12], [0.235, 0.13], [0.235, 0.145],
+    [0.2, 0.155], [0.2, 0.175], [0.232, 0.185], [0.232, 0.203],
+    [0.21, 0.211], [-0.21, 0.211], [-0.232, 0.203], [-0.232, 0.185],
+    [-0.2, 0.175], [-0.2, 0.155], [-0.235, 0.145], [-0.235, 0.13],
+  ];
+  const lowerShape = new THREE.Shape(lowerProfile.map(([z, y]) => new THREE.Vector2(-z, y)));
+  const lowerGeo = new THREE.ExtrudeGeometry(lowerShape, {
+    depth: 0.84, bevelEnabled: true, bevelSize: 0.006, bevelThickness: 0.006, bevelSegments: 3,
+  });
+  lowerGeo.translate(0, 0, -0.42);
+  lowerGeo.rotateY(Math.PI / 2);
+  const clampBottom = runtime.core.mesh(lowerGeo, clampMat, { outline: 0.003 });
+  clampBottom.name = "times-gate-lower-saddle";
+  clampBottom.position.y = LOWER_ACRYLIC_Y - 0.165;
+  gate.add(clampBottom);
+  const deckShape = new THREE.Shape([
+    [-0.21, 0.207], [0.21, 0.207], [0.21, 0.215], [0.15, 0.215],
+    [0.075, 0.25], [-0.075, 0.25], [-0.15, 0.215], [-0.21, 0.215],
+  ].map(([z, y]) => new THREE.Vector2(-z, y)));
+  const deckGeo = new THREE.ExtrudeGeometry(deckShape, {
+    depth: 0.848, bevelEnabled: true, bevelSize: 0.004, bevelThickness: 0.004, bevelSegments: 3,
+  });
+  deckGeo.translate(0, 0, -0.424);
+  deckGeo.rotateY(Math.PI / 2);
+  const lowerDeck = runtime.core.mesh(deckGeo, lowerDeckMat, { outline: 0 });
+  lowerDeck.name = "times-gate-lower-deck";
+  clampBottom.add(lowerDeck);
+  const gripMat = runtime.core.track(new THREE.MeshBasicMaterial({ color: "#171b20", transparent: true, opacity: 0.22, depthWrite: false }));
+  const lowerGlintMat = runtime.core.track(new THREE.MeshBasicMaterial({ color: "#eef2f5", transparent: true, opacity: 0.28, depthWrite: false }));
+  [-1, 1].forEach(face => {
+    const ribs = new THREE.BoxGeometry(0.005, 0.0015, Math.hypot(0.075, 0.035));
+    ribs.rotateX(face * Math.atan2(0.035, 0.075));
+    const grip = details(clampBottom, ribs, gripMat,
+      Array.from({ length: 33 }, (_, i) => [(i - 16) * 0.023, 0.234, face * 0.1125]));
+    grip.name = "times-gate-lower-grip";
+    const glints = details(clampBottom, new THREE.BoxGeometry(0.78, 0.002, 0.0015), lowerGlintMat,
+      [[0, 0.199, face * 0.239], [0, 0.133, face * 0.242]]);
+    glints.name = "times-gate-lower-lip-reflections";
+  });
 
   // ---------- the end arcs ----------
   // Built for the right end, x out from the capsule; the left one is the same turned half round,
@@ -127,13 +355,44 @@ export function createTimesGate(runtime) {
     end.position.x = side * CAP_HALF;
     end.rotation.y = side > 0 ? 0 : Math.PI;
     gate.add(end);
-    // The bowed band: an arc of brushed silver, its ends cut square to the curve
+    // A shallow channel between rolled outer/inner lips, not one flat solid arc.
+    function bandSector(inner, outer, start = -ARC.half, finish = ARC.half, face = 1) {
+      const points = [];
+      const steps = Math.max(2, Math.ceil((finish - start) * 32));
+      for (let i = 0; i <= steps; i++) {
+        const angle = start + (finish - start) * i / steps;
+        points.push(new THREE.Vector2(ARC.cx + outer * Math.cos(angle), face * outer * Math.sin(angle)));
+      }
+      for (let i = steps; i >= 0; i--) {
+        const angle = start + (finish - start) * i / steps;
+        points.push(new THREE.Vector2(ARC.cx + inner * Math.cos(angle), face * inner * Math.sin(angle)));
+      }
+      return new THREE.Shape(points);
+    }
     const band = new THREE.Shape();
     band.absarc(ARC.cx, ARC.cy, ARC.out, -ARC.half, ARC.half, false);
     band.absarc(ARC.cx, ARC.cy, ARC.in, ARC.half, -ARC.half, true);
-    const bandGeo = new THREE.ExtrudeGeometry(band, { depth: 0.4, bevelEnabled: true, bevelThickness: 0.02, bevelSize: 0.018, bevelSegments: 3, curveSegments: 28 });
+    const bandGeo = new THREE.ExtrudeGeometry(band, { depth: 0.4, bevelEnabled: true, bevelThickness: 0.008, bevelSize: 0.008, bevelSegments: 3, curveSegments: 32 });
     bandGeo.translate(0, 0, -0.2);
-    end.add(runtime.core.mesh(bandGeo, silverMat, { outline: 0.012 }));
+    end.add(runtime.core.mesh(bandGeo, silverMat, { outline: 0 }));
+    [[ARC.out - 0.012, ARC.out + 0.004], [ARC.in - 0.004, ARC.in + 0.01]].forEach(([inner, outer]) => {
+      const lipGeo = new THREE.ExtrudeGeometry(bandSector(inner, outer), {
+        depth: 0.422, bevelEnabled: true, bevelThickness: 0.004, bevelSize: 0.003, bevelSegments: 2,
+      });
+      lipGeo.translate(0, CY, -0.211);
+      const lip = runtime.core.mesh(lipGeo, silverMat, { outline: 0.002 });
+      lip.name = "times-gate-band-lip";
+      end.add(lip);
+    });
+    [-1, 1].forEach(sy => {
+      const capGeo = new THREE.ExtrudeGeometry(bandSector(ARC.in - 0.003, ARC.out + 0.009,
+        sy > 0 ? ARC.half - 0.055 : -ARC.half - 0.02,
+        sy > 0 ? ARC.half + 0.02 : -ARC.half + 0.055), {
+        depth: 0.432, bevelEnabled: true, bevelThickness: 0.005, bevelSize: 0.004, bevelSegments: 3,
+      });
+      capGeo.translate(0, CY, -0.216);
+      end.add(runtime.core.mesh(capGeo, silverMat, { outline: 0 }));
+    });
     // The white panel filling it, between the capsule's end and the band
     const plateHalf = 0.3;
     const plateAngle = Math.asin(plateHalf / PLATE_R);
@@ -149,22 +408,52 @@ export function createTimesGate(runtime) {
     // On each face: a dark inset in the panel, the RGB strip round the band's inner edge, and
     // the chrome handle with its orange clip. Drawn about the arc's centre line, so the back
     // face's set is the front's turned over (about x, keeping it on this side of the capsule).
-    const insetHalf = 0.22;
-    const insetAngle = Math.asin(insetHalf / INSET_R);
-    const inset = new THREE.Shape();
-    inset.moveTo(0.015, -insetHalf);
-    inset.lineTo(0.015, insetHalf);
-    inset.lineTo(ARC.cx + INSET_R * Math.cos(insetAngle), insetHalf);
-    inset.absarc(ARC.cx, 0, INSET_R, insetAngle, -insetAngle, true);
-    inset.lineTo(0.015, -insetHalf);
-    const insetGeo = new THREE.ShapeGeometry(inset, 20);
-    const stripGeo = new THREE.RingGeometry(INSET_R + 0.006, ARC.in - 0.008, 40, 1, -ARC.half * 0.9, ARC.half * 1.8);
-    stripGeo.translate(ARC.cx, 0, 0);
+    // Two separate chamfered shields behind the handle, with a recessed face inside
+    // a raised metal lip. The open waist exposes the three hinge knuckles between them.
+    const shieldPoints = [
+      [-0.042, 0.296], [-0.012, 0.296], [0.046, 0.255], [0.072, 0.223],
+      [0.105, 0.082], [0.098, 0.058], [0.032, 0.058], [-0.012, 0.08], [-0.042, 0.105],
+    ].map(([x, y]) => new THREE.Vector2(x, y));
+    const pocketPoints = shieldPoints.map(p => new THREE.Vector2((p.x - 0.028) * 0.78 + 0.028, (p.y - 0.177) * 0.88 + 0.177));
+    const shields = [-1, 1].map(sy => {
+      const outer = shieldPoints.map(p => new THREE.Vector2(p.x, sy * p.y));
+      const inner = pocketPoints.map(p => new THREE.Vector2(p.x, sy * p.y));
+      const shape = new THREE.Shape(outer);
+      shape.holes.push(new THREE.Path(inner.slice().reverse()));
+      return {
+        rim: new THREE.ExtrudeGeometry(shape, {
+          depth: 0.012, bevelEnabled: true, bevelThickness: 0.003, bevelSize: 0.003, bevelSegments: 2,
+        }),
+        pocket: new THREE.ShapeGeometry(new THREE.Shape(inner)),
+      };
+    });
+    const anchorGeo = new THREE.CylinderGeometry(0.025, 0.025, 0.012, 20);
+    anchorGeo.rotateX(Math.PI / 2);
+    const washerGeo = new THREE.CylinderGeometry(0.018, 0.018, 0.014, 16);
+    washerGeo.rotateX(Math.PI / 2);
+    const knuckleGeo = new THREE.CylinderGeometry(0.011, 0.011, 0.12, 12);
+    knuckleGeo.rotateZ(Math.PI / 2);
+    // A rounded light pipe sits inside a dark channel. Both ends stop on the side
+    // plate, short of its edge, instead of hanging past the body as a cut-off ring.
+    const lightRadius = INSET_R + 0.021;
+    const lightHalf = Math.asin((plateHalf - 0.025) / (lightRadius + 0.016));
+    function lightChannel(width) {
+      const halfWidth = width / 2;
+      const shape = new THREE.Shape();
+      shape.absarc(ARC.cx, 0, lightRadius + halfWidth, -lightHalf, lightHalf, false);
+      shape.absarc(ARC.cx + lightRadius * Math.cos(lightHalf), lightRadius * Math.sin(lightHalf), halfWidth, lightHalf, lightHalf + Math.PI, false);
+      shape.absarc(ARC.cx, 0, lightRadius - halfWidth, lightHalf, -lightHalf, true);
+      shape.absarc(ARC.cx + lightRadius * Math.cos(lightHalf), -lightRadius * Math.sin(lightHalf), halfWidth, Math.PI - lightHalf, Math.PI * 2 - lightHalf, false);
+      return new THREE.ShapeGeometry(shape, 48);
+    }
+    const channelGeo = lightChannel(0.032);
+    const stripGeo = lightChannel(0.023);
     stripGeo.setAttribute("color", new THREE.BufferAttribute(new Float32Array(stripGeo.attributes.position.count * 3), 3));
     runtime.core.track(stripGeo);
     const stripMat = runtime.core.track(new THREE.MeshBasicMaterial({ vertexColors: true }));
     const handlePath = new THREE.CatmullRomCurve3([
-      [-0.01, 0.14, 0], [0.055, 0.14, 0.05], [0.095, 0.09, 0.06], [0.095, -0.09, 0.06], [0.055, -0.14, 0.05], [-0.01, -0.14, 0],
+      [0.005, 0.17, 0.025], [0.055, 0.15, 0.055], [0.095, 0.1, 0.065],
+      [0.095, -0.1, 0.065], [0.055, -0.15, 0.055], [0.005, -0.17, 0.025],
     ].map(([x, y, z]) => new THREE.Vector3(x, y, z)), false, "centripetal");
     const handleGeo = new THREE.TubeGeometry(handlePath, 40, 0.014, 8, false);
     const clipGeo = runtime.core.rbox(0.042, 0.06, 0.034, 0.01);
@@ -173,42 +462,170 @@ export function createTimesGate(runtime) {
       decor.position.set(0, CY, face * (PLATE_Z + 0.002));
       decor.rotation.x = face > 0 ? 0 : Math.PI;
       end.add(decor);
-      decor.add(flat(runtime.core.mesh(insetGeo, insetMat, { outline: 0, cast: false })));
+      const bandFace = new THREE.Group();
+      bandFace.position.set(0, 0, 0.035);
+      decor.add(bandFace);
+      const recess = flat(runtime.core.mesh(new THREE.ShapeGeometry(bandSector(0.557, 0.63, -ARC.half + 0.035, ARC.half - 0.035, face)), panelMat, { outline: 0, cast: false }));
+      recess.name = "times-gate-band-recess";
+      bandFace.add(recess);
+      // Curved, slightly tapering vent slots and three angular recessed bays.
+      const ventShapes = Array.from({ length: 12 }, (_, i) => {
+        const angle = 0.13 + i * 0.038;
+        return bandSector(0.586 - i * 0.0003, 0.61 + i * 0.0003, angle, angle + 0.026, face);
+      });
+      const vents = flat(runtime.core.mesh(new THREE.ShapeGeometry(ventShapes), spineMat, { outline: 0, cast: false }));
+      vents.name = "times-gate-band-vents";
+      vents.position.z = 0.002;
+      bandFace.add(vents);
+      const bays = [[-0.10, -0.10, -0.29, -0.21], [-0.25, -0.33, -0.49, -0.42], [-0.46, -0.53, -0.67, -0.60]].map(angles => {
+        const radii = [0.561, 0.626, 0.626, 0.561];
+        return angles.map((angle, i) => new THREE.Vector2(ARC.cx + radii[i] * Math.cos(angle), face * radii[i] * Math.sin(angle)));
+      });
+      const bayGrooves = flat(runtime.core.mesh(new THREE.ShapeGeometry(bays.map(points => new THREE.Shape(points))), insetMat, { outline: 0, cast: false }));
+      bayGrooves.name = "times-gate-band-panel-grooves";
+      bayGrooves.position.z = 0.002;
+      bandFace.add(bayGrooves);
+      const bayFaces = bays.map(points => {
+        const center = points.reduce((sum, p) => sum.add(p), new THREE.Vector2()).multiplyScalar(1 / points.length);
+        return new THREE.Shape(points.map(p => p.clone().sub(center).multiplyScalar(0.82).add(center)));
+      });
+      const bayPanels = flat(runtime.core.mesh(new THREE.ShapeGeometry(bayFaces), panelMat, { outline: 0, cast: false }));
+      bayPanels.position.z = 0.003;
+      bandFace.add(bayPanels);
+      const seamBed = flat(runtime.core.mesh(new THREE.ShapeGeometry(bandSector(0.553, 0.633, -0.065, 0.065, face)), spineMat, { outline: 0, cast: false }));
+      seamBed.position.z = 0.002;
+      bandFace.add(seamBed);
+      const seamInsert = flat(runtime.core.mesh(new THREE.ShapeGeometry(bandSector(0.56, 0.626, -0.041, 0.041, face)), orangeMat, { outline: 0, cast: false }));
+      seamInsert.position.z = 0.003;
+      bandFace.add(seamInsert);
+      shields.forEach(({ rim: rimGeo, pocket: pocketGeo }) => {
+        const shield = new THREE.Group();
+        shield.name = "times-gate-handle-shield";
+        const rim = flat(runtime.core.mesh(rimGeo, panelMat, { outline: 0.002, cast: false }));
+        const pocket = flat(runtime.core.mesh(pocketGeo, insetMat, { outline: 0, cast: false }));
+        rim.position.z = 0.003;
+        pocket.position.z = 0.006;
+        pocket.name = "times-gate-shield-recess";
+        shield.add(rim, pocket);
+        decor.add(shield);
+      });
+      const channel = flat(runtime.core.mesh(channelGeo, spineMat, { outline: 0, cast: false }));
+      channel.name = "times-gate-rgb-channel";
+      channel.position.z = 0.001;
+      decor.add(channel);
       const strip = flat(new THREE.Mesh(stripGeo, stripMat));
-      strip.position.z = 0.002;
+      strip.name = "times-gate-rgb-diffuser";
+      strip.position.z = 0.0025;
       decor.add(strip);
-      decor.add(runtime.core.mesh(handleGeo, chromeMat, { outline: 0.005 }));
-      const clip = runtime.core.mesh(clipGeo, orangeMat, { outline: 0.004 });
+      const handle = runtime.core.mesh(handleGeo, chromeMat, { outline: 0.004 });
+      handle.name = "times-gate-handle";
+      decor.add(handle);
+      const anchors = [[0.005, 0.17, 0.015], [0.005, -0.17, 0.015]];
+      details(decor, anchorGeo, panelMat, anchors);
+      details(decor, washerGeo, chromeMat, anchors.map(([x, y, z]) => [x, y, z + 0.006]));
+      const knuckles = details(decor, knuckleGeo, chromeMat, [-0.025, 0, 0.025].map(y => [0.04, y, 0.028]));
+      knuckles.name = "times-gate-handle-hinge";
+      // Handle anchors with inset hex sockets, above and below the centre seam.
+      const bolts = [[0.005, 0.17, 0.031], [0.005, -0.17, 0.031], [-0.018, 0.267, 0.021], [-0.018, -0.267, 0.021]];
+      details(decor, boltGeo.clone(), chromeMat, bolts);
+      details(decor, boltSocketGeo.clone(), spineMat, bolts.map(([x, y, z]) => [x, y, z + 0.005]));
+      const clip = runtime.core.mesh(clipGeo, chromeMat, { outline: 0.003 });
       clip.position.set(0.095, 0, 0.06);
       decor.add(clip);
+      const seam = flat(runtime.core.mesh(new THREE.BoxGeometry(0.095, 0.012, 0.008), spineMat, { outline: 0, cast: false }));
+      seam.position.set(0.19, 0, 0.028);
+      decor.add(seam);
     });
     rgbStrips.push(stripGeo);
-    // An orange tab on the band's outer face, at its middle
-    const tab = runtime.core.mesh(runtime.core.rbox(0.045, 0.11, 0.26, 0.014), orangeMat, { outline: 0.007 });
-    tab.position.set(ARC.cx + ARC.out + 0.005, CY, 0);
-    end.add(tab);
     // A chrome hinge at the band's foot, on an orange rubber foot that splays out to 14.15 cm
     // from the middle, as deep as the gate
-    const HINGE = { x: 0.12, y: 0.085, r: 0.048 };
+    // Keep the hinge clear of the foot's bevel: coincident front faces used to
+    // alternate orange/metal pixels as the hover animation moved the model.
+    const HINGE = { x: 0.12, y: 0.146, r: 0.048 };
     const hinge = runtime.core.mesh(new THREE.CylinderGeometry(HINGE.r, HINGE.r, DEPTH, 20), chromeMat, { outline: 0.007 });
+    hinge.name = "times-gate-foot-hinge";
     hinge.rotation.x = Math.PI / 2;
     hinge.position.set(HINGE.x, HINGE.y, 0);
     end.add(hinge);
     [-1, 1].forEach((sz) => {
-      const cap = flat(runtime.core.mesh(new THREE.CylinderGeometry(0.028, 0.028, 0.01, 16), buttonMat, { outline: 0, cast: false }));
+      const cap = flat(runtime.core.mesh(new THREE.CylinderGeometry(0.041, 0.041, 0.01, 24), silverMat, { outline: 0.002, cast: false }));
+      cap.name = "times-gate-foot-pivot-cap";
       cap.rotation.x = Math.PI / 2;
       cap.position.set(HINGE.x, HINGE.y, sz * (DEPTH / 2 + 0.004));
       end.add(cap);
+      const capNotches = Array.from({ length: 3 }, (_, i) => {
+        const angle = i * Math.PI * 2 / 3 + Math.PI / 6;
+        return [HINGE.x + 0.033 * Math.cos(angle), HINGE.y + 0.033 * Math.sin(angle), sz * (DEPTH / 2 + 0.01), angle];
+      });
+      details(end, new THREE.BoxGeometry(0.007, 0.003, 0.002), spineMat, capNotches);
     });
     const FOOT_OUT = 1.415 - CAP_HALF - 0.01;
-    const foot = new THREE.Shape([[-0.08, 0], [FOOT_OUT, 0], [FOOT_OUT, 0.022], [0.2, 0.075], [-0.04, 0.075], [-0.08, 0.045]].map(([x, y]) => new THREE.Vector2(x, y)));
-    const footGeo = new THREE.ExtrudeGeometry(foot, { depth: DEPTH - 0.02, bevelEnabled: true, bevelThickness: 0.01, bevelSize: 0.01, bevelSegments: 2 });
-    footGeo.translate(0, 0.01, -(DEPTH - 0.02) / 2);
-    end.add(runtime.core.mesh(footGeo, orangeMat, { outline: 0.009 }));
+    // Flared low-profile foot: a narrow toe, rounded pivot lobe and a raised heel.
+    // Its plan outline follows the product's rubber moulding rather than a rectangular block.
+    const footPlan = new THREE.Shape();
+    footPlan.moveTo(-0.07, -0.135);
+    footPlan.lineTo(0.045, -0.16);
+    footPlan.quadraticCurveTo(0.09, -0.235, 0.155, -0.225);
+    footPlan.lineTo(FOOT_OUT - 0.02, -0.18);
+    footPlan.quadraticCurveTo(FOOT_OUT, -0.18, FOOT_OUT, -0.155);
+    footPlan.lineTo(FOOT_OUT, 0.155);
+    footPlan.quadraticCurveTo(FOOT_OUT, 0.18, FOOT_OUT - 0.02, 0.18);
+    footPlan.lineTo(0.155, 0.225);
+    footPlan.quadraticCurveTo(0.09, 0.235, 0.045, 0.16);
+    footPlan.lineTo(-0.07, 0.135);
+    footPlan.closePath();
+    const footGeo = new THREE.ExtrudeGeometry(footPlan, { depth: 0.04, bevelEnabled: true, bevelThickness: 0.008, bevelSize: 0.008, bevelSegments: 3, curveSegments: 12 });
+    footGeo.rotateX(-Math.PI / 2);
+    footGeo.translate(0, 0.018, 0);
+    const footBody = runtime.core.mesh(footGeo, orangeMat, { outline: 0.009 });
+    footBody.name = "times-gate-foot";
+    end.add(footBody);
+    const soleGeo = new THREE.ExtrudeGeometry(footPlan, { depth: 0.01, bevelEnabled: false, curveSegments: 12 });
+    soleGeo.rotateX(-Math.PI / 2);
+    const sole = flat(runtime.core.mesh(soleGeo, rubberMat, { outline: 0, cast: false }));
+    sole.position.y = 0.006;
+    end.add(sole);
+    const heelShape = new THREE.Shape([[-0.06, 0.055], [0.22, 0.055], [0.16, 0.086], [0.02, 0.086]].map(([x, y]) => new THREE.Vector2(x, y)));
+    const heelGeo = new THREE.ExtrudeGeometry(heelShape, { depth: 0.27, bevelEnabled: true, bevelSize: 0.004, bevelThickness: 0.004, bevelSegments: 2 });
+    heelGeo.translate(0, 0, -0.135);
+    end.add(runtime.core.mesh(heelGeo, orangeMat, { outline: 0.003 }));
+    const cradleGeo = new THREE.RingGeometry(0.05, 0.068, 24, 1, Math.PI, Math.PI);
+    [-1, 1].forEach(sz => {
+      const cradle = flat(runtime.core.mesh(cradleGeo, orangeMat, { outline: 0, cast: false }));
+      cradle.position.set(HINGE.x, HINGE.y, sz * 0.228);
+      cradle.rotation.y = sz > 0 ? 0 : Math.PI;
+      end.add(cradle);
+    });
+    // Two exposed bent metal stays connect the bowed side panel to its hinge.
+    [-1, 1].forEach(sz => {
+      const stayPath = new THREE.CatmullRomCurve3([
+        [0.265, CY - 0.02, sz * 0.16], [0.31, 0.42, sz * 0.22],
+        [0.24, 0.2, sz * 0.22], [HINGE.x, HINGE.y + 0.025, sz * 0.16],
+      ].map(p => new THREE.Vector3(...p)));
+      end.add(runtime.core.mesh(new THREE.TubeGeometry(stayPath, 20, 0.012, 6, false), chromeMat, { outline: 0.003 }));
+    });
     return end;
   }
   bracket(1);
   bracket(-1);
+  boltGeo.dispose();
+  boltSocketGeo.dispose();
+
+  // Retain the resting foot silhouettes while the visible gate lifts. These two
+  // invisible meshes share the real foot geometry, so open space stays unclickable.
+  const footHits = new THREE.Group();
+  footHits.name = "times-gate-resting-foot-hits";
+  const footHitMat = runtime.core.track(new THREE.MeshBasicMaterial({ visible: false }));
+  gate.updateWorldMatrix(true, true);
+  const gateInverse = gate.matrixWorld.clone().invert();
+  gate.traverse(part => {
+    if (part.name !== "times-gate-foot") return;
+    const hit = new THREE.Mesh(part.geometry, footHitMat);
+    hit.name = "times-gate-foot-hit";
+    hit.applyMatrix4(new THREE.Matrix4().multiplyMatrices(gateInverse, part.matrixWorld));
+    footHits.add(hit);
+  });
+  gate.add(footHits);
 
   // ---------- the five widgets ----------
   // 1. Today's weather where the visitor is (the window's forecast; see weather)
@@ -307,7 +724,6 @@ export function createTimesGate(runtime) {
 
   // ---------- light and motion ----------
   const stripColor = new THREE.Color();
-  let stripBoost = 1;
   let stripsAt = 0;
   function updateStrips(t) {
     rgbStrips.forEach((geometry, k) => {
@@ -315,7 +731,7 @@ export function createTimesGate(runtime) {
       const color = geometry.attributes.color;
       for (let i = 0; i < position.count; i++) {
         const along = Math.atan2(position.getY(i), position.getX(i) - ARC.cx) / (ARC.half * 2) + 0.5;
-        stripColor.setHSL((along * 0.35 + t * 0.12 + k * 0.25) % 1, 1, 0.55 * stripBoost);
+        stripColor.setHSL((along * 0.35 + t * 0.12 + k * 0.25) % 1, 1, 0.55);
         color.setXYZ(i, stripColor.r, stripColor.g, stripColor.b);
       }
       color.needsUpdate = true;
@@ -356,8 +772,11 @@ export function createTimesGate(runtime) {
   runtime.core.register(gate, {
     focus: "timesgate",
     onHover: (on) => {
-      gsap.to(gate.position, { y: on ? 0.04 : 0, duration: 0.25, ease: "power2.out", overwrite: true });
-      stripBoost = on ? 1.35 : 1;
+      gsap.to(gate.position, {
+        y: on ? 0.04 : 0, duration: 0.25, ease: "power2.out", overwrite: true,
+        onUpdate: () => { footHits.position.y = -gate.position.y; },
+      });
+      glowBoost = on ? 1.3 : 1;
       if (on) hoverSound(gate, (s) => s.blip());
     },
     onArrive: () => {
@@ -376,5 +795,6 @@ export function createTimesGate(runtime) {
     gate,
     GATE_CY: CY,
     updateTimesGate,
+    setTimesGateFinish,
   };
 }
