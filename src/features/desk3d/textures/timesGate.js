@@ -166,9 +166,11 @@ export function drawGateGithub(c, { github, t }) {
   pixelText(c, "GITHUB", 17, 2, "#0d1117");
   const days = github?.days;
   const total = github?.total;
-  pixelText(c, total === undefined ? "--" : String(total).slice(-5), 4, 13, "#39d353", 2);
-  pixelText(c, "CONTRIB", 33, 13, "#8b949e");
-  pixelText(c, "1 YEAR", 33, 19, "#8b949e");
+  // the total and its span on one line, the word spelled out in full on the next
+  const w = pixelText(c, total === undefined ? "--" : String(total).slice(-5), 4, 11, "#39d353", 2);
+  const span = 4 + w + 4 + pixelTextWidth("1 YEAR") <= 60 ? "1 YEAR" : "1YR";
+  pixelText(c, span, 60 - pixelTextWidth(span), 16, "#8b949e");
+  centredText(c, "CONTRIBUTIONS", 23, "#8b949e");
   // the last thirteen weeks, a column a week, Sunday at the top
   const COLS = 13;
   const at = (col, row) => [6 + col * 4, 30 + row * 4];
