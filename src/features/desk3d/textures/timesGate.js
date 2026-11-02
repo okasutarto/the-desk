@@ -1,6 +1,6 @@
 // The Divoom Times Gate 2's five little LCDs, drawn as real pixel art: each widget is laid out
 // on a 64 × 64 grid of square pixels in a 3 × 5 bitmap font, then blown up onto its screen with
-// a faint dark gap between the pixels, the look of a small LCD seen up close.
+// every pixel kept the same size and sharp-edged (the panel's shader in scene/timesGate.js).
 import { weatherKind } from "./weather";
 
 export const GATE_PX = 64;
@@ -162,18 +162,22 @@ const OCTOCAT = [
 export function drawGateGithub(c, { github, t }) {
   px(c, 0, 0, "#0d1117", GATE_PX, GATE_PX);
   px(c, 0, 0, "#f0f6fc", GATE_PX, 9);
-  sprite(c, OCTOCAT, 4, 1, { k: "#0d1117", w: "#f0f6fc" });
-  pixelText(c, "GITHUB", 17, 2, "#0d1117");
+  // Everything below the header shares one column, the width of the week grid (and of
+  // CONTRIBUTIONS, which is the same 51 pixels), so the edges line up all the way down.
+  const COLS = 13;
+  const LEFT = 6;
+  const RIGHT = LEFT + COLS * 4 - 1;
+  sprite(c, OCTOCAT, LEFT, 1, { k: "#0d1117", w: "#f0f6fc" });
+  pixelText(c, "GITHUB", LEFT + 12, 2, "#0d1117");
   const days = github?.days;
   const total = github?.total;
   // the total and its span on one line, the word spelled out in full on the next
-  const w = pixelText(c, total === undefined ? "--" : String(total).slice(-5), 4, 11, "#39d353", 2);
-  const span = 4 + w + 4 + pixelTextWidth("1 YEAR") <= 60 ? "1 YEAR" : "1YR";
-  pixelText(c, span, 60 - pixelTextWidth(span), 16, "#8b949e");
-  centredText(c, "CONTRIBUTIONS", 23, "#8b949e");
+  const w = pixelText(c, total === undefined ? "--" : String(total).slice(-5), LEFT, 11, "#39d353", 2);
+  const span = ["1 YEAR", "1YR"].find((text) => LEFT + w + 3 + pixelTextWidth(text) <= RIGHT);
+  if (span) pixelText(c, span, RIGHT - pixelTextWidth(span), 16, "#8b949e");
+  pixelText(c, "CONTRIBUTIONS", RIGHT - pixelTextWidth("CONTRIBUTIONS"), 23, "#8b949e");
   // the last thirteen weeks, a column a week, Sunday at the top
-  const COLS = 13;
-  const at = (col, row) => [6 + col * 4, 30 + row * 4];
+  const at = (col, row) => [LEFT + col * 4, 30 + row * 4];
   const sweep = (t * 6) % 26;
   for (let col = 0; col < COLS; col++) {
     for (let row = 0; row < 7; row++) {
@@ -194,8 +198,9 @@ export function drawGateGithub(c, { github, t }) {
       px(c, x, y, "#ffffff", 3, 3);
     }
   }
-  if (github?.error) centredText(c, "OFFLINE", 59, "#f85149");
-  else centredText(c, github?.streak ? `${github.streak} DAY STREAK` : "", 59, "#8b949e");
+  // centred on the column, a pixel clear of the grid above and of the screen's edge below
+  const footer = github?.error ? "OFFLINE" : github?.streak ? `${github.streak} DAY STREAK` : "";
+  pixelText(c, footer, LEFT + Math.floor((RIGHT - LEFT - pixelTextWidth(footer)) / 2), 58, github?.error ? "#f85149" : "#8b949e");
 }
 
 // ---------- 3. visitors ----------
