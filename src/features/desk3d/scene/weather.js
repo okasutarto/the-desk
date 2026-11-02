@@ -148,5 +148,7 @@ export function createWeather(runtime) {
   return {
     refreshWeather: loadWeather,
     setRain,
+    get weather() { return weatherNow; },
+    get placeName() { return place?.name ?? ""; },
   };
 }

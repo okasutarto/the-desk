@@ -38,6 +38,7 @@ import { createGym } from "./scene/gym";
 import { createWastebasket } from "./scene/wastebasket";
 import { createCatTree } from "./scene/catTree";
 import { createWorkstation } from "./scene/workstation";
+import { createTimesGate } from "./scene/timesGate";
 import { createBadge } from "./scene/badge";
 import { createAboutBoard } from "./scene/aboutBoard";
 import { createKeyboard } from "./scene/keyboard";
@@ -89,6 +90,7 @@ export function createDeskScene({ container, projects, experiences, dark = false
   runtime.gym = createGym(runtime);
   runtime.wastebasket = createWastebasket(runtime);
   runtime.workstation = createWorkstation(runtime);
+  runtime.timesGate = createTimesGate(runtime);
   runtime.badge = createBadge(runtime);
   runtime.aboutBoard = createAboutBoard(runtime);
   runtime.catTree = createCatTree(runtime);

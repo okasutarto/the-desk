@@ -402,6 +402,7 @@ const hint = computed(() => {
   if (focus.value === "keyboard") return isDesktop.value ? "1–5 jump to a section · T terminal · C chat · Esc back" : "Tap 1–5 to jump to a section · T terminal · C chat";
   if (focus.value === "window") return isDesktop.value ? "Click for birds (a shooting star at night). Three quick clicks bring the rain" : "Tap for birds or a shooting star. Three quick taps bring the rain";
   if (focus.value === "shelf") return isDesktop.value ? "Scroll / drag ↕ to explore · Click the console to play, controller for a cheat, trophy for secrets" : "Swipe ↕ to explore · Tap the console to play, controller for a cheat, trophy for secrets";
+  if (focus.value === "timesgate") return `${isDesktop.value ? "Click" : "Tap"} the gate to pet Byte ♡ · live weather, GitHub, visitors and FPS`;
   if (focus.value === "family") return isDesktop.value ? "Our Little Family ♡ · Esc or Back to desk" : "Our Little Family ♡";
   if (focus.value === "swords") return isDesktop.value ? "Hover a sword to read about it · Click it to draw and strike" : "Tap a sword to draw and strike";
   if (focus.value === "mug") return `${isDesktop.value ? "Click" : "Tap"} the mug for a sip. Finish the cup for the night shift`;

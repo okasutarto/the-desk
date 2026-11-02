@@ -545,6 +545,7 @@ export function createCoffee(runtime) {
   contactShadow(runtime.workstation.monitor, 3.2, 2.2, runtime.workstation.RISER_TOP);
   contactShadow(runtime.workstation.macMini, 1.5, 1.5, runtime.workstation.RISER_TOP, 0.8);
   contactShadow(runtime.workstation.riser, 12.2, 2.8, 0, 0.7);
+  contactShadow(runtime.timesGate.gate, 3.1, 0.75, 0, 0.7, { box: true });
   contactShadow(runtime.keyboard.keyboard, 5.8 * runtime.keyboard.KEYBOARD_SCALE, 2.5 * runtime.keyboard.KEYBOARD_SCALE, runtime.keyboard.MAT_TOP, 0.8);
   contactShadow(runtime.chat.phoneStand, 1.7, 1.5);
   // (the two passes fanned out, and the envelope, as laid on the desk)
