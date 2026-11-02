@@ -95,8 +95,8 @@ export function createTimesGate(runtime) {
   const spine = runtime.core.mesh(runtime.core.rbox(CAP_HALF * 2 + 0.02, TUBE_H - 0.12, 0.16, 0.05), spineMat, { outline: 0.006 });
   spine.position.set(0, CY, -0.06);
   gate.add(spine);
-  // Five rounded modules, each a glossy black bezel round its 26 mm square 128 × 128 panel.
-  // The panels show their pixels square and sharp (no smoothing when the camera's close).
+  // Five rounded modules, each a glossy black bezel round its 26 mm square 64 × 64 panel.
+  // The panels show their pixels square, even and sharp (see sharpPixels below).
   const MODULE = { w: 0.357, h: 0.46, d: 0.1, pitch: 0.37 };
   const PANEL = 0.26;
   const MODULE_FRONT = 0.1 + MODULE.d / 2;
@@ -180,6 +180,18 @@ export function createTimesGate(runtime) {
   const screenGlow = runtime.room.neonLight("#9fc4ff", 0.7, () => glowLevel() * screenLevel, { distance: 2.4, tint: screenTint });
   screenGlow.position.set(0, CY, MODULE_FRONT + 0.45);
   gate.add(screenGlow);
+  // Sharp pixel art at any size: plain nearest sampling at 2.3 screen pixels per art pixel draws
+  // some 2 px wide and some 3, so strokes and glyphs come out uneven. Sample each texel's centre
+  // instead and blend only across its edge, one screen pixel wide, so every pixel is the same
+  // size and its edges stay crisp; seen from afar it falls back to the mipmaps.
+  function sharpPixels(shader) {
+    shader.fragmentShader = shader.fragmentShader.replace("vec4 sampledDiffuseColor = texture2D( map, vMapUv );", `
+      vec2 texels = vec2( textureSize( map, 0 ) );
+      vec2 texel = vMapUv * texels;
+      vec2 seam = floor( texel + 0.5 );
+      vec2 across = clamp( ( texel - seam ) / max( fwidth( texel ), 1e-4 ), -0.5, 0.5 );
+      vec4 sampledDiffuseColor = textureGrad( map, ( seam + across ) / texels, dFdx( vMapUv ), dFdy( vMapUv ) );`);
+  }
   const screens = [];
   function addScreen(i, draw, every) {
     const x = (i - 2) * MODULE.pitch;
@@ -193,8 +205,9 @@ export function createTimesGate(runtime) {
     gate.add(rim);
     const tex = canvasTexture(GATE_PX, GATE_PX);
     runtime.core.track(tex.texture);
-    tex.texture.magFilter = THREE.NearestFilter;
-    const panel = flat(new THREE.Mesh(runtime.core.track(new THREE.PlaneGeometry(PANEL, PANEL)), runtime.core.track(new THREE.MeshBasicMaterial({ map: tex.texture }))));
+    const panelMat = runtime.core.track(new THREE.MeshBasicMaterial({ map: tex.texture }));
+    panelMat.onBeforeCompile = sharpPixels;
+    const panel = flat(new THREE.Mesh(runtime.core.track(new THREE.PlaneGeometry(PANEL, PANEL)), panelMat));
     panel.position.set(x, CY, MODULE_FRONT + 0.002);
     panel.name = `times-gate-pixels-${i}`;
     gate.add(panel);

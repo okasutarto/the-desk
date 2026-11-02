@@ -94,7 +94,12 @@ for (let i = 0; i < coverPositions.count; i++) {
   assert.ok(coverPositions.getZ(i) > 0.152, 'cover never intersects the screen plane');
 }
 assert.ok(covers.every(cover => !cover.material.depthWrite && !cover.castShadow), 'clear covers cannot occlude pixels or shadow widgets');
-for (let i = 0; i < 5; i++) assert.equal(parts(`times-gate-pixels-${i}`)[0].material.map.magFilter, THREE.NearestFilter);
+for (let i = 0; i < 5; i++) {
+  const material = parts(`times-gate-pixels-${i}`)[0].material;
+  const shader = { fragmentShader: THREE.ShaderLib.basic.fragmentShader.replace('#include <map_fragment>', THREE.ShaderChunk.map_fragment) };
+  material.onBeforeCompile(shader);
+  assert.match(shader.fragmentShader, /textureGrad\( map, \( seam \+ across \)/, 'panels sample texel centres so every pixel is the same size');
+}
 for (const name of ['times-gate-light-control', 'times-gate-power-control', 'times-gate-mode-control']) assert.equal(parts(name).length, 1);
 const saddle = parts('times-gate-lower-saddle')[0];
 assert.ok(saddle);
