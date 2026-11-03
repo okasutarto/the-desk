@@ -176,12 +176,21 @@ for (const [name, coat] of Object.entries(finishesByName)) {
   assert.equal(parts('times-gate-lower-deck')[0].material.color.getHexString(), (name === 'bumblebee' ? coat.shell : coat.clamp).slice(1), 'lower deck follows the product colour split');
   assert.ok([...materials].some(m => m.color?.getHexString() === coat.shell.slice(1)));
   assert.ok([...materials].some(m => m.color?.getHexString() === coat.panel.slice(1)));
-  assert.equal(textures.length, 8, 'finish changes reuse widgets, metal, control labels and the reflection environment');
+  assert.equal(textures.length, 9, 'finish changes reuse widgets, metal, control labels and the day and night reflection environments');
 }
 const strips = [...new Set(parts('times-gate-rgb-diffuser').map(part => part.geometry))];
 assert.equal(strips.length, 2, 'RGB is limited to the two side arcs; no LED on the top rail');
 model.updateTimesGate(1000);
 assert.ok(strips.every(g => [...g.attributes.color.array].every(Number.isFinite)));
+const coverMat = covers[0].material;
+const dayEnv = coverMat.envMap;
+const dayReflection = coverMat.envMapIntensity;
+runtime.core.roomLight.night = 1;
+model.updateTimesGate(1016);
+assert.ok(coverMat.envMap !== dayEnv && coverMat.envMapIntensity < dayReflection, 'the cover reflects the night room, dimmer than by day');
+runtime.core.roomLight.night = 0;
+model.updateTimesGate(1032);
+assert.equal(coverMat.envMap, dayEnv, 'the day reflection comes back with the day');
 handlers.onClick();
 assert.equal(chirps, 1, 'pet Byte click interaction remains registered');
 console.log('Times Gate: dimensions, finite geometry, five widgets, four finishes, side RGB and pet interaction passed.');
