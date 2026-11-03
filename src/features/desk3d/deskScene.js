@@ -108,5 +108,9 @@ export function createDeskScene({ container, projects, experiences, dark = false
   runtime.camera = createCamera(runtime);
   runtime.animation = createAnimation(runtime);
   runtime.animation.start();
+  // Bake spike (spike/bake/README.md): `?bake` in development hands the room to bakeSpike.js
+  if (process.env.NODE_ENV === "development" && new URLSearchParams(window.location.search).has("bake")) {
+    import("./bakeSpike").then(({ startBakeSpike }) => startBakeSpike(runtime));
+  }
   return createLifecycle(runtime);
 }

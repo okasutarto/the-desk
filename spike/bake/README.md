@@ -70,7 +70,94 @@ weigh far more.
 The baked light also bounces: the sun patch lights the wall and the underside of the desk,
 which the runtime room fakes with fill lights.
 
-## Not covered yet
+## The existing room: a baked shadow mask
+
+The second spike bakes the room as it is, without rebuilding anything. It bakes only where each
+key light's shadow falls, not the light itself: the room's lights still shine at runtime through
+the toon ramp, at whatever colour and strength the hour gives them, and the bake stands in for
+their shadow maps and for N8AO. Unity's toon pipelines recommend the same split ("shadowmask").
+
+1. `?bake=export` (development only, `src/features/desk3d/bakeSpike.js`) lists the room's static
+   meshes once you're in the room, and `export_room.cjs` saves their triangles in world space and
+   where the sun, the window light and the desk lamp stand:
+
+   ```bash
+   npx vite --port 8100
+   ```
+
+   ```bash
+   node spike/bake/export_room.cjs http://localhost:8100 day
+   ```
+
+2. `bake_existing.py` builds the lit meshes as one object and the rest as another, welds them,
+   unwraps one atlas, and bakes `shadow.png` (R sun, G window, B lamp) and `ao.png` (16 cm reach):
+
+   ```bash
+   blender --background --factory-startup --python spike/bake/bake_existing.py -- spike/bake/existing-out
+   ```
+
+3. `?bake=apply&perf&bench=no-batch&time=day`, then `window.__bake.apply()` once in the room,
+   gives each lit mesh its atlas coordinates, patches its material to multiply each key light by
+   its mask channel and the diffuse light by the AO, and turns the shadow maps and N8AO off.
+
+### Results
+
+3 November 2026, the dev server, Chromium via Playwright, Apple M5 Pro, 1440×900 @2x, midday,
+the mouse sweeping so every frame is drawn, both without the toon batches:
+
+| Round | Normal (shadow maps + N8AO) | Baked mask |
+| --- | --- | --- |
+| 1 | 54.6 ms GPU · 27 fps | 28.0 ms · 35 fps |
+| 2 | 26.0 ms · 45 fps | 16.9 ms · 55 fps |
+| 3 | 24.9 ms · 44 fps | 16.6 ms · 55 fps |
+| Draw calls, triangles | ~4,700 · ~1.7M | 3,127 · 1.0M |
+
+About a third less GPU time per frame. The room reads the same at a glance: the desk, shelf,
+chair and window shadows are where they were.
+
+| | |
+| --- | --- |
+| Exported | 1,989 meshes (1,754 lit), 614k triangles |
+| Bake | 136 s at 4096² (shadows 32 samples, AO 256), on the GPU |
+| Files | `shadow.png` 11.4 MB, `ao.png` 7.0 MB (WebP q90: 2.4 MB and 1.5 MB); `uvs.bin` 14 MB |
+
+What it took to get there:
+
+- **Bake one object, not 1,754.** Cycles bakes object by object, each pass over the whole atlas:
+  separately, one light ran over 20 minutes without finishing. Joined, it takes 30–45 s.
+- **Turn the denoiser off.** It ran on the CPU over the whole 4096² atlas after every bake, for
+  most of an hour. A mask needs no denoising; AO gets more samples instead.
+- **Weld before unwrapping.** Every exported triangle has its own corners, so unwelded each was an
+  island, and half a million islands' margins left 3% of the atlas for the room.
+- **Shrink the floor and walls.** They're planes 10–20 m across, 97% of the lit area; their atlas
+  share is cut to a fifth across.
+- **Save without alpha.** An RGBA save divided the shadows by the AO in alpha and blew them to white.
+
+### Still wrong or missing
+
+- **The sword rack** stays darker and grainier than the runtime room, and so does the wall behind
+  it; soft shadows at 32 samples are noisy there.
+- **Moving props, hybrid.** The chair, cat, mouse, hat, badge, lamp, papers, notes, folders,
+  tickets, postcard and robot (82 props, 381 meshes) are now left out of the bake and still cast
+  through the shadow maps, which hold nothing else. Moved 60 cm by hand, the chair takes its
+  shadow along and leaves none behind. But the saving is nearly gone: 21.7–22.8 ms against the
+  normal room's 22.4–26.0 ms. Every lit surface still filters the shadow maps (PCSS) per pixel,
+  and that filtering, not drawing the maps, was most of what the full bake saved.
+- **Moving props, blob shadows.** So the shadow maps go off entirely again, and the props that
+  stand on something (16: the chair, cat, mouse, lamp, robot, postcard, folders, tickets, papers)
+  get a fake shadow as Bruno Simon's 2019 folio has them: a soft dark patch found by a ray down
+  to the level surface under the prop, turned with it, pushed away from the window light (the
+  lamp at night) by its height, and faded as it's lifted. The saving is back: 14.9–16.4 ms
+  against the normal room's 21.6–22.7 ms over three rounds, CPU 11 → 9 ms. The hat, badge and
+  notes on the wall get no shadow at all, and a blob is the prop's footprint, not its outline.
+- **One hour only.** The sun and the window light move with the part of the day; each needs a mask.
+- **The toon batches** copy their parts' geometry before the mask arrives, so the spike runs
+  without them; they would need to carry the atlas coordinates.
+- **Download size.** The atlas coordinates (14 MB as floats) and two 4096² masks are far over a
+  budget; 16-bit coordinates, a smaller atlas for the walls and KTX2 would all be needed.
+- **Production.** `?bake` exists only on the dev server; nothing here ships.
+
+## Not covered yet by the first spike
 
 - **The toon look.** Left for later on purpose; the lightmap feeds three's indirect light, so
   it isn't stepped by the toon ramp.
