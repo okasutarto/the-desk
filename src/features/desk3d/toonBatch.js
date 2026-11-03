@@ -127,7 +127,8 @@ function createBatch(scene, track, { map, gradient, receive, objects }) {
   const indices = entries.reduce((n, entry) => n + entry.geometry.index.count, 0);
   const batch = track(new THREE.BatchedMesh(entries.length, vertices, indices, material));
   batch.receiveShadow = receive;
-  batch.frustumCulled = batch.perObjectFrustumCulled = false;
+  // Its parts move, so the batch as a whole is never culled; each part still is, by its own bounds
+  batch.frustumCulled = false;
   batch.raycast = () => {};
   // Where two parts of one material lie exactly on top of each other, whichever is drawn last
   // shows. The batch draws its parts in the renderer's own order (material, then depth from the
@@ -232,7 +233,8 @@ function createOutlineBatch(scene, track, ink, hulls) {
   const vertices = entries.reduce((n, entry) => n + entry.geometry.attributes.position.count, 0);
   const indices = entries.reduce((n, entry) => n + entry.geometry.index.count, 0);
   const batch = track(new THREE.BatchedMesh(entries.length, vertices, indices, material));
-  batch.frustumCulled = batch.perObjectFrustumCulled = batch.sortObjects = false;
+  // (each hull is culled by its own bounds, as the parts are; the line it adds is a few pixels)
+  batch.frustumCulled = batch.sortObjects = false;
   batch.raycast = () => {};
   entries.forEach((entry) => (entry.id = batch.addGeometry(entry.geometry)));
   scene.add(batch);
