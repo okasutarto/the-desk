@@ -351,8 +351,8 @@ export function createTimesGate(runtime) {
   // upper/lower lips and an inset horizontal channel across the front and back.
   const lowerProfile = [
     [-0.225, 0.12], [0.225, 0.12], [0.235, 0.13], [0.235, 0.145],
-    [0.2, 0.155], [0.2, 0.175], [0.232, 0.185], [0.232, 0.203],
-    [0.21, 0.211], [-0.21, 0.211], [-0.232, 0.203], [-0.232, 0.185],
+    [0.2, 0.155], [0.2, 0.175], [0.232, 0.181], [0.232, 0.186],
+    [0.21, 0.189], [-0.21, 0.189], [-0.232, 0.186], [-0.232, 0.181],
     [-0.2, 0.175], [-0.2, 0.155], [-0.235, 0.145], [-0.235, 0.13],
   ];
   const lowerShape = new THREE.Shape(lowerProfile.map(([z, y]) => new THREE.Vector2(-z, y)));
@@ -365,9 +365,12 @@ export function createTimesGate(runtime) {
   clampBottom.name = "times-gate-lower-saddle";
   clampBottom.position.y = LOWER_ACRYLIC_Y - 0.165;
   gate.add(clampBottom);
+  // The deck is a low seat chamfered down to front and back. The upper lip stops short of
+  // the modules so their rounded bottoms stand clear of it, 2 to 3 mm up, rather than
+  // looking sunk into the white; anything taller pokes up through them and between them.
   const deckShape = new THREE.Shape([
-    [-0.21, 0.207], [0.21, 0.207], [0.21, 0.215], [0.15, 0.215],
-    [0.075, 0.25], [-0.075, 0.25], [-0.15, 0.215], [-0.21, 0.215],
+    [-0.21, 0.185], [0.21, 0.185], [0.21, 0.187], [0.165, 0.193],
+    [-0.165, 0.193], [-0.21, 0.187],
   ].map(([z, y]) => new THREE.Vector2(-z, y)));
   const deckGeo = new THREE.ExtrudeGeometry(deckShape, {
     depth: 0.848, bevelEnabled: true, bevelSize: 0.004, bevelThickness: 0.004, bevelSegments: 3,
@@ -380,13 +383,13 @@ export function createTimesGate(runtime) {
   const gripMat = runtime.core.track(new THREE.MeshBasicMaterial({ color: "#171b20", transparent: true, opacity: 0.22, depthWrite: false }));
   const lowerGlintMat = runtime.core.track(new THREE.MeshBasicMaterial({ color: "#eef2f5", transparent: true, opacity: 0.28, depthWrite: false }));
   [-1, 1].forEach(face => {
-    const ribs = new THREE.BoxGeometry(0.005, 0.0015, Math.hypot(0.075, 0.035));
-    ribs.rotateX(face * Math.atan2(0.035, 0.075));
+    const ribs = new THREE.BoxGeometry(0.005, 0.0015, Math.hypot(0.035, 0.0047));
+    ribs.rotateX(face * Math.atan2(0.006, 0.045));
     const grip = details(clampBottom, ribs, gripMat,
-      Array.from({ length: 33 }, (_, i) => [(i - 16) * 0.023, 0.234, face * 0.1125]));
+      Array.from({ length: 33 }, (_, i) => [(i - 16) * 0.023, 0.1938, face * 0.1875]));
     grip.name = "times-gate-lower-grip";
     const glints = details(clampBottom, new THREE.BoxGeometry(0.78, 0.002, 0.0015), lowerGlintMat,
-      [[0, 0.199, face * 0.239], [0, 0.133, face * 0.242]]);
+      [[0, 0.1835, face * 0.239], [0, 0.133, face * 0.242]]);
     glints.name = "times-gate-lower-lip-reflections";
   });
 

@@ -107,8 +107,12 @@ assert.ok(saddle);
 const saddleSize = new THREE.Box3().setFromObject(saddle).getSize(new THREE.Vector3());
 assert.ok(saddleSize.x > 0.82 && saddleSize.y < 0.15, 'lower saddle is wide and shallow');
 const saddleHit = y => new THREE.Raycaster(new THREE.Vector3(model.gate.position.x, y + saddle.position.y, 1), new THREE.Vector3(0, 0, -1)).intersectObject(saddle)[0];
-assert.ok(saddleHit(0.195).point.z - saddleHit(0.165).point.z > 0.02, 'horizontal front channel is physically recessed behind the lip');
+assert.ok(saddleHit(0.184).point.z - saddleHit(0.165).point.z > 0.02, 'horizontal front channel is physically recessed behind the lip');
 assert.equal(parts('times-gate-lower-grip').length, 2, 'fine grip texture stays on the two sloped decks');
+const moduleBottom = Math.min(...[0, 1, 2, 3, 4].map(i => new THREE.Box3().setFromObject(parts(`times-gate-module-${i}`)[0]).min.y));
+for (const name of ['times-gate-lower-saddle', 'times-gate-lower-deck', 'times-gate-lower-grip']) {
+  assert.ok(parts(name).every(part => new THREE.Box3().setFromObject(part).max.y < moduleBottom - 0.02), `${name} stands clear of the modules' rounded bottoms`);
+}
 
 assert.equal(parts('times-gate-band-lip').length, 4, 'each bowed band has inner/outer raised lips');
 assert.equal(parts('times-gate-band-recess').length, 4, 'recessed channel on both faces of both bands');
