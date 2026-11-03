@@ -107,8 +107,12 @@ assert.ok(saddle);
 const saddleSize = new THREE.Box3().setFromObject(saddle).getSize(new THREE.Vector3());
 assert.ok(saddleSize.x > 0.82 && saddleSize.y < 0.15, 'lower saddle is wide and shallow');
 const saddleHit = y => new THREE.Raycaster(new THREE.Vector3(model.gate.position.x, y + saddle.position.y, 1), new THREE.Vector3(0, 0, -1)).intersectObject(saddle)[0];
-assert.ok(saddleHit(0.195).point.z - saddleHit(0.165).point.z > 0.02, 'horizontal front channel is physically recessed behind the lip');
+assert.ok(saddleHit(0.184).point.z - saddleHit(0.165).point.z > 0.02, 'horizontal front channel is physically recessed behind the lip');
 assert.equal(parts('times-gate-lower-grip').length, 2, 'fine grip texture stays on the two sloped decks');
+const moduleBottom = Math.min(...[0, 1, 2, 3, 4].map(i => new THREE.Box3().setFromObject(parts(`times-gate-module-${i}`)[0]).min.y));
+for (const name of ['times-gate-lower-saddle', 'times-gate-lower-deck', 'times-gate-lower-grip']) {
+  assert.ok(parts(name).every(part => new THREE.Box3().setFromObject(part).max.y < moduleBottom - 0.02), `${name} stands clear of the modules' rounded bottoms`);
+}
 
 assert.equal(parts('times-gate-band-lip').length, 4, 'each bowed band has inner/outer raised lips');
 assert.equal(parts('times-gate-band-recess').length, 4, 'recessed channel on both faces of both bands');
@@ -176,12 +180,21 @@ for (const [name, coat] of Object.entries(finishesByName)) {
   assert.equal(parts('times-gate-lower-deck')[0].material.color.getHexString(), (name === 'bumblebee' ? coat.shell : coat.clamp).slice(1), 'lower deck follows the product colour split');
   assert.ok([...materials].some(m => m.color?.getHexString() === coat.shell.slice(1)));
   assert.ok([...materials].some(m => m.color?.getHexString() === coat.panel.slice(1)));
-  assert.equal(textures.length, 8, 'finish changes reuse widgets, metal, control labels and the reflection environment');
+  assert.equal(textures.length, 9, 'finish changes reuse widgets, metal, control labels and the day and night reflection environments');
 }
 const strips = [...new Set(parts('times-gate-rgb-diffuser').map(part => part.geometry))];
 assert.equal(strips.length, 2, 'RGB is limited to the two side arcs; no LED on the top rail');
 model.updateTimesGate(1000);
 assert.ok(strips.every(g => [...g.attributes.color.array].every(Number.isFinite)));
+const coverMat = covers[0].material;
+const dayEnv = coverMat.envMap;
+const dayReflection = coverMat.envMapIntensity;
+runtime.core.roomLight.night = 1;
+model.updateTimesGate(1016);
+assert.ok(coverMat.envMap !== dayEnv && coverMat.envMapIntensity < dayReflection, 'the cover reflects the night room, dimmer than by day');
+runtime.core.roomLight.night = 0;
+model.updateTimesGate(1032);
+assert.equal(coverMat.envMap, dayEnv, 'the day reflection comes back with the day');
 handlers.onClick();
 assert.equal(chirps, 1, 'pet Byte click interaction remains registered');
 console.log('Times Gate: dimensions, finite geometry, five widgets, four finishes, side RGB and pet interaction passed.');

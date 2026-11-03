@@ -122,30 +122,65 @@ export function createTimesGate(runtime) {
   coverGeo.setAttribute("color", new THREE.Float32BufferAttribute(coverColors, 4));
   coverGeo.computeVertexNormals();
   // A smooth dielectric coat reflects broad light sources instead of painted-on
-  // strokes. This shared lighting map is sampled by view direction, not printed
-  // on the plastic; it adds no texture, refraction pass or haze over the pixels.
-  const coverEnvironment = canvasTexture(512, 256);
-  runtime.core.track(coverEnvironment.texture);
-  const environment = coverEnvironment.ctx;
-  environment.fillStyle = "#111315";
-  environment.fillRect(0, 0, 512, 256);
-  [[80, 22, 70, 128], [332, 45, 100, 95], [200, 5, 160, 28]].forEach(([x, y, w, h]) => {
-    const light = environment.createLinearGradient(x, y, x + w, y + h);
-    light.addColorStop(0, "#41464c");
-    light.addColorStop(0.25, "#dfe6eb");
-    light.addColorStop(0.65, "#ffffff");
-    light.addColorStop(1, "#50565d");
-    environment.fillStyle = light;
-    environment.fillRect(x, y, w, h);
-  });
-  coverEnvironment.texture.mapping = THREE.EquirectangularReflectionMapping;
-  coverEnvironment.texture.needsUpdate = true;
+  // strokes. These lighting maps are sampled by view direction, not printed on the
+  // plastic; they add no texture, refraction pass or haze over the pixels. Each one is
+  // painted where the room's lights sit as seen from the gate (u = azimuth from +x
+  // towards the viewer, v = elevation): by day the window up on the left, warm; by night
+  // a moonlit window and the monitor light bar overhead. Both are made once, so a theme
+  // change only swaps the map and nothing is re-filtered per frame.
+  function coverEnvironment(night) {
+    const { ctx: c, texture } = canvasTexture(512, 256);
+    runtime.core.track(texture);
+    const at = (azimuth, elevation) => [(azimuth / 360 + 0.5) * 512, (0.5 - elevation / 180) * 256];
+    // the room itself: a lit ceiling and walls above a darker desk
+    const room = c.createLinearGradient(0, 0, 0, 256);
+    room.addColorStop(0, night ? "#0b0d14" : "#3b3d41");
+    room.addColorStop(0.5, night ? "#06070b" : "#26282b");
+    room.addColorStop(1, night ? "#030304" : "#121110");
+    c.fillStyle = room;
+    c.fillRect(0, 0, 512, 256);
+    // the window, four panes in a frame. The real one sits at 128–187° and 15–59° up, past
+    // anything the bowed edges can reflect from the room's camera angles, so it's brought
+    // round towards the front until it lands on the covers' upper-left edges.
+    const [wx, wy] = at(94, 38);
+    const [wx2, wy2] = at(128, 2);
+    const glass = c.createLinearGradient(wx, wy, wx2, wy2);
+    glass.addColorStop(0, night ? "#25314d" : "#fff1cc");
+    glass.addColorStop(0.6, night ? "#3a4a70" : "#ffffff");
+    glass.addColorStop(1, night ? "#1c2438" : "#e9d9b4");
+    c.fillStyle = glass;
+    c.fillRect(wx, wy, wx2 - wx, wy2 - wy);
+    c.fillStyle = night ? "#06070b" : "#5a4a38";
+    c.fillRect((wx + wx2) / 2 - 1.5, wy, 3, wy2 - wy);
+    c.fillRect(wx, (wy + wy2) / 2 - 1.5, wx2 - wx, 3);
+    if (night) {
+      // the warm light bar over the monitors, long and thin behind the gate
+      const [bx, by] = at(-165, 80);
+      const [bx2, by2] = at(5, 66);
+      const bar = c.createLinearGradient(0, by, 0, by2);
+      bar.addColorStop(0, "#3a2a14");
+      bar.addColorStop(0.5, "#ffd394");
+      bar.addColorStop(1, "#3a2a14");
+      c.fillStyle = bar;
+      c.fillRect(bx, by, bx2 - bx, by2 - by);
+    }
+    texture.mapping = THREE.EquirectangularReflectionMapping;
+    texture.needsUpdate = true;
+    return texture;
+  }
+  const coverEnvironments = { day: coverEnvironment(false), night: coverEnvironment(true) };
   const coverMat = runtime.core.track(new THREE.MeshPhysicalMaterial({
     color: "#050608", metalness: 0, roughness: 0.09,
     clearcoat: 1, clearcoatRoughness: 0.07, ior: 1.49,
-    envMap: coverEnvironment.texture, envMapIntensity: 2.4,
+    envMap: coverEnvironments.day, envMapIntensity: 2.4,
     vertexColors: true, transparent: true, depthWrite: false,
   }));
+  // Rain dims the window by day; at night the light bar carries the reflection on its own.
+  function updateCoverLight() {
+    const night = runtime.core.roomLight.night > 0.5;
+    coverMat.envMap = night ? coverEnvironments.night : coverEnvironments.day;
+    coverMat.envMapIntensity = night ? 1.1 : 2.4 * (1 - 0.6 * (runtime.room.outside?.rain ?? 0));
+  }
   // The screens' glow on the desk and riser: each picture is boiled down to its mean colour as
   // it redraws, and one light in front of the row carries their blend. It's faint by day,
   // comes up as the room goes dark, and brightens on hover.
@@ -314,8 +349,8 @@ export function createTimesGate(runtime) {
   // upper/lower lips and an inset horizontal channel across the front and back.
   const lowerProfile = [
     [-0.225, 0.12], [0.225, 0.12], [0.235, 0.13], [0.235, 0.145],
-    [0.2, 0.155], [0.2, 0.175], [0.232, 0.185], [0.232, 0.203],
-    [0.21, 0.211], [-0.21, 0.211], [-0.232, 0.203], [-0.232, 0.185],
+    [0.2, 0.155], [0.2, 0.175], [0.232, 0.181], [0.232, 0.186],
+    [0.21, 0.189], [-0.21, 0.189], [-0.232, 0.186], [-0.232, 0.181],
     [-0.2, 0.175], [-0.2, 0.155], [-0.235, 0.145], [-0.235, 0.13],
   ];
   const lowerShape = new THREE.Shape(lowerProfile.map(([z, y]) => new THREE.Vector2(-z, y)));
@@ -328,9 +363,12 @@ export function createTimesGate(runtime) {
   clampBottom.name = "times-gate-lower-saddle";
   clampBottom.position.y = LOWER_ACRYLIC_Y - 0.165;
   gate.add(clampBottom);
+  // The deck is a low seat chamfered down to front and back. The upper lip stops short of
+  // the modules so their rounded bottoms stand clear of it, 2 to 3 mm up, rather than
+  // looking sunk into the white; anything taller pokes up through them and between them.
   const deckShape = new THREE.Shape([
-    [-0.21, 0.207], [0.21, 0.207], [0.21, 0.215], [0.15, 0.215],
-    [0.075, 0.25], [-0.075, 0.25], [-0.15, 0.215], [-0.21, 0.215],
+    [-0.21, 0.185], [0.21, 0.185], [0.21, 0.187], [0.165, 0.193],
+    [-0.165, 0.193], [-0.21, 0.187],
   ].map(([z, y]) => new THREE.Vector2(-z, y)));
   const deckGeo = new THREE.ExtrudeGeometry(deckShape, {
     depth: 0.848, bevelEnabled: true, bevelSize: 0.004, bevelThickness: 0.004, bevelSegments: 3,
@@ -343,13 +381,13 @@ export function createTimesGate(runtime) {
   const gripMat = runtime.core.track(new THREE.MeshBasicMaterial({ color: "#171b20", transparent: true, opacity: 0.22, depthWrite: false }));
   const lowerGlintMat = runtime.core.track(new THREE.MeshBasicMaterial({ color: "#eef2f5", transparent: true, opacity: 0.28, depthWrite: false }));
   [-1, 1].forEach(face => {
-    const ribs = new THREE.BoxGeometry(0.005, 0.0015, Math.hypot(0.075, 0.035));
-    ribs.rotateX(face * Math.atan2(0.035, 0.075));
+    const ribs = new THREE.BoxGeometry(0.005, 0.0015, Math.hypot(0.035, 0.0047));
+    ribs.rotateX(face * Math.atan2(0.006, 0.045));
     const grip = details(clampBottom, ribs, gripMat,
-      Array.from({ length: 33 }, (_, i) => [(i - 16) * 0.023, 0.234, face * 0.1125]));
+      Array.from({ length: 33 }, (_, i) => [(i - 16) * 0.023, 0.1938, face * 0.1875]));
     grip.name = "times-gate-lower-grip";
     const glints = details(clampBottom, new THREE.BoxGeometry(0.78, 0.002, 0.0015), lowerGlintMat,
-      [[0, 0.199, face * 0.239], [0, 0.133, face * 0.242]]);
+      [[0, 0.1835, face * 0.239], [0, 0.133, face * 0.242]]);
     glints.name = "times-gate-lower-lip-reflections";
   });
 
@@ -757,6 +795,7 @@ export function createTimesGate(runtime) {
       visitors.shown += (visitors.count - visitors.shown) * 0.08 + Math.sign(visitors.count - visitors.shown) * 0.2;
       if (Math.abs(visitors.count - visitors.shown) < 0.5) visitors.shown = visitors.count;
     }
+    updateCoverLight();
     const t = now / 1000;
     screens.forEach((screen) => {
       if (now - screen.at < screen.every) return;
