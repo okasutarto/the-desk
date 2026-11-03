@@ -270,8 +270,15 @@ export function drawGatePerformance(c, { fps, ms, history, gpu }) {
   // (a 120 Hz screen's three digits drop a size to leave room for the frame time)
   const rate = String(Math.min(999, Math.round(fps)));
   pixelText(c, rate, 4, rate.length > 2 ? 15 : 13, tone(fps), rate.length > 2 ? 2 : 3);
-  pixelText(c, `${ms < 100 ? ms.toFixed(1) : Math.min(999, Math.round(ms))}MS`, 33, 13, "#9fe8bc");
-  pixelText(c, gpu === null ? "WEBGL" : `GPU${gpu.toFixed(1)}`, 33, 20, "#5c9a74");
+  // frame and GPU time share one format and a right edge, so their MS columns line up
+  const msText = (v) => `${v < 10 ? v.toFixed(1) : Math.min(999, Math.round(v))}MS`;
+  const right = (text, y, color) => pixelText(c, text, GATE_PX - 1 - pixelTextWidth(text), y, color);
+  right(msText(ms), 13, "#9fe8bc");
+  if (gpu === null) right("WEBGL", 20, "#5c9a74");
+  else {
+    pixelText(c, "GPU", 33, 20, "#5c9a74");
+    right(msText(gpu), 20, "#9fe8bc");
+  }
   // the last fifty-eight samples, a column each, against the 30 and 60 lines
   const top = 31;
   const h = 30;
