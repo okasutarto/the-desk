@@ -59,7 +59,7 @@ Prefer a classic page? The same content lives at [`/2d`](https://okasp.dev/2d).
 | 💡 **Lamp** | Day and night, by hand. |
 | 🔦 **Monitor lightbar** | Toggle the task light on or off during the night shift. |
 | 🔊 **Speakers** | Sound on or off, with a little groove when it comes on. |
-| 🪟 **Window & blind** | Morning, midday, sunset and moonlight scenery with birds, stars and rain. Pull the blind or its chain; three quick knocks toggle rain. |
+| 🪟 **Window & blind** | Morning, midday, sunset and moonlight scenery with birds, stars and rain. Pull the blind or its chain; three quick knocks toggle rain. The blind comes in seven prints and any colour. |
 | 🪴 **Plant** | Each click blooms a flower. Three blooms call a butterfly. |
 | 🖱️ **Mouse** | A life-size wireless gaming mouse with two thumb buttons and a green status light, in four colours. It follows your pointer, and grows ears and a tail and scampers off for a lap when clicked. |
 | 🪑 **Chair** | A Titan Evo-inspired gaming chair, traced from photos. Click to spin it, or drag it round on its post. |
@@ -96,7 +96,7 @@ Chain kills for a multiplier, and if you go down you get your own wanted poster.
 ## 🎨 Make it your room
 
 The ⚙️ gear next to **2D site** opens the room settings, grouped into **Time & weather**,
-**Wall**, **Floor**, **Furniture**, **Desk devices** and **Times Gate** sections that expand one at a time. Every pick applies instantly and is
+**Wall**, **Floor**, **Furniture**, **Blind** and **Desk devices** sections that expand one at a time. Every pick applies instantly and is
 remembered in your browser. Close the panel with its ✕, the gear or Esc.
 
 | Part | Choices | Default |
@@ -110,10 +110,11 @@ remembered in your browser. Close the panel with its ✕, the gear or Esc.
 | 🔊 **Speakers** | Wood sides (six woods × planks or cathedral) or all black | Cherry wood sides, planks |
 | 🪟 **Window frame** | Six woods × planks or knotty, or painted in six coats or any colour | Cherry, planks |
 | 🎮 **Game shelf** | Six woods × planks, cathedral, knotty or plywood | Cherry, planks |
+| 🪟 **Roller blind** | Plain · Stripes · Pinstripe · Gingham · Polka dots · Zigzag · Leaves, in eight colours or any colour | Plain, cool grey |
 | 📱 **Phone** | Black · Silver · Glacier · Burgundy | Burgundy |
 | ⌨️ **Keyboard** | Ionic White · Obsidian Black · Mojito · Blue Lagoon · Sakura Fizz; matching casing and full keycap sets | Obsidian Black |
 | 🖱️ **Mouse** | Black · White · Magenta · Red | White |
-| 🟧 **Times Gate** | Silver · Pink · White · Yellow | Silver |
+| 🟧 **Smart Pixel Art** (Times Gate) | Silver · Pink · White · Yellow | Silver |
 
 "Where you are" comes from your browser's time zone (`Asia/Jakarta` is Jakarta), looked up
 with Open-Meteo's geocoder: no location prompt, and Pontianak when the zone doesn't name a city.

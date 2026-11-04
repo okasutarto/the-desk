@@ -1,11 +1,12 @@
 import * as THREE from "three";
 import gsap from "gsap";
 import { sfx } from "@/shared/composables/useSfx";
-import { canvasTexture } from "../textures";
+import { canvasTexture, drawBlindCloth, blindRollColour } from "../textures";
+import { BLIND_PATTERNS, DEFAULT_BLIND } from "../blindFinishes";
 
 export function createWindowBlind(runtime) {
   // ---------- a roller blind over the window ----------
-  // Grey cloth on a roller above the frame, worked by a bead chain on the left (the
+  // Cloth on a roller above the frame, worked by a bead chain on the left (the
   // side nearer the desk's view, easy to reach). It starts rolled up, out of the view; the
   // chain lets it down in two steps and draws it back up. The roll fattens as the fabric winds
   // onto it, the chain runs while it turns, and the fabric really stops the window's light, so
@@ -21,26 +22,15 @@ export function createWindowBlind(runtime) {
   const FABRIC_TILE = 0.7; // world size of one repeat of the weave
   const blindGroup = new THREE.Group();
   runtime.room.windowGroup.add(blindGroup);
-  // The cloth, drawn like the rest of the room: a flat cool grey with only a hint of cloth in
-  // it (faint weft lines and a few lighter slubs), so it stays cartoon
+  // The cloth, drawn like the rest of the room in flat colour: plain with only a hint of weave,
+  // or a clean print. Its print and colour are picked in settings (drawBlindCloth) and
+  // repainted in place on the same texture.
   const blindPrint = canvasTexture(256, 256);
   runtime.core.track(blindPrint.texture);
-  {
-    const c = blindPrint.ctx;
-    c.fillStyle = "#a4aab3";
-    c.fillRect(0, 0, 256, 256);
-    let seed = 913;
-    const rand = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
-    c.fillStyle = "rgba(40,44,54,.05)";
-    for (let y = 0; y < 256; y += 8) c.fillRect(0, y, 256, 1);
-    for (let k = 0; k < 12; k++) {
-      c.fillStyle = `rgba(232,236,242,${0.25 + rand() * 0.15})`;
-      c.fillRect(rand() * 256, Math.floor(rand() * 32) * 8 + 3, 14 + rand() * 30, 2);
-    }
-  }
   blindPrint.texture.wrapS = blindPrint.texture.wrapT = THREE.RepeatWrapping;
   blindPrint.texture.needsUpdate = true;
   blindPrint.texture.repeat.set(BLIND_W / FABRIC_TILE, 1);
+  const blindCloth = { ...DEFAULT_BLIND };
   // By day the sun behind it shows through a little, so the cloth glows; by night it doesn't
   const blindFabric = runtime.core.toon("#ffffff");
   blindFabric.map = blindPrint.texture;
@@ -53,8 +43,9 @@ export function createWindowBlind(runtime) {
     part.add(runtime.room.windowShadow(geo));
     return part;
   };
+  const rollMat = runtime.core.toon("#7f858f");
   // the roll: a flat-shaded cylinder along x, scaled to the cloth wound on it
-  const roll = blindPart(new THREE.CylinderGeometry(1, 1, BLIND_W, 20, 1).rotateZ(Math.PI / 2), runtime.core.toon("#7f858f"), 0.025);
+  const roll = blindPart(new THREE.CylinderGeometry(1, 1, BLIND_W, 20, 1).rotateZ(Math.PI / 2), rollMat, 0.025);
   roll.position.set(0, ROLL_Y, ROLL_Z);
   // the hanging cloth: a thin unit slab hung from its top edge, stretched to the drop, with
   // the same ink outline as every other prop
@@ -153,6 +144,16 @@ export function createWindowBlind(runtime) {
     placeBeads();
   }
   updateBlind();
+  // Repaint the cloth (and the roll it winds onto) in a new print or colour; either may be
+  // left out to keep what's there. Unknown prints and malformed colours are ignored.
+  function setBlindCloth({ pattern, colour } = {}) {
+    if (Object.hasOwn(BLIND_PATTERNS, pattern)) blindCloth.pattern = pattern;
+    if (/^#[0-9a-f]{6}$/i.test(colour || "")) blindCloth.colour = colour;
+    drawBlindCloth(blindPrint.ctx, 256, blindCloth);
+    blindPrint.texture.needsUpdate = true;
+    rollMat.color.set(blindRollColour(blindCloth.colour));
+  }
+  setBlindCloth(runtime.options.blind);
   // Click the window to look out; click again for a flock of birds (or, at night, a shooting
   // star). Three quick clicks bring the rain, or stop it.
   const lookOut = () => {
@@ -188,5 +189,7 @@ export function createWindowBlind(runtime) {
     swingChain,
     pull,
     blindFabric,
+    blindCloth,
+    setBlindCloth,
   };
 }
