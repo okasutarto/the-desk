@@ -60,10 +60,10 @@ export { SECTIONS } from "./sceneConfig";
 
 installSceneShaders(benchmark, lowPower);
 
-export function createDeskScene({ container, projects, experiences, dark = false, muted = false, wallColor = "#3a3a3a", wallPattern = {}, woods = {}, floor = {}, time = "auto", rain = "auto", timesGateFinish = "silver", onEvent = () => {} }) {
+export function createDeskScene({ container, projects, experiences, dark = false, muted = false, wallColor = "#3a3a3a", wallPattern = {}, woods = {}, floor = {}, time = "auto", rain = "auto", timesGateFinish = "silver", deviceFinishes = {}, onEvent = () => {} }) {
   // Each scene owns its state. Factories run in construction order; callbacks can access
   // parts created later, and mutable exports remain live through their module accessors.
-  const runtime = { options: { container, projects, experiences, dark, muted, wallColor, wallPattern, woods, floor, time, rain, timesGateFinish, onEvent } };
+  const runtime = { options: { container, projects, experiences, dark, muted, wallColor, wallPattern, woods, floor, time, rain, timesGateFinish, deviceFinishes, onEvent } };
   runtime.core = createCore(runtime);
   runtime.textInput = createTextInput(runtime);
   runtime.room = createRoom(runtime);

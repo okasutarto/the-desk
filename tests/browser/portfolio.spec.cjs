@@ -57,10 +57,21 @@ test('desk keeps 2D bundles lazy and persists settings across reload and route t
   await page.getByRole('button', { name: 'Night', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Night', exact: true })).toHaveAttribute('aria-pressed', 'true');
   await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('desk-settings')).time)).toBe('night');
+  await page.getByRole('button', { name: /Desk devices/ }).click();
+  for (const name of ['Phone: Glacier', 'Keyboard: Sakura Fizz', 'Mouse: Magenta']) {
+    await page.getByRole('button', { name, exact: true }).click();
+    await expect(page.getByRole('button', { name, exact: true })).toHaveAttribute('aria-pressed', 'true');
+  }
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('desk-settings')).deviceFinishes)).toEqual({ phone: 'glacier', keyboard: 'sakura', mouse: 'magenta' });
   await page.reload();
   await enterDesk(page);
   await openSettings(page);
   await expect(page.getByRole('button', { name: 'Night', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await page.getByRole('button', { name: /Desk devices/ }).click();
+  for (const name of ['Phone: Glacier', 'Keyboard: Sakura Fizz', 'Mouse: Magenta']) {
+    await expect(page.getByRole('button', { name, exact: true })).toHaveAttribute('aria-pressed', 'true');
+  }
+
   await page.getByRole('button', { name: 'Close room settings', exact: true }).click();
   await page.getByRole('link', { name: '← 2D site', exact: true }).click();
   await expect(page).toHaveURL('/2d');
@@ -75,6 +86,11 @@ test('desk keeps 2D bundles lazy and persists settings across reload and route t
   await expect(page.getByRole('button', { name: 'Room settings', exact: true })).toBeVisible({ timeout: 90000 });
   await openSettings(page);
   await expect(page.getByRole('button', { name: 'Night', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await page.getByRole('button', { name: /Desk devices/ }).click();
+  for (const name of ['Phone: Glacier', 'Keyboard: Sakura Fizz', 'Mouse: Magenta']) {
+    await expect(page.getByRole('button', { name, exact: true })).toHaveAttribute('aria-pressed', 'true');
+  }
+
   expect(errors).toEqual([]);
 });
 

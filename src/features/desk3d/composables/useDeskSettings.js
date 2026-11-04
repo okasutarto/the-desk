@@ -1,4 +1,5 @@
 import { reactive, computed } from "vue";
+import { DEVICE_FINISHES } from "../deviceFinishes";
 import { TIMES_GATE_FINISHES, DEFAULT_TIMES_GATE_FINISH } from "../timesGateFinishes";
 import { WOODS, WOOD_PATTERNS, PART_PATTERNS, WOOD_TARGETS, DEFAULT_WOODS, FLOOR_LAYOUTS, DEFAULT_FLOOR, FRAME_PAINTS, DEFAULT_FRAME_PAINT, BRICKS, DEFAULT_BRICK, DEFAULT_SLATS } from "../woods";
 import { TIME_MODES, RAIN_MODES, DEFAULT_TIME, DEFAULT_RAIN } from "../daylight";
@@ -11,6 +12,7 @@ export const SETTINGS_GROUPS = [
   { key: "wall", label: "Wall", icon: "🧱", accent: "#ff90e8" },
   { key: "floor", label: "Floor", icon: "🟫", accent: "#ff7a45" },
   { key: "wood", label: "Furniture", icon: "🪵", accent: "#00e0c6" },
+  { key: "devices", label: "Desk devices", icon: "⌨️", accent: "#7fb2ff" },
   { key: "timesgate", label: "Times Gate", icon: "▦", accent: "#b7a5ff" },
 ];
 export const WALL_PAINTS = [
@@ -60,6 +62,9 @@ export function readSettings() {
   return {
     time: TIME_MODES[saved.time] ? saved.time : DEFAULT_TIME,
     rain: RAIN_MODES[saved.rain] ? saved.rain : DEFAULT_RAIN,
+    deviceFinishes: Object.fromEntries(Object.entries(DEVICE_FINISHES).map(([part, device]) => [part,
+      Object.hasOwn(device.finishes, saved.deviceFinishes?.[part]) ? saved.deviceFinishes[part] : device.default,
+    ])),
     timesGateFinish: Object.hasOwn(TIMES_GATE_FINISHES, saved.timesGateFinish) ? saved.timesGateFinish : DEFAULT_TIMES_GATE_FINISH,
     wall: /^#[0-9a-f]{6}$/i.test(saved.wall || "") ? saved.wall : DEFAULT_WALL,
     wallPattern: Object.hasOwn(WALL_PATTERNS, saved.wallPattern) ? saved.wallPattern : "plain",
@@ -91,6 +96,7 @@ export function useDeskSettings(scene) {
       wall: wallLabel.value,
       floor: `${WOODS[settings.floor.wood].name}, ${FLOOR_LAYOUTS[settings.floor.layout].toLowerCase()}`,
       wood: woods.size === 1 ? WOODS[[...woods][0]].name : "Mixed",
+      devices: Object.entries(DEVICE_FINISHES).map(([part, device]) => device.finishes[settings.deviceFinishes[part]].name).join(" · "),
       timesgate: TIMES_GATE_FINISHES[settings.timesGateFinish].name,
     };
   });
@@ -155,6 +161,13 @@ export function useDeskSettings(scene) {
     saveSettings();
   }
 
+  function setDeviceFinish(part, finish) {
+    if (!Object.hasOwn(DEVICE_FINISHES, part) || !Object.hasOwn(DEVICE_FINISHES[part].finishes, finish)) return;
+    settings.deviceFinishes[part] = finish;
+    scene.value?.setDeviceFinish(part, finish);
+    saveSettings();
+  }
+
   function setTimesGateFinish(finish) {
     if (!Object.hasOwn(TIMES_GATE_FINISHES, finish)) return;
     settings.timesGateFinish = finish;
@@ -162,5 +175,5 @@ export function useDeskSettings(scene) {
     saveSettings();
   }
 
-  return { settings, wallIsPreset, wallName, groupSummary, woodLabel, isDarkColour, setWall, setWallPattern, setWallBrick, setWallSlats, setWood, setFloor, setTime, setRain, setTimesGateFinish };
+  return { settings, wallIsPreset, wallName, groupSummary, woodLabel, isDarkColour, setWall, setWallPattern, setWallBrick, setWallSlats, setWood, setFloor, setTime, setRain, setTimesGateFinish, setDeviceFinish };
 }

@@ -8,6 +8,11 @@ export function createLifecycle(runtime) {
     setWallPattern: runtime.theme.setWallPattern,
     setWood: runtime.theme.setWood,
     setFloor: runtime.theme.setFloor,
+    setDeviceFinish: (part, finish) => ({
+      phone: runtime.chat.setPhoneFinish,
+      keyboard: runtime.keyboard.setKeyboardFinish,
+      mouse: runtime.mouse.setMouseFinish,
+    })[part]?.(finish),
     setTimesGateFinish: runtime.timesGate.setTimesGateFinish,
     setTime: runtime.theme.setTime,
     setRain: runtime.weather.setRain,
