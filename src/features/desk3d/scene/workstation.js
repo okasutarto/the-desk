@@ -320,11 +320,12 @@ export function createWorkstation(runtime) {
   // 24° forward with a 28° half-cone, some 75 cm wide on the desk: the back of the cone just
   // reaches the foot, the front the desk's front edge. No decay, so it holds its strength down the
   // whole drop; the range (world units, 1.4 m) only has to outreach the desk's front corners.
-  // three.js has no line light, so the diffuser's length is sampled at its centre and the middle
-  // of either outer third; the wide cones overlap into one band. Only the centre one casts
-  // shadows, so each prop keeps a single shadow and no shadow map is added.
+  // three.js has no line light, so three equal emitters are spaced evenly along the bar, end to
+  // end. Emitters further in pile their cones up under the monitor and the keyboard's right half
+  // burns out (there is no tone mapping); spread end to end they light the desk evenly.
+  // Only the centre one casts shadows, so each prop keeps a single shadow and no shadow map is added.
   const LIGHTBAR_TILT = THREE.MathUtils.degToRad(24);
-  const LIGHTBAR_SPREAD = (LIGHTBAR_W - 0.465) / 3;
+  const LIGHTBAR_SPREAD = LIGHTBAR_W / 2;
   const lightbarLights = [-1, 0, 1].map((side) => {
     const light = new THREE.SpotLight(runtime.lamp.lampLight.color, 0, 14, THREE.MathUtils.degToRad(28), 0.5, 0);
     light.position.set(side * LIGHTBAR_SPREAD, -0.09, 0.14);
@@ -349,7 +350,7 @@ export function createWorkstation(runtime) {
     const power = lightbarState.power;
     lightbarLights.forEach((light) => {
       light.color.copy(runtime.lamp.lampLight.color);
-      light.intensity = 3 * power;
+      light.intensity = 1.8 * power;
     });
     lightbarLight.castShadow = power > 0.05;
     lightbarDiffuserMat.emissive.copy(runtime.lamp.lampLight.color);

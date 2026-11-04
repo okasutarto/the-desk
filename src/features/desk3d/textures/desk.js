@@ -50,20 +50,10 @@ export function drawWoodTop(c, w, h, { wood = "oak", pattern = "planks", knots: 
   let seed = 7;
   const rand = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
   const grainStroke = (alpha) => `rgba(${grain[0] + rand() * 30}, ${grain[1] + rand() * 20}, ${grain[2]}, ${alpha})`;
-  // Paint: one flat coat, the grain only just showing through
+  // Paint: one flat coat that hides the grain; only the joints between boards still show
   if (pattern === "painted") {
     c.fillStyle = paint;
     c.fillRect(0, 0, w, h);
-    for (let g = 0; g < 40; g++) {
-      const gy = rand() * h;
-      const amp = 1 + rand() * 3;
-      const phase = rand() * 10;
-      c.strokeStyle = grainStroke(0.05 + rand() * 0.05);
-      c.lineWidth = 1 + rand() * 2;
-      c.beginPath();
-      for (let x = 0; x <= w; x += 20) c.lineTo(x, gy + Math.sin(x / 260 + phase) * amp);
-      c.stroke();
-    }
     c.fillStyle = "rgba(0, 0, 0, 0.05)";
     for (let y = h / 5; y < h; y += h / 5) c.fillRect(0, y, w, 1.5);
     return;

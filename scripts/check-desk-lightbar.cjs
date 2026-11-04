@@ -24,8 +24,8 @@ const total = () => lights.reduce((sum, l) => sum + l.intensity, 0);
 const diffuser = run('lightbarDiffuserMat');
 for (const power of [0, 0.5, 1, 0.5, 0]) {
   run(`lightbarState.power = ${power}; updateLightbar()`);
-  assert.ok(Math.abs(total() - 9 * power) < 1e-9, 'three emitters share the bar\'s total output of 9');
-  lights.forEach((l) => assert.equal(l.intensity, 3 * power));
+  assert.ok(Math.abs(total() - 5.4 * power) < 1e-9, 'three emitters share the bar\'s total output of 5.4');
+  lights.forEach((l) => assert.equal(l.intensity, 1.8 * power));
   assert.ok(lights.every((l) => l === light || !l.castShadow), 'only the centre emitter casts shadows');
   assert.equal(diffuser.emissiveIntensity, 1.4 * power);
   assert.equal(light.castShadow, power > 0.05);
@@ -36,7 +36,7 @@ assert.equal(light.shadow.mapSize.x, 512);
 assert.equal(light.decay, 0, 'task beam retains useful brightness at desktop distance');
 assert.equal(lights.length, 3);
 assert.equal(light.position.x, 0, 'the shadow-casting emitter is the centre one');
-assert.ok(lights[0].position.x < -0.8 && lights[2].position.x > 0.8 && lights[2].position.x < 1.47, 'the outer emitters sit along the diffuser, inside its ends');
+assert.ok(lights[0].position.x < -0.8 && lights[2].position.x > 0.8 && Math.abs(lights[2].position.x - 5.0 / (62.3 / 42.4) / 2) < 1e-9 && lights[0].position.x === -lights[2].position.x, 'the emitters are spaced evenly along the bar, end to end');
 lights.forEach((l) => {
   assert.equal(l.angle, light.angle);
   assert.equal(l.target.position.x, l.position.x, 'every emitter aims straight forward, the beams parallel');
@@ -83,12 +83,12 @@ assert.ok(source.includes('register(lightbar,'), 'lightbar is registered as inte
 run('setLightbar(false)');
 assert.equal(total(), 0, 'lightbar is off by day');
 run('setLightbar(true)');
-assert.equal(total(), 9, 'lightbar is on at night');
+assert.equal(total(), 5.4, 'lightbar is on at night');
 
 // Its button switches it at any hour, by day too
 roomLight.night = 0;
 run('setLightbar(false); toggleLightbar()');
-assert.equal(total(), 9, 'clicking by day turns the lightbar on');
+assert.equal(total(), 5.4, 'clicking by day turns the lightbar on');
 assert.equal(light.castShadow, true);
 run('toggleLightbar()');
 assert.equal(total(), 0, 'clicking again turns it off');
