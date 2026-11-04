@@ -327,7 +327,10 @@ export function createAnimation(runtime) {
     // Do not skip presentation frames during interaction. Idle uses a tolerant interval rather
     // than an accumulated deadline, which otherwise creates short/long frame pairs under jitter.
     // Phones stop at about 60 fps on 120 Hz screens, and the cat's idle fidgets go at the idle pace.
-    const paceMs = probe ? 0 : lowPower ? (acting ? refreshMs * 0.7 : idleMs) : moving ? 0 : idleMs;
+    // Music keeps the frames up too, for the speakers' kicks and the robot's dance, but only the
+    // pace: on the beat nothing moves far enough to redraw the occlusion or the shadows each frame.
+    const dancing = runtime.workstation.lofi.playing;
+    const paceMs = probe ? 0 : lowPower ? (acting ? refreshMs * 0.7 : idleMs) : moving || dancing ? 0 : idleMs;
     if (lastTick && now - lastTick < paceMs) return;
     if (lastTick && perfReadout) {
       frameIntervals.push(now - lastTick);

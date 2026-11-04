@@ -188,11 +188,11 @@ const idlePace = source.match(/const idleMs = (.+);/)[1];
 const start = source.indexOf('  let lastTick = 0;');
 const end = source.indexOf('    // Step size for the springs', start);
 for (const hz of [60, 90, 120, 144, 165]) {
-  for (const active of [false, "interaction", "lighting"]) {
+  for (const active of [false, "interaction", "lighting", "music"]) {
     const light = () => ({ shadow: {} });
     const scheduler = vm.createContext({ document: { hidden: false },
       sun: light(), windowLight: light(), lampLight: light(), lightbarLight: light(), refreshMs: 1000 / 60,
-      lightingBlending: active === "lighting", responsiveUntil: active === "interaction" ? Infinity : 0, gsap: { isTweening: () => false }, cam: {}, blind: {}, screenPower: {}, catIdleTl: null, catBusy: false, THREE: require('three'), updateShaft() {},
+      lightingBlending: active === "lighting", responsiveUntil: active === "interaction" ? Infinity : 0, gsap: { isTweening: () => false }, cam: {}, blind: {}, screenPower: {}, lofi: { playing: active === "music" }, catIdleTl: null, catBusy: false, THREE: require('three'), updateShaft() {},
       benchmark: null, createToonBatch: () => () => {}, scene: {}, renderer: {}, track: (x) => x,
       mouseRunning: false, lampHopping: false, trophyCelebrating: false, lanyardDrag: null, hatDrag: null, noteDrag: null, shelfDrag: null, stickyDrag: null, chairDrag: null,
       perfReadout: null, requestAnimationFrame() {}, frame: null, accepted: [], lowPower: false, probe: null });
@@ -203,7 +203,7 @@ for (const hz of [60, 90, 120, 144, 165]) {
     const frames = scheduler.accepted;
     const gaps = frames.slice(1).map((now, i) => now - frames[i]);
     if (active) {
-      assert.equal(frames.length, hz * 10, 'interaction must not skip browser frames, including under jitter');
+      assert.equal(frames.length, hz * 10, `${active} must not skip browser frames, including under jitter`);
       assert.ok(Math.max(...gaps) <= 1000 / hz + 3.01, 'interaction must not introduce long/short frame pairs');
     } else {
       assert.ok(frames.length >= 270 && frames.length <= 360, 'a still room redraws at about 30 fps on any display');

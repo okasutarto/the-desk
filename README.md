@@ -217,8 +217,8 @@ licenses live in `public/sfx/`; the lo-fi music is generated in the browser.
 - **Reuse work while idle.** AO and shadow maps are cached and refreshed on schedules, with
   more frequent updates while things move. Unsupported batching falls back to original meshes.
 - **A still room redraws at about 30 fps.** Steam, rain and the plant's sway keep going at half
-  the display's pace; input, camera moves and moving props go back to every browser frame. The
-  Times Gate's FPS screen reads `IDLE FPS` while the room is still.
+  the display's pace; input, camera moves, moving props and playing music go back to every
+  browser frame. The Times Gate's FPS screen reads `IDLE FPS` while the room is still.
 - **Prints follow the room's light.** Paper, labels, the clock dial and the artwork are part
   self-lit so they stay readable by day; that glow fades with the room at dusk and night, so
   they never outshine it.
