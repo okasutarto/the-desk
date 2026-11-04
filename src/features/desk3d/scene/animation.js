@@ -292,8 +292,9 @@ export function createAnimation(runtime) {
   const target = new THREE.Vector3();
   const viewRight = new THREE.Vector3();
   const viewUp = new THREE.Vector3();
-  // A still room redraws at the display's pace, or about 30 fps on phones
-  const idleMs = refreshMs * (lowPower ? 1.7 : 0.7);
+  // A still room redraws at about 30 fps: its idle motion (steam, rain, the plant's sway, the
+  // lanyard's breeze) reads the same at half the display's pace, for half the frames
+  const idleMs = refreshMs * 1.7;
   let lastTick = 0;
   let mainShadowAt = 0;
   // Any running tween on something other than the camera (a key press, a hover lift, a prop
@@ -405,7 +406,7 @@ export function createAnimation(runtime) {
     runtime.badge.updateLanyard(dt);
     runtime.shelf.updateShelfLeds(now);
     runtime.keyboard.updateRgb(now);
-    runtime.timesGate.updateTimesGate(now);
+    runtime.timesGate.updateTimesGate(now, paceMs >= idleMs);
     runtime.cat.updateCatWatch(now);
     runtime.cat.updateCatLife(now);
     runtime.cat.updateCatNeck();

@@ -46,8 +46,12 @@ const sandbox = {
     values.onUpdate?.();
   }, fromTo() {} },
 };
+let performance_ = null;
 for (const widget of ['Weather', 'Github', 'Visitors', 'Performance', 'Pet']) {
-  sandbox['drawGate' + widget] = () => draws.push(widget);
+  sandbox['drawGate' + widget] = (c, values) => {
+    draws.push(widget);
+    if (widget === 'Performance') performance_ = values;
+  };
 }
 const model = vm.runInNewContext(finishes + source + '; createTimesGate(runtime)', sandbox);
 assert.equal(handlers.focus, 'timesgate');
@@ -195,6 +199,22 @@ assert.ok(coverMat.envMap !== dayEnv && coverMat.envMapIntensity < dayReflection
 runtime.core.roomLight.night = 0;
 model.updateTimesGate(1032);
 assert.equal(coverMat.envMap, dayEnv, 'the day reflection comes back with the day');
+// The FPS screen tells a still room's 30 fps (on purpose) from a busy one
+const frames = (from, to, step, still) => { for (let t = from; t <= to; t += step) model.updateTimesGate(t, still); };
+frames(2000, 3200, 1000 / 30, true);
+assert.ok(performance_.idle && Math.abs(performance_.fps - 30) < 2, 'a still half second reads as idle, at about 30 fps');
+frames(3300, 4400, 1000 / 60, false);
+assert.ok(!performance_.idle && performance_.history.at(-1).idle === false, 'a busy half second does not');
+const gateTextures = fs.readFileSync(root + 'textures/timesGate.js', 'utf8').replace(/^import [\s\S]*?;\n/gm, '').replace(/export /g, '');
+const drawPerformance = vm.runInNewContext(gateTextures + '; drawGatePerformance', { weatherKind: () => 'clear', Math });
+const headerColour = (values) => {
+  const fills = [];
+  const c = { set fillStyle(v) { fills.push(v); }, fillRect() {} };
+  drawPerformance(c, { ms: 33, history: [], gpu: null, ...values });
+  return fills[1];
+};
+assert.equal(headerColour({ fps: 30, idle: true }), headerColour({ fps: 60, idle: false }), 'an idle 30 fps shows as on target');
+assert.notEqual(headerColour({ fps: 30, idle: false }), headerColour({ fps: 60, idle: false }), 'a busy 30 fps still warns');
 handlers.onClick();
 assert.equal(chirps, 1, 'pet Byte click interaction remains registered');
 console.log('Times Gate: dimensions, finite geometry, five widgets, four finishes, side RGB and pet interaction passed.');

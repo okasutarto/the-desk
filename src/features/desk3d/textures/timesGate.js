@@ -263,13 +263,14 @@ export function drawGateVisitors(c, { count, shown, error, t }) {
 }
 
 // ---------- 4. performance ----------
-export function drawGatePerformance(c, { fps, ms, history, gpu }) {
+export function drawGatePerformance(c, { fps, ms, idle, history, gpu }) {
   px(c, 0, 0, "#06140c", GATE_PX, GATE_PX);
-  const tone = (f) => (f >= 50 ? "#39ff88" : f >= 30 ? "#ffd23f" : "#ff4d4d");
-  header(c, "SCENE FPS", tone(fps));
+  // A still room redraws at about 30 fps on purpose, so there that's on target, not a warning
+  const tone = (f, still) => (f >= (still ? 25 : 50) ? "#39ff88" : f >= (still ? 15 : 30) ? "#ffd23f" : "#ff4d4d");
+  header(c, idle ? "IDLE FPS" : "SCENE FPS", tone(fps, idle));
   // (a 120 Hz screen's three digits drop a size to leave room for the frame time)
   const rate = String(Math.min(999, Math.round(fps)));
-  pixelText(c, rate, 4, rate.length > 2 ? 15 : 13, tone(fps), rate.length > 2 ? 2 : 3);
+  pixelText(c, rate, 4, rate.length > 2 ? 15 : 13, tone(fps, idle), rate.length > 2 ? 2 : 3);
   // frame and GPU time share one format and a right edge, so their MS columns line up
   const msText = (v) => `${v < 10 ? v.toFixed(1) : Math.min(999, Math.round(v))}MS`;
   const right = (text, y, color) => pixelText(c, text, GATE_PX - 1 - pixelTextWidth(text), y, color);
@@ -287,9 +288,9 @@ export function drawGatePerformance(c, { fps, ms, history, gpu }) {
     px(c, x, top + h - Math.round(60 / 70 * h), "#1f5133");
     px(c, x, top + h - Math.round(30 / 70 * h), "#4a3a12");
   }
-  history.forEach((f, i) => {
-    const bar = Math.max(1, Math.round(Math.min(f, 70) / 70 * h));
-    px(c, 3 + i, top + h - bar, tone(f), 1, bar);
+  history.forEach((sample, i) => {
+    const bar = Math.max(1, Math.round(Math.min(sample.fps, 70) / 70 * h));
+    px(c, 3 + i, top + h - bar, tone(sample.fps, sample.idle), 1, bar);
     px(c, 3 + i, top + h - bar, "#ffffff", 1, 1);
   });
 }
