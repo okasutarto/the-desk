@@ -71,7 +71,7 @@ function findFlush(scene) {
   return flush;
 }
 
-export function createToonBatch(scene, renderer, track) {
+export function createToonBatch(scene, renderer, track, moving = new Set()) {
   if (!renderer.capabilities.isWebGL2 || !renderer.extensions.has("WEBGL_multi_draw")) return () => {};
   const kinds = new Map();
   const flush = findFlush(scene);
@@ -89,7 +89,7 @@ export function createToonBatch(scene, renderer, track) {
   });
   const updates = [...kinds.values()]
     .filter((kind) => !kind.map || kind.objects.length >= MIN_SHARED)
-    .map((kind) => createBatch(scene, track, kind));
+    .map((kind) => createBatch(scene, track, kind, moving));
   const inks = new Map();
   scene.traverse((object) => {
     const m = object.material;
@@ -107,7 +107,7 @@ export function createToonBatch(scene, renderer, track) {
   };
 }
 
-function createBatch(scene, track, { map, gradient, receive, objects }) {
+function createBatch(scene, track, { map, gradient, receive, objects }, moving) {
   const entries = objects.map((object) => {
     const source = object.geometry;
     const geometry = new THREE.BufferGeometry();
@@ -144,13 +144,19 @@ function createBatch(scene, track, { map, gradient, receive, objects }) {
       return p.material.id - q.material.id || a.z - b.z || p.id - q.id;
     });
   };
+  // Casters inside one of `moving`'s props (those that move on their own) cast through a shadow
+  // batch of their own, which then joins them: a cached shadow map (see shadowCache) keeps the
+  // still batch from one update to the next and draws the moving one every time
+  const stirs = (object) => {
+    for (let o = object; o; o = o.parent) if (moving.has(o)) return true;
+    return false;
+  };
   const casters = entries.filter((entry) => entry.cast);
-  let shadows = null;
-  if (casters.length) {
-    const shadowMaterial = track(new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false }));
-    const shadowVertices = casters.reduce((n, entry) => n + entry.shadow.attributes.position.count, 0);
-    const shadowIndices = casters.reduce((n, entry) => n + entry.shadow.index.count, 0);
-    shadows = track(new THREE.BatchedMesh(casters.length, shadowVertices, shadowIndices, shadowMaterial));
+  const shadowMaterial = casters.length ? track(new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false })) : null;
+  const shadowBatch = (list) => {
+    const shadowVertices = list.reduce((n, entry) => n + entry.shadow.attributes.position.count, 0);
+    const shadowIndices = list.reduce((n, entry) => n + entry.shadow.index.count, 0);
+    const shadows = track(new THREE.BatchedMesh(list.length, shadowVertices, shadowIndices, shadowMaterial));
     shadows.castShadow = true;
     shadows.frustumCulled = shadows.sortObjects = false;
     shadows.raycast = () => {};
@@ -160,15 +166,20 @@ function createBatch(scene, track, { map, gradient, receive, objects }) {
       prepareShadow.call(shadows, renderer, null, shadowCamera, geometry, material);
     };
     shadows.onBeforeRender = () => shadows.geometry.setDrawRange(0, 0);
-  }
+    list.forEach((entry) => (entry.shadows = shadows));
+    return shadows;
+  };
+  const stirring = casters.filter((entry) => stirs(entry.object));
+  const shadowBatches = [casters.filter((entry) => !stirs(entry.object)), stirring].filter((list) => list.length).map(shadowBatch);
+  if (stirring.length) moving.add(stirring[0].shadows);
   entries.forEach((entry) => {
     entry.id = batch.addGeometry(entry.geometry);
     // (three keeps each part's place in the batch's buffers private; it never moves)
     byStart.set(batch._drawRanges[entry.id].start, entry.object);
-    if (entry.cast) entry.shadowId = shadows.addGeometry(entry.shadow);
+    if (entry.cast) entry.shadowId = entry.shadows.addGeometry(entry.shadow);
   });
   scene.add(batch);
-  if (shadows) scene.add(shadows);
+  shadowBatches.forEach((shadows) => scene.add(shadows));
   return () => {
     entries.forEach((entry) => {
       const { object, geometry, id } = entry;
@@ -183,14 +194,14 @@ function createBatch(scene, track, { map, gradient, receive, objects }) {
       for (let parent = object; parent && visible; parent = parent.parent) visible = parent.visible;
       if (visible !== entry.visible) {
         batch.setVisibleAt(id, visible);
-        if (entry.cast) shadows.setVisibleAt(entry.shadowId, visible);
+        if (entry.cast) entry.shadows.setVisibleAt(entry.shadowId, visible);
         entry.visible = visible;
       }
       if (!supported) return;
       if (!entry.matrix.equals(object.matrixWorld)) {
         entry.matrix.copy(object.matrixWorld);
         batch.setMatrixAt(id, entry.matrix);
-        if (entry.cast) shadows.setMatrixAt(entry.shadowId, entry.matrix);
+        if (entry.cast) entry.shadows.setMatrixAt(entry.shadowId, entry.matrix);
       }
       let changed = false;
       if (!entry.color.equals(m.color)) {
@@ -204,7 +215,7 @@ function createBatch(scene, track, { map, gradient, receive, objects }) {
         batch.setGeometryAt(id, geometry);
         if (entry.cast && source.position.version !== entry.positionVersion) {
           const next = shadowGeometry(object.geometry, !map);
-          shadows.setGeometryAt(entry.shadowId, next);
+          entry.shadows.setGeometryAt(entry.shadowId, next);
           entry.shadow.dispose();
           entry.shadow = next;
         }

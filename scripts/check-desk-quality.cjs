@@ -143,7 +143,7 @@ assert.deepEqual([allHeavy.ao, allHeavy.decorShed], [false, true], 'decorative s
   const shadowStart = source.indexOf('    // Moving props need primary shadows');
   const shadowSource = source.slice(shadowStart, source.indexOf('    updateNeonLights(now, moving);', shadowStart));
   const light = () => ({ castShadow: true, intensity: 1, shadow: { needsUpdate: false } });
-  const context = vm.createContext({ gsap, cam, userView, sun: light(), windowLight: light(), lampLight: light(), lightbarLight: light(), mainShadowAt: 0 });
+  const context = vm.createContext({ gsap, cam, userView, sun: light(), windowLight: light(), lampLight: light(), lightbarLight: light(), mainShadowAt: 0, mainShadowTurn: 0 });
   vm.runInContext(tweenSource, context);
   const shadowFrame = new vm.Script(`{${shadowSource}}`);
   function frames(state, count = 60) {
@@ -176,6 +176,21 @@ assert.deepEqual([allHeavy.ao, allHeavy.decorShed], [false, true], 'decorative s
   assert.ok(delayed >= 11 && delayed <= 13, 'delayed calls and camera tweens are not prop motion');
   const still = frames({ moving: false });
   assert.ok(still >= 11 && still <= 13, 'a still room keeps its 12 Hz pace');
+  // ...each of the four in its own turn, so no one still frame redraws them all
+  const mains = [context.sun, context.windowLight, context.lampLight, context.lightbarLight];
+  let crowded = 0;
+  const each = mains.map(() => 0);
+  for (let i = 0; i < 120; i++) {
+    context.now += 1000 / 60;
+    Object.assign(context, { moving: false, viewMoved: false, propsActing: false, fidgeting: false });
+    mains.forEach((l) => (l.shadow.needsUpdate = false));
+    shadowFrame.runInContext(context);
+    const drawn = mains.filter((l) => l.shadow.needsUpdate);
+    drawn.forEach((l) => each[mains.indexOf(l)]++);
+    if (drawn.length > 2) crowded++;
+  }
+  assert.ok(each.every((n) => n >= 22 && n <= 26), 'every main light keeps 12 Hz in a still room');
+  assert.equal(crowded, 0, 'the four main shadow maps take turns instead of landing on one frame');
   viewTween.kill();
   camTween.kill();
   gsap.globalTimeline.clear();
@@ -192,7 +207,7 @@ for (const hz of [60, 90, 120, 144, 165]) {
     const scheduler = vm.createContext({ document: { hidden: false },
       sun: light(), windowLight: light(), lampLight: light(), lightbarLight: light(), refreshMs: 1000 / 60,
       lightingBlending: active === "lighting", responsiveUntil: active === "interaction" ? Infinity : 0, gsap: { isTweening: () => false }, cam: {}, blind: {}, screenPower: {}, catIdleTl: null, catBusy: false, THREE: require('three'), updateShaft() {},
-      benchmark: null, createToonBatch: () => () => {}, scene: {}, renderer: {}, track: (x) => x,
+      benchmark: null, createToonBatch: () => () => {}, movingCasters: new Set(), mainShadowTurn: 0, scene: {}, renderer: {}, track: (x) => x,
       mouseRunning: false, lampHopping: false, trophyCelebrating: false, lanyardDrag: null, hatDrag: null, noteDrag: null, shelfDrag: null, stickyDrag: null, chairDrag: null,
       perfReadout: null, requestAnimationFrame() {}, frame: null, accepted: [], idleMs: 1000 / 60 * 0.7, lowPower: false, probe: null });
     vm.runInContext(source.slice(start, end) + 'accepted.push(now); lastTick = now; }', scheduler);

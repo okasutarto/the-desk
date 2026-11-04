@@ -62,7 +62,7 @@ change it.
 
 Add `?perf` (or `&perf` to an existing query) for FPS, draw calls, triangles, CPU submission,
 GPU timing when available, frame p95 and render density. For comparisons, reload with one
-benchmark at a time: `?perf&bench=no-ao`, `no-shadows`, `no-pcss`, `no-batch` or `no-ao-cache`.
+benchmark at a time: `?perf&bench=no-ao`, `no-shadows`, `no-pcss`, `no-batch`, `no-ao-cache` or `no-shadow-cache`.
 Benchmark toggles isolate rendering costs; they do not change saved settings. Use a production
 build for representative performance comparisons; development compilation and startup can skew
 measurements. The `time`/`rain` previews themselves do not override production behaviour.

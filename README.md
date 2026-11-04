@@ -215,7 +215,9 @@ licenses live in `public/sfx/`; the lo-fi music is generated in the browser.
   AO runs at CSS-pixel resolution on Retina screens, is blended up, and settles over still frames. Slow frames do not lower image density.
   Active camera moves and interactions follow browser frames.
 - **Reuse work while idle.** AO and shadow maps are cached and refreshed on schedules, with
-  more frequent updates while things move. Unsupported batching falls back to original meshes.
+  more frequent updates while things move. Each key light keeps a copy of its shadow map with
+  only the still room in it, so an update draws just the props that move on their own.
+  Unsupported batching falls back to original meshes.
 - **Prints follow the room's light.** Paper, labels, the clock dial and the artwork are part
   self-lit so they stay readable by day; that glow fades with the room at dusk and night, so
   they never outshine it.
