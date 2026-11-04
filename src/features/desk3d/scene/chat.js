@@ -3,6 +3,7 @@ import gsap from "gsap";
 import { hoverSound, sfx } from "@/shared/composables/useSfx";
 import { chatErrorReply, getStreamingResponse, toHistory } from "@/shared/services/chatApi";
 import { canvasTexture, drawChatScreen, drawSatinFinish, drawGlassSheen } from "../textures";
+import { DEVICE_FINISHES } from "../deviceFinishes";
 
 export function createChat(runtime) {
   // ---------- phone on a stand (AI chat) ----------
@@ -26,7 +27,7 @@ export function createChat(runtime) {
   const chat = { messages: [], input: "", active: false, waiting: false, scroll: 0, maxScroll: 0 };
   let chatDirty = false;
   let chatTypingAt = 0;
-  // A burgundy iPhone 17 Pro Max: a tall aluminium unibody with a thin, even black border
+  // An iPhone 17 Pro Max: a tall aluminium unibody with a thin, even black border
   // round a screen whose corners follow the body's, the Dynamic Island printed at its top
   // (drawChatScreen), the buttons down both sides, and on the back the full-width camera
   // plateau: three big lenses in a triangle, the flash and LiDAR beside them, and the logo
@@ -41,6 +42,13 @@ export function createChat(runtime) {
   phoneFinish.map = phoneSatin.texture;
   const phoneTrim = runtime.core.toon("#70202f");
   phoneTrim.map = phoneSatin.texture;
+  function setPhoneFinish(finish) {
+    if (!Object.hasOwn(DEVICE_FINISHES.phone.finishes, finish)) return;
+    const coat = DEVICE_FINISHES.phone.finishes[finish];
+    phoneFinish.color.set(coat.shell);
+    phoneTrim.color.set(coat.trim);
+  }
+  setPhoneFinish(runtime.options.deviceFinishes?.phone || DEVICE_FINISHES.phone.default);
   const PHONE_W = 0.95;
   const PHONE_H = 1.95;
   const phoneScreen = runtime.core.printed(0.87, 1.87, 700, (c, w, h) => drawChatScreen(c, w, h, chat, { unread, caret: runtime.textInput.caretOn && chat.active }), { unlit: true });
@@ -203,6 +211,7 @@ export function createChat(runtime) {
 
   // Public state used by the other scene parts.
   return {
+    setPhoneFinish,
     phoneStand,
     phoneScreen,
     chat,

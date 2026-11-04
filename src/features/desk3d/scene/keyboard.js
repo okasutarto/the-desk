@@ -2,9 +2,10 @@ import * as THREE from "three";
 import gsap from "gsap";
 import { sfx } from "@/shared/composables/useSfx";
 import { canvasTexture, drawKeyLabel, drawDeskMat } from "../textures";
+import { DEVICE_FINISHES } from "../deviceFinishes";
 
 export function createKeyboard(runtime) {
-  // ---------- keyboard: NuPhy Halo75 V2, Obsidian Black ----------
+  // ---------- keyboard: NuPhy Halo75 V2 ----------
   // Every key is its own cap with its legend printed on top, keyed by KeyboardEvent.code, so the
   // key you press on your own keyboard presses the very same key on the desk.
   // A felt desk mat under the keyboard and the mouse, wide enough for the mouse's run
@@ -51,8 +52,7 @@ export function createKeyboard(runtime) {
   keyboard.scale.setScalar(KEYBOARD_SCALE);
   keyboard.position.set(-1.7, MAT_TOP, 0.75);
   runtime.core.scene.add(keyboard);
-  // A black aluminium case on a smoky see-through bottom, with the Halo's light bar glowing along
-  // its left end
+  // An aluminium case on a smoky see-through bottom; the short status bar sits above Esc.
   const KEY_UNIT = 0.28;
   const KEY_GAP = 0.018;
   const KEYS_W = 16 * KEY_UNIT;
@@ -134,8 +134,9 @@ export function createKeyboard(runtime) {
   const keyBase = runtime.core.mesh(baseGeo, keyCaseMat, { outline: 0.02 });
   keyboard.add(keyBottom, keyBase);
   const haloMat = runtime.core.track(new THREE.MeshBasicMaterial({ color: "#38bdf8" }));
-  const haloBar = new THREE.Mesh(runtime.core.track(new THREE.BoxGeometry(0.03, 0.012, KEY_UNIT * 1.6)), haloMat);
-  haloBar.position.set(-CASE_W / 2 + 0.05, 0.27, -KEYS_D / 2 + KEY_UNIT * 0.9);
+  const haloBar = new THREE.Mesh(runtime.core.track(new THREE.BoxGeometry(KEY_UNIT * 0.9, 0.012, 0.025)), haloMat);
+  haloBar.name = "keyboard-status-led";
+  haloBar.position.set(-KEYS_W / 2 + KEY_UNIT / 2, 0.27, -KEYS_D / 2 - 0.075);
   haloBar.raycast = runtime.core.noRaycast;
   keyboard.add(haloBar);
   // A recessed switch plate gives the gaps depth without a separate mesh under every cap.
@@ -213,8 +214,8 @@ export function createKeyboard(runtime) {
   const MOD_SYMBOLS = { ControlLeft: "⌃", AltLeft: "⌥", AltRight: "⌥", MetaLeft: "⌘", MetaRight: "⌘" };
   // Pressed on their own, so they show even though they never type anything
   const MODIFIER_CODES = new Set(["ShiftLeft", "ShiftRight", "ControlLeft", "ControlRight", "AltLeft", "AltRight", "MetaLeft", "MetaRight"]);
-  // Shortcut keys, their legends printed in colour: digits fly to the sections, T to the
-  // terminal, C to the chat. They work from your own keyboard too.
+  // Shortcut keys: digits fly to the sections, T to the terminal, C to the chat. They work
+  // from your own keyboard too. On the dark colourways their legends are printed in colour.
   const SHORTCUTS = {
     1: { shot: "hero", code: "Digit1", color: "#ffdd00" },
     2: { shot: "about", code: "Digit2", color: "#ff90e8" },
@@ -225,19 +226,28 @@ export function createKeyboard(runtime) {
     c: { shot: "chat", code: "KeyC", color: "#7fb2ff" },
   };
   const shortcutByCode = new Map(Object.values(SHORTCUTS).map((sc) => [sc.code, sc]));
-  // The Halo75 V2's colourway: near-black alphas, grey modifiers, a mint Esc, a coral Enter and a
-  // yellow space bar
-  const ACCENTS = { Escape: "#5ec4a2", Enter: "#f2603c", Space: "#f5c22b" };
+  let keyboardCoat = DEVICE_FINISHES.keyboard.finishes[DEVICE_FINISHES.keyboard.default];
   const ALPHA = /^(Key|Digit)|^(Minus|Equal|BracketLeft|BracketRight|Backslash|Semicolon|Quote|Comma|Period|Slash|Backquote)$/;
-  const keyColor = (code) => ACCENTS[code] || (ALPHA.test(code) ? "#2a2c31" : "#43464d");
-  const keyInk = (code) => shortcutByCode.get(code)?.color || (ACCENTS[code] ? "#f1eee5" : "#c3c6cc");
+  const keyRole = (code) => {
+    if (code === "Escape") return "escape";
+    if (code === "Enter") return "enter";
+    if (code === "Space") return "space";
+    if (/^F[5-8]$/.test(code)) return "alternate";
+    if (ALPHA.test(code) || /^F([1-4]|9|1[0-2])$/.test(code)) return "alpha";
+    return "modifier";
+  };
+  const keyInk = (code) => {
+    if (keyboardCoat.shortcutInk && shortcutByCode.has(code)) return shortcutByCode.get(code).color;
+    return ["modifier", "alternate", "escape", "enter"].includes(keyRole(code)) ? keyboardCoat.accentInk : keyboardCoat.ink;
+  };
   // The shifted symbols printed above the digits and punctuation
   const SHIFTED = {
     Backquote: "~", Digit1: "!", Digit2: "@", Digit3: "#", Digit4: "$", Digit5: "%", Digit6: "^", Digit7: "&", Digit8: "*", Digit9: "(", Digit0: ")",
     Minus: "_", Equal: "+", BracketLeft: "{", BracketRight: "}", Backslash: "|", Semicolon: ":", Quote: "\"", Comma: "<", Period: ">", Slash: "?",
   };
   const keyMats = new Map();
-  const keyMat = (color) => keyMats.get(color) || keyMats.set(color, runtime.core.toon(color)).get(color);
+  const keyMat = (role) => keyMats.get(role) || keyMats.set(role, runtime.core.toon(keyboardCoat[role])).get(role);
+  const homingMat = runtime.core.toon(keyboardCoat.homing);
   // Sculpt the cap rather than stacking a second lid over it. The clear ink decal follows
   // the same shallow dish, so legends stay on the surface while each key moves.
   const keycapTop = (x, z, w, d) => 0.09 - 0.012 * Math.max(0, 1 - (x / (w / 2)) ** 2) * Math.max(0, 1 - (z / (d / 2)) ** 2);
@@ -274,13 +284,13 @@ export function createKeyboard(runtime) {
     row.forEach(([code, label, width = 1]) => {
       const w = width * KEY_UNIT - KEY_GAP;
       const d = KEY_UNIT - KEY_GAP;
-      const color = keyColor(code);
+      const role = keyRole(code);
       const key = new THREE.Group();
       key.position.set((cursor + width / 2) * KEY_UNIT, KEY_Y, (r - 2.5) * KEY_UNIT);
       key.userData.code = code;
       // AO supplies the gaps between caps; the case supplies the keyboard's cast shadow.
       if (!keyGeometries.has(w)) keyGeometries.set(w, sculptKeycap(w, d));
-      key.add(runtime.core.mesh(keyGeometries.get(w), keyMat(color), { outline: 0.014, cast: false }));
+      key.add(runtime.core.mesh(keyGeometries.get(w), keyMat(role), { outline: 0.014, cast: false }));
       {
         const legend = runtime.core.printed(w - 0.085, d - 0.085, 340, (c, cw, ch) => drawKeyLabel(c, cw, ch, label, null, { ink: keyInk(code), small: label.length > 1, shift: SHIFTED[code] || MOD_SYMBOLS[code] }));
         const inkSurface = runtime.core.track(new THREE.PlaneGeometry(w - 0.085, d - 0.085, 8, 8));
@@ -293,9 +303,10 @@ export function createKeyboard(runtime) {
         legend.rotation.x = -Math.PI / 2;
         legend.position.y = 0.001;
         key.add(legend);
+        key.userData.legend = legend;
       }
       if (code === "KeyF" || code === "KeyJ") {
-        const homing = runtime.core.mesh(runtime.core.rbox(0.075, 0.012, 0.018, 0.005), keyMat("#81bfc7"), { outline: 0, cast: false });
+        const homing = runtime.core.mesh(runtime.core.rbox(0.075, 0.012, 0.018, 0.005), homingMat, { outline: 0, cast: false });
         homing.position.set(0, keycapTop(0, 0.058, w, d) + 0.006, 0.058);
         key.add(homing);
       }
@@ -313,6 +324,16 @@ export function createKeyboard(runtime) {
       cursor += width;
     });
   });
+
+  function setKeyboardFinish(finish) {
+    if (!Object.hasOwn(DEVICE_FINISHES.keyboard.finishes, finish)) return;
+    keyboardCoat = DEVICE_FINISHES.keyboard.finishes[finish];
+    keyCaseMat.color.set(keyboardCoat.shell);
+    homingMat.color.set(keyboardCoat.homing);
+    keyMats.forEach((material, role) => material.color.set(keyboardCoat[role]));
+    keyByCode.forEach((key) => key.userData.legend.userData.tex.redraw());
+  }
+  setKeyboardFinish(runtime.options.deviceFinishes?.keyboard || DEVICE_FINISHES.keyboard.default);
 
   let keysPressed = 0;
   function pressKey(code, { sound = true } = {}) {
@@ -409,6 +430,7 @@ export function createKeyboard(runtime) {
 
   // Public state used by the other scene parts.
   return {
+    setKeyboardFinish,
     pressKey,
     updateRgb,
     keyboard,

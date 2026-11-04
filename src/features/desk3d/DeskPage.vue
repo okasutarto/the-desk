@@ -185,6 +185,24 @@
                       </button>
                     </div>
                   </div>
+                  <template v-else-if="group.key === 'devices'">
+                    <div v-for="(device, part) in DEVICE_FINISHES" :key="part" class="settings-sub">
+                      <h3 class="settings-sublabel">{{ device.label }}</h3>
+                      <div class="flex flex-wrap gap-1.5">
+                        <button
+                          v-for="(finish, key) in device.finishes"
+                          :key="key"
+                          class="pattern-chip flex items-center gap-1.5"
+                          :class="{ 'pattern-chip--on': settings.deviceFinishes[part] === key }"
+                          :aria-label="`${device.label}: ${finish.name}`"
+                          :aria-pressed="settings.deviceFinishes[part] === key"
+                          @click="setDeviceFinish(part, key)">
+                          <span class="inline-block w-3 h-3 rounded-full border border-black/30" :style="{ background: finish.shell }" aria-hidden="true"></span>
+                          {{ finish.name }}
+                        </button>
+                      </div>
+                    </div>
+                  </template>
                   <template v-else-if="group.key === 'timesgate'">
                     <h3 class="settings-sublabel">Body colour</h3>
                     <div class="flex flex-wrap gap-1.5">
@@ -338,6 +356,7 @@ import { WOODS, WOOD_PATTERNS, PART_PATTERNS, WOOD_TARGETS, FLOOR_LAYOUTS, FRAME
 import { DAY_PARTS, TIME_MODES, RAIN_MODES, partOfDay, partFor } from "@/features/desk3d/daylight";
 
 import { useDeskSettings, SETTINGS_GROUPS, WALL_PAINTS, WALL_PATTERNS } from "./composables/useDeskSettings";
+import { DEVICE_FINISHES } from "./deviceFinishes";
 import { TIMES_GATE_FINISHES } from "./timesGateFinishes";
 
 const COMMAND_CHIPS = ["help", "whoami", "projects", "hobbies", "sudo hire oka"];
@@ -374,7 +393,7 @@ const consoleOn = ref(false);
 const secretToast = ref(null);
 const settingsOpen = ref(false);
 const openGroup = ref("sky");
-const { settings, wallIsPreset, groupSummary, woodLabel, isDarkColour, setWall, setWallPattern, setWallBrick, setWallSlats, setWood, setFloor, setTime, setRain, setTimesGateFinish } = useDeskSettings(scene);
+const { settings, wallIsPreset, groupSummary, woodLabel, isDarkColour, setWall, setWallPattern, setWallBrick, setWallSlats, setWood, setFloor, setTime, setRain, setTimesGateFinish, setDeviceFinish } = useDeskSettings(scene);
 let secretTimer = null;
 const zoomed = computed(() => focus.value !== "overview");
 const isDesktop = useMediaQuery("(min-width: 768px)");
@@ -493,6 +512,7 @@ onMounted(async () => {
       woods: JSON.parse(JSON.stringify(settings.woods)),
       floor: { ...settings.floor },
       timesGateFinish: settings.timesGateFinish,
+      deviceFinishes: { ...settings.deviceFinishes },
       time: settings.time,
       rain: settings.rain,
       onEvent,

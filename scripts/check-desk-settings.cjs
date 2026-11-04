@@ -4,7 +4,7 @@ const vm = require('node:vm');
 const { reactive, computed, ref } = require('vue');
 const root = `${__dirname}/../src/features/desk3d/`;
 const source = file => fs.readFileSync(root + file, 'utf8').replace(/^import .*;\n/gm, '').replace(/\bexport /g, '');
-const dependencies = vm.runInNewContext(source('woods.js') + source('daylight.js') + source('timesGateFinishes.js') + '; ({ WOODS, WOOD_PATTERNS, PART_PATTERNS, WOOD_TARGETS, DEFAULT_WOODS, FLOOR_LAYOUTS, DEFAULT_FLOOR, FRAME_PAINTS, DEFAULT_FRAME_PAINT, BRICKS, DEFAULT_BRICK, DEFAULT_SLATS, TIME_MODES, RAIN_MODES, DEFAULT_TIME, DEFAULT_RAIN, TIMES_GATE_FINISHES, DEFAULT_TIMES_GATE_FINISH })');
+const dependencies = vm.runInNewContext(source('woods.js') + source('daylight.js') + source('timesGateFinishes.js') + source('deviceFinishes.js') + '; ({ WOODS, WOOD_PATTERNS, PART_PATTERNS, WOOD_TARGETS, DEFAULT_WOODS, FLOOR_LAYOUTS, DEFAULT_FLOOR, FRAME_PAINTS, DEFAULT_FRAME_PAINT, BRICKS, DEFAULT_BRICK, DEFAULT_SLATS, TIME_MODES, RAIN_MODES, DEFAULT_TIME, DEFAULT_RAIN, TIMES_GATE_FINISHES, DEFAULT_TIMES_GATE_FINISH, DEVICE_FINISHES })');
 let stored = null;
 let blocked = false;
 const context = vm.createContext({ ...dependencies, reactive, computed, localStorage: {
@@ -28,7 +28,7 @@ ui.setWall('#ffffff'); // Safe before scene initialization, even without storage
 assert.equal(ui.wallName.value, 'White');
 assert.equal(ui.wallIsPreset.value, true);
 blocked = false;
-scene.value = Object.fromEntries(['setWallColor', 'setWallPattern', 'setWood', 'setFloor', 'setTime', 'setRain', 'setTimesGateFinish'].map(name => [name, (...args) => calls.push([name, ...args])]));
+scene.value = Object.fromEntries(['setWallColor', 'setWallPattern', 'setWood', 'setFloor', 'setTime', 'setRain', 'setTimesGateFinish', 'setDeviceFinish'].map(name => [name, (...args) => calls.push([name, ...args])]));
 ui.setWall('#123456');
 ui.setWallPattern('brick');
 ui.setWallBrick('charcoal');
@@ -66,6 +66,19 @@ ui.setTimesGateFinish('constructor');
 assert.equal(readSettings().timesGateFinish, 'bumblebee', 'invalid live finishes are ignored');
 stored = JSON.stringify({ timesGateFinish: 'toString' });
 assert.equal(readSettings().timesGateFinish, 'silver', 'invalid saved finishes fall back to silver');
+for (const [part, device] of Object.entries(dependencies.DEVICE_FINISHES)) {
+  for (const finish of Object.keys(device.finishes)) {
+    ui.setDeviceFinish(part, finish);
+    assert.equal(readSettings().deviceFinishes[part], finish);
+    assert.deepEqual(calls.at(-1), ['setDeviceFinish', part, finish]);
+  }
+  const before = JSON.stringify(ui.settings.deviceFinishes);
+  ui.setDeviceFinish(part, 'constructor');
+  ui.setDeviceFinish('constructor', 'white');
+  assert.equal(JSON.stringify(ui.settings.deviceFinishes), before);
+  stored = JSON.stringify({ deviceFinishes: { [part]: 'toString' } });
+  assert.equal(readSettings().deviceFinishes[part], device.default);
+}
 stored = JSON.stringify({ wallPattern: 'toString', wallBrick: 'gold', wallSlats: 'constructor' });
 assert.equal(readSettings().wallPattern, 'plain', 'unknown wall patterns fall back to plain');
 assert.equal(readSettings().wallBrick, 'red');
