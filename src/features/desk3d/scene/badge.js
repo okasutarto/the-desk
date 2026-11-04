@@ -345,6 +345,7 @@ export function createBadge(runtime) {
     lanyardPoint,
     moveLanyard,
     badge,
+    strandTubes: strands.map(({ tube }) => tube),
     lanyardAt,
     releaseLanyard,
     swing,

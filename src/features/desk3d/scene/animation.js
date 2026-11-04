@@ -2,6 +2,7 @@ import * as THREE from "three";
 import gsap from "gsap";
 import { setRainLevel, sfx } from "@/shared/composables/useSfx";
 import { createToonBatch } from "../toonBatch";
+import { createShadowCache } from "../shadowCache";
 import { benchmark, lowPower, VIEW_W, VIEW_H } from "../sceneConfig";
 import { SCREEN_W, SCREEN_H } from "../desktop";
 
@@ -92,9 +93,13 @@ export function createAnimation(runtime) {
       const share = (count) => `${Math.round((count / Math.max(perfFrames, 1)) * 100)}%`;
       const reasons = [...motionFrames].sort((a, b) => b[1] - a[1]).map(([name, count]) => `${name} ${share(count)}`).join(" · ");
       const redraws = [...shadowRedraws].sort((a, b) => b[1] - a[1]).map(([name, count]) => `${name} ${(count / seconds).toFixed(0)}`).join(" · ");
-      const motion = `moving ${share(movingFrames)}${reasons ? ": " + reasons : ""}\nshadow maps/s ${redraws || "none"}`;
+      // ...of which laid from a copy of the still room, that copy drawn again, or drawn whole
+      const { copied, built, whole } = shadowCache.counts;
+      const cache = shadowCache.enabled ? ` (copied ${(copied / seconds).toFixed(0)} · rebuilt ${(built / seconds).toFixed(0)} · whole ${(whole / seconds).toFixed(0)})` : "";
+      const motion = `moving ${share(movingFrames)}${reasons ? ": " + reasons : ""}\nshadow maps/s ${redraws || "none"}${cache}`;
       motionFrames.clear();
       shadowRedraws.clear();
+      Object.assign(shadowCache.counts, { copied: 0, built: 0, whole: 0 });
       perfFrames = movingFrames = 0;
       perfWindowAt = performance.now();
       perfReadout.textContent = `${(1000 / frameMs).toFixed(0)} fps (budget ${(1000 / refreshMs).toFixed(0)}) · resolution locked\npost ${postDensity().toFixed(2)}× · AO ${runtime.core.aoPass.enabled ? "on" : "off"} · neon shadows ${neonShadows ? "on" : "off"}${lowPower ? " · low power" : ""}${probeMs === null ? "" : ` · probe ${probeMs.toFixed(1)}ms`}\n${runtime.core.drawCalls.toFixed(0)} draws · ${(runtime.core.triangles / 1000).toFixed(0)}k triangles\nCPU submit ${runtime.core.renderMs.toFixed(1)}ms · GPU ${runtime.core.gpuMs === null ? "n/a" : runtime.core.gpuMs.toFixed(1) + "ms"} · frame p95 ${p95.toFixed(1)}ms${benchmark ? " · " + benchmark : ""}\n${motion}`;
@@ -294,8 +299,17 @@ export function createAnimation(runtime) {
   const viewUp = new THREE.Vector3();
   // A still room redraws at the display's pace, or about 30 fps on phones
   const idleMs = refreshMs * (lowPower ? 1.7 : 0.7);
+  // What moves on its own while the room is still: the plant's sway (and the butterfly), the cat,
+  // the badge on its swinging strands, the robot glancing at the pointer, the mouse following it
+  // and the phone buzzing. Each shadow update draws these over a copy of the rest, kept from one
+  // update to the next (see shadowCache); the toon batch adds their own shadow batches.
+  const movingCasters = new Set([runtime.plant.plant, runtime.plant.butterfly, runtime.cat.catModel, runtime.badge.badge, ...runtime.badge.strandTubes,
+    runtime.robot.robot, runtime.mouse.mouse, runtime.chat.phoneStand]);
+  const shadowCache = runtime.core.track(createShadowCache(runtime.core.renderer, runtime.core.scene, shadowLights, movingCasters));
+  shadowCache.enabled = benchmark !== "no-shadow-cache";
   let lastTick = 0;
   let mainShadowAt = 0;
+  let mainShadowTurn = 0;
   // Any running tween on something other than the camera (a key press, a hover lift, a prop
   // put back); a delayed call's only target is its own callback
   const isViewTarget = (target) => target === runtime.camera.cam || target === runtime.camera.userView || typeof target === "function";
@@ -305,7 +319,7 @@ export function createAnimation(runtime) {
   const aoCamTurn = new THREE.Quaternion();
   let aoCamZoom = 0;
   const frameIntervals = [];
-  const updateToonBatch = benchmark === "no-batch" ? () => {} : createToonBatch(runtime.core.scene, runtime.core.renderer, runtime.core.track);
+  const updateToonBatch = benchmark === "no-batch" ? () => {} : createToonBatch(runtime.core.scene, runtime.core.renderer, runtime.core.track, movingCasters);
   [runtime.core.sun, runtime.windowLighting.windowLight, runtime.lamp.lampLight, runtime.workstation.lightbarLight].forEach((light) => {
     light.shadow.autoUpdate = false;
     light.shadow.needsUpdate = true;
@@ -467,13 +481,24 @@ export function createAnimation(runtime) {
     // Moving props need primary shadows in the same frame; a still room only has slow idle
     // motion (the lanyard's breeze, the clock's hand) to keep up with. Every shadow camera is
     // fixed in the room, so a pan, zoom or camera move alone redraws the same maps: while the
-    // view is what moves, they keep the still room's pace, unless a prop is tweening too.
+    // view is what moves, they keep the still room's pace, unless a prop is tweening too. At that
+    // pace the four take turns a quarter of a period apart, so no one frame redraws them all (a
+    // late frame catches up, by no more than a round).
     const viewOnly = viewMoved && !propsActing && !fidgeting && !propsTweening();
-    if ((moving && !viewOnly) || now >= mainShadowAt) {
-      mainShadowAt = now + 1000 / 12 - 0.5;
-      [runtime.core.sun, runtime.windowLighting.windowLight, runtime.lamp.lampLight, runtime.workstation.lightbarLight].forEach((light) => {
-        if (light.castShadow && light.intensity > 0) light.shadow.needsUpdate = true;
-      });
+    const mainShadows = [runtime.core.sun, runtime.windowLighting.windowLight, runtime.lamp.lampLight, runtime.workstation.lightbarLight];
+    const redraw = (light) => {
+      if (light.castShadow && light.intensity > 0) light.shadow.needsUpdate = true;
+    };
+    const turnMs = 1000 / 12 / mainShadows.length;
+    if (moving && !viewOnly) {
+      mainShadows.forEach(redraw);
+      mainShadowAt = now + turnMs;
+    } else {
+      if (now - mainShadowAt > 1000 / 12) mainShadowAt = now;
+      for (; now >= mainShadowAt; mainShadowAt += turnMs) {
+        redraw(mainShadows[mainShadowTurn]);
+        mainShadowTurn = (mainShadowTurn + 1) % mainShadows.length;
+      }
     }
     runtime.room.updateNeonLights(now, moving);
     runtime.windowLighting.updateShaft(now);
