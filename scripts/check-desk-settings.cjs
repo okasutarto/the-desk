@@ -4,7 +4,7 @@ const vm = require('node:vm');
 const { reactive, computed, ref } = require('vue');
 const root = `${__dirname}/../src/features/desk3d/`;
 const source = file => fs.readFileSync(root + file, 'utf8').replace(/^import .*;\n/gm, '').replace(/\bexport /g, '');
-const dependencies = vm.runInNewContext(source('woods.js') + source('daylight.js') + source('timesGateFinishes.js') + source('deviceFinishes.js') + '; ({ WOODS, WOOD_PATTERNS, PART_PATTERNS, WOOD_TARGETS, DEFAULT_WOODS, FLOOR_LAYOUTS, DEFAULT_FLOOR, FRAME_PAINTS, DEFAULT_FRAME_PAINT, BRICKS, DEFAULT_BRICK, DEFAULT_SLATS, TIME_MODES, RAIN_MODES, DEFAULT_TIME, DEFAULT_RAIN, TIMES_GATE_FINISHES, DEFAULT_TIMES_GATE_FINISH, DEVICE_FINISHES })');
+const dependencies = vm.runInNewContext(source('woods.js') + source('daylight.js') + source('timesGateFinishes.js') + source('deviceFinishes.js') + source('blindFinishes.js') + '; ({ WOODS, WOOD_PATTERNS, PART_PATTERNS, WOOD_TARGETS, DEFAULT_WOODS, FLOOR_LAYOUTS, DEFAULT_FLOOR, FRAME_PAINTS, DEFAULT_FRAME_PAINT, BRICKS, DEFAULT_BRICK, DEFAULT_SLATS, TIME_MODES, RAIN_MODES, DEFAULT_TIME, DEFAULT_RAIN, TIMES_GATE_FINISHES, DEFAULT_TIMES_GATE_FINISH, DEVICE_FINISHES, BLIND_PATTERNS, BLIND_COLOURS, DEFAULT_BLIND })');
 let stored = null;
 let blocked = false;
 const context = vm.createContext({ ...dependencies, reactive, computed, localStorage: {
@@ -28,7 +28,7 @@ ui.setWall('#ffffff'); // Safe before scene initialization, even without storage
 assert.equal(ui.wallName.value, 'White');
 assert.equal(ui.wallIsPreset.value, true);
 blocked = false;
-scene.value = Object.fromEntries(['setWallColor', 'setWallPattern', 'setWood', 'setFloor', 'setTime', 'setRain', 'setTimesGateFinish', 'setDeviceFinish'].map(name => [name, (...args) => calls.push([name, ...args])]));
+scene.value = Object.fromEntries(['setWallColor', 'setWallPattern', 'setWood', 'setFloor', 'setTime', 'setRain', 'setTimesGateFinish', 'setDeviceFinish', 'setBlind'].map(name => [name, (...args) => calls.push([name, ...args])]));
 ui.setWall('#123456');
 ui.setWallPattern('brick');
 ui.setWallBrick('charcoal');
@@ -60,7 +60,7 @@ for (const finish of ['silver', 'pink', 'white', 'bumblebee']) {
   assert.equal(readSettings().timesGateFinish, finish);
   assert.equal(calls.at(-1)[0], 'setTimesGateFinish');
   assert.equal(calls.at(-1)[1], finish);
-  assert.ok(ui.groupSummary.value.timesgate.length > 0);
+  assert.ok(ui.groupSummary.value.devices.endsWith(dependencies.TIMES_GATE_FINISHES[finish].name), 'the Times Gate is summed up with the desk devices');
 }
 ui.setTimesGateFinish('constructor');
 assert.equal(readSettings().timesGateFinish, 'bumblebee', 'invalid live finishes are ignored');
@@ -79,6 +79,33 @@ for (const [part, device] of Object.entries(dependencies.DEVICE_FINISHES)) {
   stored = JSON.stringify({ deviceFinishes: { [part]: 'toString' } });
   assert.equal(readSettings().deviceFinishes[part], device.default);
 }
+// The blind's print and colour are picked apart, saved together and handed to the scene whole
+assert.equal(JSON.stringify(readSettings().blind), JSON.stringify(dependencies.DEFAULT_BLIND));
+assert.equal(ui.groupSummary.value.blind, 'Cool grey');
+for (const pattern of Object.keys(dependencies.BLIND_PATTERNS)) {
+  ui.setBlind({ pattern });
+  assert.equal(readSettings().blind.pattern, pattern);
+  assert.equal(JSON.stringify(calls.at(-1)), JSON.stringify(['setBlind', { pattern, colour: readSettings().blind.colour }]));
+}
+for (const coat of dependencies.BLIND_COLOURS) {
+  ui.setBlind({ colour: coat.hex });
+  assert.equal(ui.blindColourName.value, coat.name);
+  assert.equal(ui.blindIsPreset.value, true);
+}
+assert.equal(readSettings().blind.pattern, 'leaves', 'a new colour keeps the print');
+assert.equal(ui.groupSummary.value.blind, 'Charcoal, leaves');
+ui.setBlind({ colour: '#123abc' });
+assert.equal(ui.blindIsPreset.value, false);
+assert.equal(ui.groupSummary.value.blind, 'Custom, leaves');
+const blindBefore = JSON.stringify(ui.settings.blind);
+const callCount = calls.length;
+ui.setBlind({ pattern: 'constructor' });
+ui.setBlind({ colour: 'red' });
+ui.setBlind({ pattern: 'stripes', colour: '#zzzzzz' });
+assert.equal(JSON.stringify(ui.settings.blind), blindBefore, 'invalid blind picks are ignored');
+assert.equal(calls.length, callCount);
+stored = JSON.stringify({ blind: { pattern: 'toString', colour: 'url(x)' } });
+assert.equal(JSON.stringify(readSettings().blind), JSON.stringify(dependencies.DEFAULT_BLIND), 'invalid saved blinds fall back to the grey');
 stored = JSON.stringify({ wallPattern: 'toString', wallBrick: 'gold', wallSlats: 'constructor' });
 assert.equal(readSettings().wallPattern, 'plain', 'unknown wall patterns fall back to plain');
 assert.equal(readSettings().wallBrick, 'red');

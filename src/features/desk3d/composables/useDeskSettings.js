@@ -1,4 +1,5 @@
 import { reactive, computed } from "vue";
+import { BLIND_PATTERNS, BLIND_COLOURS, DEFAULT_BLIND } from "../blindFinishes";
 import { DEVICE_FINISHES } from "../deviceFinishes";
 import { TIMES_GATE_FINISHES, DEFAULT_TIMES_GATE_FINISH } from "../timesGateFinishes";
 import { WOODS, WOOD_PATTERNS, PART_PATTERNS, WOOD_TARGETS, DEFAULT_WOODS, FLOOR_LAYOUTS, DEFAULT_FLOOR, FRAME_PAINTS, DEFAULT_FRAME_PAINT, BRICKS, DEFAULT_BRICK, DEFAULT_SLATS } from "../woods";
@@ -12,8 +13,8 @@ export const SETTINGS_GROUPS = [
   { key: "wall", label: "Wall", icon: "🧱", accent: "#ff90e8" },
   { key: "floor", label: "Floor", icon: "🟫", accent: "#ff7a45" },
   { key: "wood", label: "Furniture", icon: "🪵", accent: "#00e0c6" },
+  { key: "blind", label: "Blind", icon: "🪟", accent: "#9fe870" },
   { key: "devices", label: "Desk devices", icon: "⌨️", accent: "#7fb2ff" },
-  { key: "timesgate", label: "Times Gate", icon: "▦", accent: "#b7a5ff" },
 ];
 export const WALL_PAINTS = [
   { name: "White", hex: "#ffffff" },
@@ -65,6 +66,10 @@ export function readSettings() {
     deviceFinishes: Object.fromEntries(Object.entries(DEVICE_FINISHES).map(([part, device]) => [part,
       Object.hasOwn(device.finishes, saved.deviceFinishes?.[part]) ? saved.deviceFinishes[part] : device.default,
     ])),
+    blind: {
+      pattern: Object.hasOwn(BLIND_PATTERNS, saved.blind?.pattern) ? saved.blind.pattern : DEFAULT_BLIND.pattern,
+      colour: /^#[0-9a-f]{6}$/i.test(saved.blind?.colour || "") ? saved.blind.colour : DEFAULT_BLIND.colour,
+    },
     timesGateFinish: Object.hasOwn(TIMES_GATE_FINISHES, saved.timesGateFinish) ? saved.timesGateFinish : DEFAULT_TIMES_GATE_FINISH,
     wall: /^#[0-9a-f]{6}$/i.test(saved.wall || "") ? saved.wall : DEFAULT_WALL,
     wallPattern: Object.hasOwn(WALL_PATTERNS, saved.wallPattern) ? saved.wallPattern : "plain",
@@ -81,6 +86,8 @@ export function readSettings() {
 export function useDeskSettings(scene) {
   const settings = reactive(readSettings());
   const wallIsPreset = computed(() => WALL_PAINTS.some((paint) => paint.hex === settings.wall));
+  const blindIsPreset = computed(() => BLIND_COLOURS.some((coat) => coat.hex === settings.blind.colour));
+  const blindColourName = computed(() => BLIND_COLOURS.find((coat) => coat.hex === settings.blind.colour)?.name ?? "Custom");
   const wallName = computed(() => WALL_PAINTS.find((paint) => paint.hex === settings.wall)?.name ?? "Custom");
   // The wall at a glance: its brick, its slats' wood, or its paint and pattern
   const wallLabel = computed(() => {
@@ -96,8 +103,9 @@ export function useDeskSettings(scene) {
       wall: wallLabel.value,
       floor: `${WOODS[settings.floor.wood].name}, ${FLOOR_LAYOUTS[settings.floor.layout].toLowerCase()}`,
       wood: woods.size === 1 ? WOODS[[...woods][0]].name : "Mixed",
-      devices: Object.entries(DEVICE_FINISHES).map(([part, device]) => device.finishes[settings.deviceFinishes[part]].name).join(" · "),
-      timesgate: TIMES_GATE_FINISHES[settings.timesGateFinish].name,
+      blind: settings.blind.pattern === "plain" ? blindColourName.value : `${blindColourName.value}, ${BLIND_PATTERNS[settings.blind.pattern].toLowerCase()}`,
+      // the Times Gate (shown as Smart Pixel Art) sits with the desk devices
+      devices: [...Object.entries(DEVICE_FINISHES).map(([part, device]) => device.finishes[settings.deviceFinishes[part]].name), TIMES_GATE_FINISHES[settings.timesGateFinish].name].join(" · "),
     };
   });
   // A part's wood and cut at a glance (a painted one by its paint)
@@ -161,6 +169,16 @@ export function useDeskSettings(scene) {
     saveSettings();
   }
 
+  // The print and the colour are picked apart; either may be left out
+  function setBlind({ pattern, colour } = {}) {
+    if (pattern !== undefined && !Object.hasOwn(BLIND_PATTERNS, pattern)) return;
+    if (colour !== undefined && !/^#[0-9a-f]{6}$/i.test(colour)) return;
+    if (pattern !== undefined) settings.blind.pattern = pattern;
+    if (colour !== undefined) settings.blind.colour = colour;
+    scene.value?.setBlind({ ...settings.blind });
+    saveSettings();
+  }
+
   function setDeviceFinish(part, finish) {
     if (!Object.hasOwn(DEVICE_FINISHES, part) || !Object.hasOwn(DEVICE_FINISHES[part].finishes, finish)) return;
     settings.deviceFinishes[part] = finish;
@@ -175,5 +193,5 @@ export function useDeskSettings(scene) {
     saveSettings();
   }
 
-  return { settings, wallIsPreset, wallName, groupSummary, woodLabel, isDarkColour, setWall, setWallPattern, setWallBrick, setWallSlats, setWood, setFloor, setTime, setRain, setTimesGateFinish, setDeviceFinish };
+  return { settings, wallIsPreset, wallName, blindIsPreset, blindColourName, setBlind, groupSummary, woodLabel, isDarkColour, setWall, setWallPattern, setWallBrick, setWallSlats, setWood, setFloor, setTime, setRain, setTimesGateFinish, setDeviceFinish };
 }

@@ -185,6 +185,49 @@
                       </button>
                     </div>
                   </div>
+                  <template v-else-if="group.key === 'blind'">
+                    <div class="settings-sub">
+                      <h3 class="settings-sublabel">
+                        Print
+                        <span class="settings-value">· {{ BLIND_PATTERNS[settings.blind.pattern] }}</span>
+                      </h3>
+                      <div class="flex flex-wrap gap-1.5">
+                        <button
+                          v-for="(name, key) in BLIND_PATTERNS"
+                          :key="key"
+                          class="pattern-chip"
+                          :class="{ 'pattern-chip--on': settings.blind.pattern === key }"
+                          :aria-label="`Blind print: ${name}`"
+                          :aria-pressed="settings.blind.pattern === key"
+                          @click="setBlind({ pattern: key })">
+                          {{ name }}
+                        </button>
+                      </div>
+                    </div>
+                    <div class="settings-sub">
+                      <h3 class="settings-sublabel">
+                        Colour
+                        <span class="settings-value">· {{ blindColourName }}</span>
+                      </h3>
+                      <div class="flex flex-wrap items-center gap-1.5">
+                        <button
+                          v-for="coat in BLIND_COLOURS"
+                          :key="coat.hex"
+                          class="swatch"
+                          :class="{ 'swatch--on': settings.blind.colour === coat.hex }"
+                          :style="{ background: coat.hex }"
+                          :title="coat.name"
+                          :aria-label="`${coat.name} blind`"
+                          :aria-pressed="settings.blind.colour === coat.hex"
+                          @click="setBlind({ colour: coat.hex })">
+                          <span v-if="settings.blind.colour === coat.hex" class="swatch-tick" :class="{ 'swatch-tick--light': isDarkColour(coat.hex) }" aria-hidden="true">✓</span>
+                        </button>
+                        <label class="swatch swatch--custom" :class="{ 'swatch--on': !blindIsPreset }" title="Any colour" aria-label="Pick any blind colour">
+                          <input :value="settings.blind.colour" type="color" class="absolute inset-0 opacity-0 cursor-pointer" @input="setBlind({ colour: $event.target.value })" />
+                        </label>
+                      </div>
+                    </div>
+                  </template>
                   <template v-else-if="group.key === 'devices'">
                     <div v-for="(device, part) in DEVICE_FINISHES" :key="part" class="settings-sub">
                       <h3 class="settings-sublabel">{{ device.label }}</h3>
@@ -202,20 +245,21 @@
                         </button>
                       </div>
                     </div>
-                  </template>
-                  <template v-else-if="group.key === 'timesgate'">
-                    <h3 class="settings-sublabel">Body colour</h3>
-                    <div class="flex flex-wrap gap-1.5">
-                      <button
-                        v-for="(finish, key) in TIMES_GATE_FINISHES"
-                        :key="key"
-                        class="pattern-chip flex items-center gap-1.5"
-                        :class="{ 'pattern-chip--on': settings.timesGateFinish === key }"
-                        :aria-pressed="settings.timesGateFinish === key"
-                        @click="setTimesGateFinish(key)">
-                        <span class="inline-block w-3 h-3 rounded-full border border-black/30" :style="{ background: finish.shell }" aria-hidden="true"></span>
-                        {{ finish.name }}
-                      </button>
+                    <div class="settings-sub">
+                      <h3 class="settings-sublabel">Smart Pixel Art</h3>
+                      <div class="flex flex-wrap gap-1.5">
+                        <button
+                          v-for="(finish, key) in TIMES_GATE_FINISHES"
+                          :key="key"
+                          class="pattern-chip flex items-center gap-1.5"
+                          :class="{ 'pattern-chip--on': settings.timesGateFinish === key }"
+                          :aria-label="`Smart Pixel Art: ${finish.name}`"
+                          :aria-pressed="settings.timesGateFinish === key"
+                          @click="setTimesGateFinish(key)">
+                          <span class="inline-block w-3 h-3 rounded-full border border-black/30" :style="{ background: finish.shell }" aria-hidden="true"></span>
+                          {{ finish.name }}
+                        </button>
+                      </div>
                     </div>
                   </template>
                   <template v-else>
@@ -356,6 +400,7 @@ import { WOODS, WOOD_PATTERNS, PART_PATTERNS, WOOD_TARGETS, FLOOR_LAYOUTS, FRAME
 import { DAY_PARTS, TIME_MODES, RAIN_MODES, partOfDay, partFor } from "@/features/desk3d/daylight";
 
 import { useDeskSettings, SETTINGS_GROUPS, WALL_PAINTS, WALL_PATTERNS } from "./composables/useDeskSettings";
+import { BLIND_PATTERNS, BLIND_COLOURS } from "./blindFinishes";
 import { DEVICE_FINISHES } from "./deviceFinishes";
 import { TIMES_GATE_FINISHES } from "./timesGateFinishes";
 
@@ -393,7 +438,7 @@ const consoleOn = ref(false);
 const secretToast = ref(null);
 const settingsOpen = ref(false);
 const openGroup = ref("sky");
-const { settings, wallIsPreset, groupSummary, woodLabel, isDarkColour, setWall, setWallPattern, setWallBrick, setWallSlats, setWood, setFloor, setTime, setRain, setTimesGateFinish, setDeviceFinish } = useDeskSettings(scene);
+const { settings, wallIsPreset, groupSummary, woodLabel, isDarkColour, setWall, setWallPattern, setWallBrick, setWallSlats, setWood, setFloor, setTime, setRain, setTimesGateFinish, setDeviceFinish, setBlind, blindIsPreset, blindColourName } = useDeskSettings(scene);
 let secretTimer = null;
 const zoomed = computed(() => focus.value !== "overview");
 const isDesktop = useMediaQuery("(min-width: 768px)");
@@ -513,6 +558,7 @@ onMounted(async () => {
       floor: { ...settings.floor },
       timesGateFinish: settings.timesGateFinish,
       deviceFinishes: { ...settings.deviceFinishes },
+      blind: { ...settings.blind },
       time: settings.time,
       rain: settings.rain,
       onEvent,
