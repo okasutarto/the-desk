@@ -189,16 +189,19 @@ export function createAnimation(runtime) {
     if (runtime.core.aoPass.enabled) runtime.core.aoPass.enabled = false;
     else decorShed = true;
   }
-  function judgeQuality(now, interval, moving) {
+  function judgeQuality(now, interval, moving, paceMs = 0) {
     if (benchmark || probe || !interval || now < judgeAfter) {
       recoveryMs = recoveryFrames = fastMs = 0;
       return;
     }
     // Low-power mode intentionally omits these effects, even on a fast device.
     if (!lowPower && (decorShed || !runtime.core.aoPass.enabled)) {
-      recoveryMs += interval;
+      // A still room's frames wait for the idle pace on purpose, so each is judged against the
+      // pace it aimed for, as if it had aimed for every frame (the window then runs longer)
+      const kept = interval * refreshMs / Math.max(paceMs, refreshMs);
+      recoveryMs += kept;
       recoveryFrames++;
-      if (interval <= 25) fastMs += interval;
+      if (kept <= 25) fastMs += kept;
       if (recoveryMs >= 5000) {
         // 85% of the time in frames that kept up: a 58 fps room drops the odd frame to 33ms
         const recovered = recoveryFrames * 1000 / recoveryMs >= 40 && fastMs >= recoveryMs * 0.85 && (decorShed || aoFits());
@@ -484,7 +487,7 @@ export function createAnimation(runtime) {
     runtime.core.updatePaperFlex();
     runtime.strawHat.constrainHat();
     updateToonBatch();
-    judgeQuality(now, interval, moving);
+    judgeQuality(now, interval, moving, paceMs);
     // the first frame casts the night's shadows too, so their own depth passes are built
     // before anyone switches the lamp on (see warmShaders)
     updateShadowBudget(firstFrame ? !decorShed : decorWanted());

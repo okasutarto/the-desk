@@ -44,17 +44,18 @@ assert.equal(disposed, 2, 'targets are rebuilt only when their sample count chan
 // Run the actual quality controller: recovery works while idle as well as moving.
 const qualitySource = source.slice(source.indexOf('  let judgeAfter ='), source.indexOf('  // The same judgement'));
 function qualityController({ lowPower = false, benchmark = null, decorShed = false, gpuMs = null } = {}) {
-  const context = vm.createContext({ lowPower, benchmark, decorShed, probe: null, gpuMs, renderMs: 0,
+  const context = vm.createContext({ lowPower, benchmark, decorShed, probe: null, gpuMs, renderMs: 0, refreshMs: 1000 / 60,
     aoPass: { enabled: false }, resets: 0, refreshAO(restart) { assert.equal(restart, true); context.resets++; } });
   vm.runInContext(qualitySource + '\njudgeAfter = 0;', context);
   let now = 0;
-  return { context, run(fps, seconds, moving = false) {
+  return { context, run(fps, seconds, moving = false, paceMs = 0) {
     for (let i = 0; i < fps * seconds; i++) {
       now += 1000 / fps;
       context.now = now;
       context.interval = 1000 / fps;
       context.moving = moving;
-      vm.runInContext('judgeQuality(now, interval, moving)', context);
+      context.paceMs = paceMs;
+      vm.runInContext('judgeQuality(now, interval, moving, paceMs)', context);
     }
   } };
 }
@@ -68,6 +69,14 @@ recovery.run(20, 8, true);
 assert.equal(recovery.context.aoPass.enabled, false, 'sustained slow motion can shed restored AO');
 recovery.run(60, 16);
 assert.equal(recovery.context.aoPass.enabled, true, 'quality can recover again after shedding');
+// A still room is held at about 30 fps on purpose: frames that keep that pace restore AO, while
+// a device too slow for even the idle pace (20 fps) doesn't get it back
+const idleRecovery = qualityController();
+const idlePaceMs = 1000 / 60 * 1.7;
+idleRecovery.run(20, 20, false, idlePaceMs);
+assert.equal(idleRecovery.context.aoPass.enabled, false, 'a room that misses even the idle pace keeps AO off');
+idleRecovery.run(30, 20, false, idlePaceMs);
+assert.equal(idleRecovery.context.aoPass.enabled, true, 'a still room keeping its 30 fps pace restores AO');
 const reverse = qualityController({ decorShed: true });
 reverse.run(60, 5.1);
 assert.equal(reverse.context.decorShed, false, 'decorative shadows return first');
