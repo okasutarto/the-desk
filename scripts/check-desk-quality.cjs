@@ -44,17 +44,18 @@ assert.equal(disposed, 2, 'targets are rebuilt only when their sample count chan
 // Run the actual quality controller: recovery works while idle as well as moving.
 const qualitySource = source.slice(source.indexOf('  let judgeAfter ='), source.indexOf('  // The same judgement'));
 function qualityController({ lowPower = false, benchmark = null, decorShed = false, gpuMs = null } = {}) {
-  const context = vm.createContext({ lowPower, benchmark, decorShed, probe: null, gpuMs, renderMs: 0,
+  const context = vm.createContext({ lowPower, benchmark, decorShed, probe: null, gpuMs, renderMs: 0, refreshMs: 1000 / 60,
     aoPass: { enabled: false }, resets: 0, refreshAO(restart) { assert.equal(restart, true); context.resets++; } });
   vm.runInContext(qualitySource + '\njudgeAfter = 0;', context);
   let now = 0;
-  return { context, run(fps, seconds, moving = false) {
+  return { context, run(fps, seconds, moving = false, paceMs = 0) {
     for (let i = 0; i < fps * seconds; i++) {
       now += 1000 / fps;
       context.now = now;
       context.interval = 1000 / fps;
       context.moving = moving;
-      vm.runInContext('judgeQuality(now, interval, moving)', context);
+      context.paceMs = paceMs;
+      vm.runInContext('judgeQuality(now, interval, moving, paceMs)', context);
     }
   } };
 }
@@ -68,6 +69,14 @@ recovery.run(20, 8, true);
 assert.equal(recovery.context.aoPass.enabled, false, 'sustained slow motion can shed restored AO');
 recovery.run(60, 16);
 assert.equal(recovery.context.aoPass.enabled, true, 'quality can recover again after shedding');
+// A still room is held at about 30 fps on purpose: frames that keep that pace restore AO, while
+// a device too slow for even the idle pace (20 fps) doesn't get it back
+const idleRecovery = qualityController();
+const idlePaceMs = 1000 / 60 * 1.7;
+idleRecovery.run(20, 20, false, idlePaceMs);
+assert.equal(idleRecovery.context.aoPass.enabled, false, 'a room that misses even the idle pace keeps AO off');
+idleRecovery.run(30, 20, false, idlePaceMs);
+assert.equal(idleRecovery.context.aoPass.enabled, true, 'a still room keeping its 30 fps pace restores AO');
 const reverse = qualityController({ decorShed: true });
 reverse.run(60, 5.1);
 assert.equal(reverse.context.decorShed, false, 'decorative shadows return first');
@@ -184,28 +193,30 @@ assert.deepEqual([allHeavy.ao, allHeavy.decorShed], [false, true], 'decorative s
 }
 
 // Execute the real scheduler, stopping immediately before scene updates.
+const idlePace = source.match(/const idleMs = (.+);/)[1];
 const start = source.indexOf('  let lastTick = 0;');
 const end = source.indexOf('    // Step size for the springs', start);
 for (const hz of [60, 90, 120, 144, 165]) {
-  for (const active of [false, "interaction", "lighting"]) {
+  for (const active of [false, "interaction", "lighting", "music"]) {
     const light = () => ({ shadow: {} });
     const scheduler = vm.createContext({ document: { hidden: false },
       sun: light(), windowLight: light(), lampLight: light(), lightbarLight: light(), refreshMs: 1000 / 60,
-      lightingBlending: active === "lighting", responsiveUntil: active === "interaction" ? Infinity : 0, gsap: { isTweening: () => false }, cam: {}, blind: {}, screenPower: {}, catIdleTl: null, catBusy: false, THREE: require('three'), updateShaft() {},
+      lightingBlending: active === "lighting", responsiveUntil: active === "interaction" ? Infinity : 0, gsap: { isTweening: () => false }, cam: {}, blind: {}, screenPower: {}, lofi: { playing: active === "music" }, catIdleTl: null, catBusy: false, THREE: require('three'), updateShaft() {},
       benchmark: null, createToonBatch: () => () => {}, scene: {}, renderer: {}, track: (x) => x,
       mouseRunning: false, lampHopping: false, trophyCelebrating: false, lanyardDrag: null, hatDrag: null, noteDrag: null, shelfDrag: null, stickyDrag: null, chairDrag: null,
-      perfReadout: null, requestAnimationFrame() {}, frame: null, accepted: [], idleMs: 1000 / 60 * 0.7, lowPower: false, probe: null });
+      perfReadout: null, requestAnimationFrame() {}, frame: null, accepted: [], lowPower: false, probe: null });
+    scheduler.idleMs = vm.runInContext(idlePace, scheduler);
     vm.runInContext(source.slice(start, end) + 'accepted.push(now); lastTick = now; }', scheduler);
     const tick = vm.runInContext('tick', scheduler);
     for (let i = 0; i < hz * 10; i++) tick(1 + i * 1000 / hz + Math.sin(i * 1.7) * 1.5);
     const frames = scheduler.accepted;
     const gaps = frames.slice(1).map((now, i) => now - frames[i]);
     if (active) {
-      assert.equal(frames.length, hz * 10, 'interaction must not skip browser frames, including under jitter');
+      assert.equal(frames.length, hz * 10, `${active} must not skip browser frames, including under jitter`);
       assert.ok(Math.max(...gaps) <= 1000 / hz + 3.01, 'interaction must not introduce long/short frame pairs');
     } else {
-      assert.ok(frames.length >= 480 && frames.length <= 730, 'idle retains a bounded render budget');
-      if (hz === 60 || hz === 120) assert.ok(Math.max(...gaps) < 20, 'idle pacing stays even on 60/120Hz displays');
+      assert.ok(frames.length >= 270 && frames.length <= 360, 'a still room redraws at about 30 fps on any display');
+      if (hz === 60 || hz === 120) assert.ok(Math.max(...gaps) - Math.min(...gaps) < 7, 'idle pacing stays even on 60/120Hz displays');
     }
     scheduler.document.hidden = true;
     const before = frames.length;

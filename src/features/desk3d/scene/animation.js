@@ -189,16 +189,19 @@ export function createAnimation(runtime) {
     if (runtime.core.aoPass.enabled) runtime.core.aoPass.enabled = false;
     else decorShed = true;
   }
-  function judgeQuality(now, interval, moving) {
+  function judgeQuality(now, interval, moving, paceMs = 0) {
     if (benchmark || probe || !interval || now < judgeAfter) {
       recoveryMs = recoveryFrames = fastMs = 0;
       return;
     }
     // Low-power mode intentionally omits these effects, even on a fast device.
     if (!lowPower && (decorShed || !runtime.core.aoPass.enabled)) {
-      recoveryMs += interval;
+      // A still room's frames wait for the idle pace on purpose, so each is judged against the
+      // pace it aimed for, as if it had aimed for every frame (the window then runs longer)
+      const kept = interval * refreshMs / Math.max(paceMs, refreshMs);
+      recoveryMs += kept;
       recoveryFrames++;
-      if (interval <= 25) fastMs += interval;
+      if (kept <= 25) fastMs += kept;
       if (recoveryMs >= 5000) {
         // 85% of the time in frames that kept up: a 58 fps room drops the odd frame to 33ms
         const recovered = recoveryFrames * 1000 / recoveryMs >= 40 && fastMs >= recoveryMs * 0.85 && (decorShed || aoFits());
@@ -292,8 +295,9 @@ export function createAnimation(runtime) {
   const target = new THREE.Vector3();
   const viewRight = new THREE.Vector3();
   const viewUp = new THREE.Vector3();
-  // A still room redraws at the display's pace, or about 30 fps on phones
-  const idleMs = refreshMs * (lowPower ? 1.7 : 0.7);
+  // A still room redraws at about 30 fps: its idle motion (steam, rain, the plant's sway, the
+  // lanyard's breeze) reads the same at half the display's pace, for half the frames
+  const idleMs = refreshMs * 1.7;
   let lastTick = 0;
   let mainShadowAt = 0;
   // Any running tween on something other than the camera (a key press, a hover lift, a prop
@@ -326,7 +330,10 @@ export function createAnimation(runtime) {
     // Do not skip presentation frames during interaction. Idle uses a tolerant interval rather
     // than an accumulated deadline, which otherwise creates short/long frame pairs under jitter.
     // Phones stop at about 60 fps on 120 Hz screens, and the cat's idle fidgets go at the idle pace.
-    const paceMs = probe ? 0 : lowPower ? (acting ? refreshMs * 0.7 : idleMs) : moving ? 0 : idleMs;
+    // Music keeps the frames up too, for the speakers' kicks and the robot's dance, but only the
+    // pace: on the beat nothing moves far enough to redraw the occlusion or the shadows each frame.
+    const dancing = runtime.workstation.lofi.playing;
+    const paceMs = probe ? 0 : lowPower ? (acting ? refreshMs * 0.7 : idleMs) : moving || dancing ? 0 : idleMs;
     if (lastTick && now - lastTick < paceMs) return;
     if (lastTick && perfReadout) {
       frameIntervals.push(now - lastTick);
@@ -405,7 +412,7 @@ export function createAnimation(runtime) {
     runtime.badge.updateLanyard(dt);
     runtime.shelf.updateShelfLeds(now);
     runtime.keyboard.updateRgb(now);
-    runtime.timesGate.updateTimesGate(now);
+    runtime.timesGate.updateTimesGate(now, paceMs >= idleMs);
     runtime.cat.updateCatWatch(now);
     runtime.cat.updateCatLife(now);
     runtime.cat.updateCatNeck();
@@ -480,7 +487,7 @@ export function createAnimation(runtime) {
     runtime.core.updatePaperFlex();
     runtime.strawHat.constrainHat();
     updateToonBatch();
-    judgeQuality(now, interval, moving);
+    judgeQuality(now, interval, moving, paceMs);
     // the first frame casts the night's shadows too, so their own depth passes are built
     // before anyone switches the lamp on (see warmShaders)
     updateShadowBudget(firstFrame ? !decorShed : decorWanted());

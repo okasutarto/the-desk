@@ -716,8 +716,9 @@ export function createTimesGate(runtime) {
   }
   addScreen(2, (c, t) => drawGateVisitors(c, { ...visitors, t }), 70);
   loadVisitors();
-  // 4. The room's own frame rate, measured over each half second, with its recent history
-  const perf = { fps: 60, ms: 16.7, history: [], frames: 0, since: 0 };
+  // 4. The room's own frame rate, measured over each half second, with its recent history; a
+  // half second drawn wholly at the still room's pace counts as idle
+  const perf = { fps: 60, ms: 16.7, idle: false, history: [], frames: 0, busy: false, since: 0 };
   addScreen(3, (c) => drawGatePerformance(c, { ...perf, gpu: runtime.core.gpuMs }), 500);
   // 5. Byte, a pocket monster of the desk's own: it wanders its patch of grass, sleeps when the
   // room's lights go down, and crackles happily (hearts up) when the gate is clicked in its
@@ -780,15 +781,18 @@ export function createTimesGate(runtime) {
       color.needsUpdate = true;
     });
   }
-  function updateTimesGate(now) {
+  function updateTimesGate(now, still = false) {
     if (!perf.since) perf.since = now;
     perf.frames++;
+    if (!still) perf.busy = true;
     if (now - perf.since >= 500) {
       perf.fps = perf.frames * 1000 / (now - perf.since);
       perf.ms = 1000 / perf.fps;
-      perf.history.push(perf.fps);
+      perf.idle = !perf.busy;
+      perf.history.push({ fps: perf.fps, idle: perf.idle });
       if (perf.history.length > 58) perf.history.shift();
       perf.frames = 0;
+      perf.busy = false;
       perf.since = now;
     }
     if (visitors.count !== null && visitors.shown !== visitors.count) {
