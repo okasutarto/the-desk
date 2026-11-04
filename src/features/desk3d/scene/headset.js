@@ -168,9 +168,11 @@ export function createHeadset(runtime) {
     // The supplied side view shows a black V-shaped fork feeding long white
     // slider sleeves on either side of the cup, with a short exposed cable loop.
     for (const x of [-0.445, 0.445]) {
-      tube(cup, "metal-slider-rail", [[Math.sign(x) * 0.065, 0.74, 0.13], [x * 0.60, 0.40, 0.13], [x, 0.20, 0.13]], 0.014, black);
-      part(cup, "swivel-holder", new THREE.CylinderGeometry(0.037, 0.037, 0.49, 20), white, x, -0.045, 0.13);
-      const pivot = part(cup, "swivel-pivot", new THREE.CylinderGeometry(0.045, 0.045, 0.018, 24), white, x * 0.96, -0.04, 0.165);
+      // Keep the entire fork outside the shell and faceplate, including the
+      // curved span between the headband and the white slider sleeves.
+      tube(cup, "metal-slider-rail", [[Math.sign(x) * 0.065, 0.74, 0.205], [x * 0.60, 0.40, 0.205], [x, 0.20, 0.205]], 0.014, black);
+      part(cup, "swivel-holder", new THREE.CylinderGeometry(0.037, 0.037, 0.49, 20), white, x, -0.045, 0.205);
+      const pivot = part(cup, "swivel-pivot", new THREE.CylinderGeometry(0.045, 0.045, 0.018, 24), white, x * 0.96, -0.04, 0.245);
       pivot.rotation.x = Math.PI / 2;
     }
     tube(cup, "earcup-link-cable", [[0.02, 0.75, 0.07], [0.19, 0.69, 0.18], [0.25, 0.59, 0.18], [0.12, 0.57, 0.13]], 0.018, black);
@@ -199,17 +201,18 @@ export function createHeadset(runtime) {
   part(left, "usb-c-tongue", rbox(0.065, 0.009, 0.012, 0.003), steel, 0.06, -0.585, 0.015).rotation.x = Math.PI / 2;
   const ledMat = toon("#4b5750"); // Stored on its hook: powered off, no invented RGB.
   part(left, "status-led", new THREE.SphereGeometry(0.012, 8, 6), ledMat, -0.04, -0.57, 0.015);
-  const micDirection = new THREE.Vector3(0.78, -0.62, 0).normalize();
-  const micBase = part(left, "mic-socket", new THREE.CylinderGeometry(0.044, 0.047, 0.19, 24), white, 0.32, -0.35, 0.12);
+  const micDirection = new THREE.Vector3(-0.78, -0.62, 0).normalize();
+  const micBase = part(left, "mic-socket", new THREE.CylinderGeometry(0.044, 0.047, 0.19, 24), white, -0.32, -0.35, 0.12);
   micBase.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), micDirection);
-  const relief = part(left, "mic-strain-relief", new THREE.CylinderGeometry(0.032, 0.04, 0.065, 20), white, 0.40, -0.41, 0.12);
+  const relief = part(left, "mic-strain-relief", new THREE.CylinderGeometry(0.032, 0.04, 0.065, 20), white, -0.40, -0.41, 0.12);
   relief.quaternion.copy(micBase.quaternion);
-  // Start at the white plug, then curve forward and inward to mouth position.
-  const micStart = new THREE.Vector3(0.425, -0.43, 0.12);
+  // The wearer's mouth is towards -Z; keep the plug, boom and capsule on
+  // that same side instead of sending the microphone behind the earcup.
+  const micStart = new THREE.Vector3(-0.425, -0.43, 0.12);
   left.updateMatrix();
   micStart.applyMatrix4(left.matrix);
-  tube(headset, "detachable-boom-mic", [[micStart.x, micStart.y, micStart.z], [-0.69, -0.89, 0.65], [-0.48, -0.90, 0.96], [-0.21, -0.84, 1.12], [-0.06, -0.77, 1.14]], 0.024, black);
-  const foam = part(headset, "mic-foam-windscreen", new THREE.SphereGeometry(1, 24, 16), fabric, 0.015, -0.74, 1.14, 0.005);
+  tube(headset, "detachable-boom-mic", [[micStart.x, micStart.y, micStart.z], [-0.69, -0.89, -0.65], [-0.48, -0.90, -0.96], [-0.21, -0.84, -1.12], [-0.06, -0.77, -1.14]], 0.024, black);
+  const foam = part(headset, "mic-foam-windscreen", new THREE.SphereGeometry(1, 24, 16), fabric, 0.015, -0.74, -1.14, 0.005);
   foam.scale.set(0.16, 0.105, 0.105);
   foam.rotation.z = 0.45;
   return { assembly, headset };
