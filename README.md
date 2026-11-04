@@ -70,6 +70,7 @@ Prefer a classic page? The same content lives at [`/2d`](https://okasp.dev/2d).
 | ⚔️ **Sword rack** | Inspect three swords, draw one and strike, with technique cards, manga effects and falling sakura. Its close-up has an independent spotlight. |
 | 🏋️ **Dumbbells & calendar** | Count reps (ten is a PR) and stamp today on the gym streak. |
 | 🧤 **Infinity Gauntlet** | Please don't. |
+| 🎧 **Wireless headset** | A white Razer BlackShark V3 Pro hangs from a padded black hook under the front desk edge near the right corner, with oval fabric-lined cushions, stitched headband edges, black fork rails in long white sleeves, knurled white dials and a foam-tipped boom mic. |
 | 🎮 **Game shelf & console** | Explore the collection and power the console: the monitor becomes a TV running **Straw Hat Strike**. Drag vertically to browse the shelf. |
 | 🤖 **Robot** | A small animated companion on the shelf. |
 | 🐈 **Oyen** | A ginger kitten who naps on the rug by day and by the desk lamp at night. Between naps she walks, jumps, swishes her tail and reacts to activity around the room. |
