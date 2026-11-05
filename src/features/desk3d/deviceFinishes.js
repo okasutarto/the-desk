@@ -29,4 +29,24 @@ export const DEVICE_FINISHES = {
       red: { name: "Red", shell: "#e23c42" },
     },
   },
+  // The chair's leatherette: `grain` paints the pebbled tile into the colour (dark leather), or
+  // leaves it to bump the shading only, so a light leather stays clean rather than speckled.
+  chair: {
+    label: "Chair", default: "black",
+    finishes: {
+      black: { name: "Black", shell: "#35312e", grain: true, bump: 2.2 },
+      white: { name: "White", shell: "#e9e9e5", grain: false, bump: 1.2 },
+    },
+  },
+  // Shell for the white mouldings, seam for stitching and knurls, cap for the dial ends, ink for
+  // the unlit earcup emblem and glow for the emblem and status LED once music plays.
+  headset: {
+    label: "Headset", default: "white",
+    finishes: {
+      white: { name: "White", shell: "#e9e9e5", seam: "#c4c7c7", cap: "#f0f0ec", ink: "#a7acb0", glow: "#5cf07a" },
+      black: { name: "Black", shell: "#26282c", seam: "#3d4045", cap: "#55585d", ink: "#3fbf58", glow: "#5cf07a" },
+      pink: { name: "Pink", shell: "#f3c6d5", seam: "#d9a0b5", cap: "#f8dbe5", ink: "#fbf3f6", glow: "#ff7fb8" },
+      mint: { name: "Mint", shell: "#bfe2cf", seam: "#93c6ab", cap: "#daf0e4", ink: "#f3faf6", glow: "#6dffc4" },
+    },
+  },
 };

@@ -13,6 +13,8 @@ export function createLifecycle(runtime) {
       phone: runtime.chat.setPhoneFinish,
       keyboard: runtime.keyboard.setKeyboardFinish,
       mouse: runtime.mouse.setMouseFinish,
+      headset: runtime.headset.setHeadsetFinish,
+      chair: runtime.chair.setChairFinish,
     })[part]?.(finish),
     setTimesGateFinish: runtime.timesGate.setTimesGateFinish,
     setTime: runtime.theme.setTime,
@@ -70,6 +72,7 @@ export function createLifecycle(runtime) {
       runtime.textInput.typer.remove();
       runtime.swordEffects.impactFlash.remove();
       runtime.core.renderer.domElement.removeEventListener("wheel", runtime.chat.onWheel);
+      runtime.core.renderer.domElement.removeEventListener("wheel", runtime.headset.onWheel, { passive: false });
       runtime.core.renderer.domElement.removeEventListener("wheel", runtime.projectFiles.onWheel);
       runtime.core.renderer.domElement.removeEventListener("wheel", runtime.touch.onPinchWheel, { capture: true });
       ["pointerdown", runtime.touch.onTouchDown, "pointermove", runtime.touch.onTouchMove, "pointerup", runtime.touch.onTouchUp, "pointercancel", runtime.touch.onTouchUp].forEach((v, i, a) => {

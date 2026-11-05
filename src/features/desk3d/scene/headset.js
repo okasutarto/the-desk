@@ -1,6 +1,8 @@
 import * as THREE from "three";
 import { mergeVertices } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { canvasTexture } from "../textures";
+import { DEVICE_FINISHES } from "../deviceFinishes";
+import { hoverSound, sfx } from "@/shared/composables/useSfx";
 
 export function createHeadset(runtime) {
   // BlackShark V3 Pro White. World units, 1 = 10 cm. Outer dimensions are a
@@ -40,6 +42,20 @@ export function createHeadset(runtime) {
   }
   const knobFinish = toon("#f0f0ec");
   knobFinish.map = knobTexture.texture;
+
+  // The earcup emblem: an original tri-talon mark, three hooked blades swirling round a hexagon
+  // with a slit eye. Painted in greys on clear canvas, so the material's
+  // colour inks it and the same canvas lights it as the emissive map.
+  const emblem = canvasTexture(512, 512);
+  track(emblem.texture);
+  paintEmblem(emblem.ctx);
+  const emblemMat = toon("#a7acb0");
+  emblemMat.map = emblem.texture;
+  emblemMat.emissiveMap = emblem.texture;
+  emblemMat.emissive.set("#000000");
+  emblemMat.alphaTest = 0.5;
+  emblemMat.polygonOffset = true;
+  emblemMat.polygonOffsetFactor = -2;
 
   function part(parent, name, geometry, material, x = 0, y = 0, z = 0, outline = 0) {
     const object = mesh(geometry, material, { outline });
@@ -119,12 +135,17 @@ export function createHeadset(runtime) {
     const screw = part(assembly, "hook-screw", new THREE.CylinderGeometry(0.04, 0.04, 0.02, 12), steel, -0.36, -0.435, z);
     part(screw, "screw-slot", new THREE.BoxGeometry(0.055, 0.004, 0.009), black, 0, -0.012);
   }
+  // The headset swings from where its crown rests on the saddle pad.
+  const swing = new THREE.Group();
+  swing.name = "headset-swing";
+  swing.position.set(0.43, -0.595, 0);
+  assembly.add(swing);
   const headset = new THREE.Group();
-  headset.name = "blackshark-v3-pro-white";
-  headset.position.set(0.43, -1.455, 0);
+  headset.name = "wireless-headset";
+  headset.position.set(0, -0.86, 0);
   // Keep the headband across the front edge; only the bracket turns outward.
   headset.rotation.y = Math.PI / 2 - 0.28;
-  assembly.add(headset);
+  swing.add(headset);
   part(headset, "headband-leatherette", band(0.81, 1.03, 0.095, 0.32), white, 0, 0, 0, 0.008);
   part(headset, "headband-inner-padding", band(0.715, 0.935, 0.075, 0.285), fabric);
   // Piping and individual wrap stitches along both edges of the leather band.
@@ -147,6 +168,7 @@ export function createHeadset(runtime) {
     }
   }
   const cups = [];
+  const dials = [];
   for (const side of [-1, 1]) {
     part(headset, "adjuster-housing", rbox(0.14, 0.24, 0.35, 0.035), white, side * 0.72, 0.45);
     const cup = new THREE.Group();
@@ -189,7 +211,11 @@ export function createHeadset(runtime) {
       const ridge = part(dial, "dial-knurl", new THREE.BoxGeometry(0.004, 0.085, 0.004), seam, Math.cos(a) * 0.101, 0, Math.sin(a) * 0.101);
       ridge.rotation.y = -a;
     }
-    part(cup, "dial-brushed-cap", new THREE.CircleGeometry(0.092, 48), knobFinish, 0, -0.375, 0.292);
+    const cap = part(cup, "dial-brushed-cap", new THREE.CircleGeometry(0.092, 48), knobFinish, 0, -0.375, 0.292);
+    dials.push({ dial, cap });
+    // Emblem on the flat faceplate, above the dial (faceplate front at z 0.1835).
+    const mark = part(cup, "tri-talon-emblem", new THREE.PlaneGeometry(0.4, 0.4), emblemMat, 0, 0.06, 0.1855);
+    mark.castShadow = false;
     const power = part(cup, side < 0 ? "power-button" : "anc-button", rbox(0.065, 0.10, 0.035, 0.012), rubber, -0.26, -0.465, 0.015);
     const mute = part(cup, side < 0 ? "mute-button" : "smartswitch-button", rbox(0.06, 0.09, 0.035, 0.012), rubber, -0.15, -0.53, 0.015);
     for (const button of [power, mute]) {
@@ -199,7 +225,8 @@ export function createHeadset(runtime) {
   const left = cups[0];
   part(left, "usb-c-recess", rbox(0.1, 0.035, 0.03, 0.012), black, 0.06, -0.57, 0.015).rotation.x = Math.PI / 2;
   part(left, "usb-c-tongue", rbox(0.065, 0.009, 0.012, 0.003), steel, 0.06, -0.585, 0.015).rotation.x = Math.PI / 2;
-  const ledMat = toon("#4b5750"); // Stored on its hook: powered off, no invented RGB.
+  // Dark while the headset rests; it breathes in the finish's glow while music plays.
+  const ledMat = toon("#4b5750");
   part(left, "status-led", new THREE.SphereGeometry(0.012, 8, 6), ledMat, -0.04, -0.57, 0.015);
   const micDirection = new THREE.Vector3(-0.78, -0.62, 0).normalize();
   const micBase = part(left, "mic-socket", new THREE.CylinderGeometry(0.044, 0.047, 0.19, 24), white, -0.32, -0.35, 0.12);
@@ -215,5 +242,192 @@ export function createHeadset(runtime) {
   const foam = part(headset, "mic-foam-windscreen", new THREE.SphereGeometry(1, 24, 16), fabric, 0.015, -0.74, -1.14, 0.005);
   foam.scale.set(0.16, 0.105, 0.105);
   foam.rotation.z = 0.45;
-  return { assembly, headset };
+
+  // ---------- finishes ----------
+  const glow = new THREE.Color();
+  function setHeadsetFinish(finish) {
+    if (!Object.hasOwn(DEVICE_FINISHES.headset.finishes, finish)) return;
+    const coat = DEVICE_FINISHES.headset.finishes[finish];
+    white.color.set(coat.shell);
+    seam.color.set(coat.seam);
+    knobFinish.color.set(coat.cap);
+    emblemMat.color.set(coat.ink);
+    glow.set(coat.glow);
+  }
+  setHeadsetFinish(runtime.options?.deviceFinishes?.headset || DEVICE_FINISHES.headset.default);
+
+  // ---------- motion ----------
+  // Two damped springs: the main swing round the saddle (in the headband's plane) and a smaller
+  // rock across it. Impulses add speed; the loop settles them, so nothing needs a tween.
+  const roll = { angle: 0, speed: 0, stiffness: 46, damping: 1.1 };
+  const rock = { angle: 0, speed: 0, stiffness: 70, damping: 2.2 };
+  const MAX_SWING = 0.26;
+  const nudge = (strength) => {
+    const sign = Math.sign(roll.angle + roll.speed * 0.05) || (Math.random() < 0.5 ? -1 : 1);
+    roll.speed += sign * strength;
+    rock.speed += (Math.random() - 0.5) * strength * 0.6;
+  };
+  let hovering = false;
+  let thump = 0; // decays after each drum hit
+  let flash = 0;
+  let lit = 0; // eases towards 1 while music plays
+  const volumeDial = { turn: 0, shown: 0, lastTick: 0 };
+
+  // Called by the music on every kick and snare: the cups thump, the emblem flares.
+  function beat(kind) {
+    const kick = kind === "kick";
+    thump = Math.max(thump, kick ? 1 : 0.5);
+    flash = Math.max(flash, kick ? 1 : 0.6);
+    if (kick) nudge(0.07 * (Math.random() < 0.5 ? -1 : 1));
+    // Now and then a note leaks out of an earcup
+    if (kind === "snare" && Math.random() < 0.3) {
+      const cup = cups[Math.random() < 0.5 ? 0 : 1];
+      const from = cup.localToWorld(new THREE.Vector3(0, 0.2, 0.3));
+      runtime.workstation?.floatNoteAt?.(from, Math.random() < 0.5 ? -1 : 1, 0.32, 1.4);
+    }
+  }
+  function spring(s, dt) {
+    s.speed += (-s.stiffness * s.angle - s.damping * s.speed) * dt;
+    s.angle = Math.max(-MAX_SWING, Math.min(MAX_SWING, s.angle + s.speed * dt));
+  }
+  function updateHeadset(dt, now) {
+    const step = Math.min(dt, 1 / 30);
+    spring(roll, step);
+    spring(rock, step);
+    swing.rotation.x = roll.angle;
+    swing.rotation.z = rock.angle;
+    thump *= Math.pow(0.0008, step);
+    flash *= Math.pow(0.02, step);
+    const pump = 1 + thump * 0.018;
+    for (const cup of cups) cup.scale.set(pump, pump, 1 + thump * 0.03);
+    // The volume dial eases to where the wheel left it; the cap spins with it.
+    volumeDial.shown += (volumeDial.turn - volumeDial.shown) * (1 - Math.pow(0.0001, step));
+    const left = dials[0];
+    left.dial.rotation.y = volumeDial.shown;
+    left.cap.rotation.z = -volumeDial.shown;
+    const lofi = runtime.workstation?.lofi;
+    const playing = !!lofi?.playing && !runtime.workstation?.soundMuted;
+    lit += ((playing ? 1 : 0) - lit) * (1 - Math.pow(0.05, step));
+    const breathe = 0.55 + 0.45 * Math.sin(now / 520);
+    ledMat.emissive.copy(glow).multiplyScalar(lit * (0.4 + 0.6 * breathe));
+    emblemMat.emissive.copy(glow).multiplyScalar(lit * (0.25 + 0.75 * flash));
+  }
+
+  // ---------- interaction ----------
+  // Hover nudges it on its hook; a click sets it swinging. Over the headset the wheel turns
+  // the left cup's volume dial, which is the music's volume.
+  runtime.core.register(swing, {
+    onHover: (on) => {
+      hovering = on;
+      if (!on) return;
+      nudge(0.45);
+      hoverSound(swing, (s) => s.rubber({ duration: 0.22 }));
+    },
+    onClick: () => {
+      nudge(1.5);
+      sfx.rubber({ duration: 0.35 });
+    },
+  });
+  const DETENT = 0.05;
+  const onHeadsetWheel = (e) => {
+    if (!hovering || ["shelf", "chat"].includes(runtime.camera?.focus?.name)) return;
+    const lofi = runtime.workstation?.lofi;
+    if (!lofi) return;
+    e.preventDefault();
+    const before = lofi.volume;
+    const after = lofi.setVolume(Math.round((before - Math.sign(e.deltaY) * DETENT) / DETENT) * DETENT);
+    if (after === before) return;
+    volumeDial.turn = (after - 0.55) * 9;
+    const now = performance.now();
+    if (now - volumeDial.lastTick > 45) {
+      volumeDial.lastTick = now;
+      sfx.tick({ pitch: 0.7 + after * 0.6 });
+    }
+  };
+  runtime.core.renderer.domElement.addEventListener("wheel", onHeadsetWheel, { passive: false });
+
+  return {
+    assembly, swing, headset, setHeadsetFinish, beat, updateHeadset, onWheel: onHeadsetWheel, roll, emblemMat, ledMat,
+    // A real swing (not the beat's tremble) moves its shadow, so the room redraws while it lasts
+    get swinging() { return Math.abs(roll.angle) > 0.02 || Math.abs(roll.speed) > 0.15; },
+  };
+}
+
+// Tri-talon emblem, 512 px square, centre (256, 256). Blades are white shaded to light grey with
+// a darker outline, spine groove and side spur; the hexagon hub holds a slit eye.
+function paintEmblem(ctx) {
+  ctx.clearRect(0, 0, 512, 512);
+  ctx.save();
+  ctx.translate(256, 256);
+  ctx.lineJoin = "round";
+  ctx.lineCap = "round";
+  const blade = () => {
+    ctx.beginPath();
+    ctx.moveTo(-34, -62);
+    ctx.bezierCurveTo(-74, -118, -66, -192, 8, -232);
+    ctx.bezierCurveTo(-12, -192, -4, -142, 38, -112);
+    ctx.bezierCurveTo(62, -96, 64, -72, 42, -58);
+    ctx.quadraticCurveTo(2, -40, -34, -62);
+    ctx.closePath();
+  };
+  for (let k = 0; k < 3; k++) {
+    ctx.save();
+    ctx.rotate(k * Math.PI * 2 / 3);
+    // Spur off the outer edge
+    ctx.beginPath();
+    ctx.moveTo(-60, -138);
+    ctx.lineTo(-98, -150);
+    ctx.lineTo(-64, -112);
+    ctx.closePath();
+    ctx.fillStyle = "#d8d8d8";
+    ctx.fill();
+    ctx.strokeStyle = "#8c8c8c";
+    ctx.lineWidth = 4;
+    ctx.stroke();
+    blade();
+    const shade = ctx.createLinearGradient(-60, -230, 50, -60);
+    shade.addColorStop(0, "#ffffff");
+    shade.addColorStop(0.6, "#ececec");
+    shade.addColorStop(1, "#c9c9c9");
+    ctx.fillStyle = shade;
+    ctx.fill();
+    ctx.strokeStyle = "#8c8c8c";
+    ctx.lineWidth = 5;
+    ctx.stroke();
+    // Spine groove and its catch-light
+    ctx.beginPath();
+    ctx.moveTo(-18, -74);
+    ctx.bezierCurveTo(-42, -118, -38, -170, -2, -204);
+    ctx.strokeStyle = "#9c9c9c";
+    ctx.lineWidth = 7;
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(-12, -78);
+    ctx.bezierCurveTo(-34, -118, -30, -166, 2, -198);
+    ctx.strokeStyle = "#ffffff";
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.restore();
+  }
+  // Hexagon hub with a slit eye
+  ctx.beginPath();
+  for (let i = 0; i < 6; i++) {
+    const a = Math.PI / 6 + i * Math.PI / 3;
+    ctx[i ? "lineTo" : "moveTo"](Math.cos(a) * 46, Math.sin(a) * 46);
+  }
+  ctx.closePath();
+  ctx.fillStyle = "#f2f2f2";
+  ctx.fill();
+  ctx.strokeStyle = "#8c8c8c";
+  ctx.lineWidth = 5;
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(0, 0, 22, 0, Math.PI * 2);
+  ctx.fillStyle = "#bdbdbd";
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(0, 0, 5, 17, 0, 0, Math.PI * 2);
+  ctx.fillStyle = "#ffffff";
+  ctx.fill();
+  ctx.restore();
 }
