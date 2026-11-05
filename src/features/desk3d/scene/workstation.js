@@ -411,18 +411,22 @@ export function createWorkstation(runtime) {
   let nextNote = 0;
   const notePoint = new THREE.Vector3();
   function floatNote(speaker) {
-    const sprite = notePool[nextNote++ % notePool.length];
     speaker.woofer.getWorldPosition(notePoint);
-    const side = Math.sign(speaker.group.position.x - monitor.position.x) || 1;
+    floatNoteAt(notePoint.add(new THREE.Vector3(0, 0.4, 0.35)), Math.sign(speaker.group.position.x - monitor.position.x) || 1);
+  }
+  // A note rising from any point in the room (the headset's earcups borrow it), drifting to `side`
+  function floatNoteAt(point, side, size = 0.6, rise = 2.2) {
+    const sprite = notePool[nextNote++ % notePool.length];
+    const from = point.clone();
     gsap.killTweensOf([sprite.position, sprite.scale, sprite.material]);
     sprite.visible = true;
-    sprite.position.copy(notePoint).add(new THREE.Vector3(0, 0.4, 0.35));
+    sprite.position.copy(from);
     sprite.material.opacity = 1;
     sprite.material.rotation = (Math.random() - 0.5) * 0.6;
-    gsap.fromTo(sprite.scale, { x: 0.1, y: 0.1 }, { x: 0.6, y: 0.6, duration: 0.3, ease: "back.out(3)" });
+    gsap.fromTo(sprite.scale, { x: 0.1, y: 0.1 }, { x: size, y: size, duration: 0.3, ease: "back.out(3)" });
     gsap.to(sprite.position, {
-      y: notePoint.y + 2.2 + Math.random() * 0.8,
-      x: notePoint.x + side * (0.4 + Math.random() * 0.6),
+      y: from.y + rise + Math.random() * rise * 0.35,
+      x: from.x + side * (0.4 + Math.random() * 0.6) * size / 0.6,
       duration: 1.6, ease: "power1.out",
     });
     gsap.to(sprite.material, { opacity: 0, delay: 1.0, duration: 0.6, onComplete: () => (sprite.visible = false) });
@@ -748,6 +752,7 @@ export function createWorkstation(runtime) {
     onHit: (kind) => {
       speakers.forEach((speaker) => pump(speaker, kind === "kick" ? 0.7 : 0.35));
       runtime.robot.robotBeat(kind);
+      runtime.headset?.beat(kind);
       if (kind === "snare" && Math.random() < 0.5) floatNote(speakers[noteSide++ % speakers.length]);
     },
     onTrack: (i) => {
@@ -1174,6 +1179,7 @@ export function createWorkstation(runtime) {
     get cursorOn() { return cursorOn; },
     set cursorOn(value) { cursorOn = value; },
     lofi,
+    floatNoteAt,
     get screenDrawnAt() { return screenDrawnAt; },
     bootComputer,
     get standby() { return standby; },

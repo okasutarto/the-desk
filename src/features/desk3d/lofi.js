@@ -69,6 +69,8 @@ export function createLofi({ onHit = () => {}, onTrack = () => {} } = {}) {
   let nextTime = 0;
   let timer = null;
   let destroyed = false;
+  // Music level, turned by the headset's volume dial (0 silent, 0.55 as it ships, 0.9 loudest)
+  let volume = 0.55;
   const pending = new Set();
 
   // Built once per audio context: the music bus, its tape filter, an analyser for the visualizer
@@ -83,7 +85,7 @@ export function createLofi({ onHit = () => {}, onTrack = () => {} } = {}) {
     tape.type = "lowpass";
     tape.frequency.value = 3400;
     const level = ctx.createGain();
-    level.gain.value = 0.55;
+    level.gain.value = volume;
     const analyser = ctx.createAnalyser();
     analyser.fftSize = 128;
     analyser.smoothingTimeConstant = 0.75;
@@ -401,6 +403,14 @@ export function createLofi({ onHit = () => {}, onTrack = () => {} } = {}) {
     restartOrPrev: () => (step > 16 ? skip(0) : skip(-1)),
     get playing() {
       return playing;
+    },
+    get volume() {
+      return volume;
+    },
+    setVolume(value) {
+      volume = Math.min(0.9, Math.max(0, value));
+      if (graph) graph.level.gain.setTargetAtTime(volume, graph.ctx.currentTime, 0.05);
+      return volume;
     },
     get index() {
       return index;

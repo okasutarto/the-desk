@@ -70,7 +70,7 @@ Prefer a classic page? The same content lives at [`/2d`](https://okasp.dev/2d).
 | ⚔️ **Sword rack** | Inspect three swords, draw one and strike, with technique cards, manga effects and falling sakura. Its close-up has an independent spotlight. |
 | 🏋️ **Dumbbells & calendar** | Count reps (ten is a PR) and stamp today on the gym streak. |
 | 🧤 **Infinity Gauntlet** | Please don't. |
-| 🎧 **Wireless headset** | A white Razer BlackShark V3 Pro hangs from a padded black hook under the front desk edge near the right corner, with oval fabric-lined cushions, stitched headband edges, black fork rails in long white sleeves, knurled white dials and a foam-tipped boom mic. |
+| 🎧 **Wireless headset** | A white Razer BlackShark V3 Pro hangs from a padded black hook under the front desk edge near the right corner, with oval fabric-lined cushions, stitched headband edges, black fork rails in long white sleeves, knurled white dials, a foam-tipped boom mic and an original tri-talon emblem (three hooked blades round a hexagon hub) on each earcup. Hover nudges it and a click sets it swinging on the hook; over it, the scroll wheel turns the volume dial, which sets the music's volume. While music plays the status LED breathes, the emblems glow and flare on each kick, the earcups thump and notes leak out now and then. |
 | 🎮 **Game shelf & console** | Explore the collection and power the console: the monitor becomes a TV running **Straw Hat Strike**. Drag vertically to browse the shelf. |
 | 🤖 **Robot** | A small animated companion on the shelf. |
 | 🐈 **Oyen** | A ginger kitten who naps on the rug by day and by the desk lamp at night. Between naps she walks, jumps, swishes her tail and reacts to activity around the room. |
@@ -115,6 +115,7 @@ remembered in your browser. Close the panel with its ✕, the gear or Esc.
 | 📱 **Phone** | Black · Silver · Glacier · Burgundy | Burgundy |
 | ⌨️ **Keyboard** | Ionic White · Obsidian Black · Mojito · Blue Lagoon · Sakura Fizz; matching casing and full keycap sets | Obsidian Black |
 | 🖱️ **Mouse** | Black · White · Magenta · Red | White |
+| 🎧 **Headset** | White · Black · Pink · Mint; shell, stitching, dial caps, emblem ink and glow colour | White |
 | 🟧 **Smart Pixel Art** (Times Gate) | Silver · Pink · White · Yellow | Silver |
 
 "Where you are" comes from your browser's time zone (`Asia/Jakarta` is Jakarta), looked up

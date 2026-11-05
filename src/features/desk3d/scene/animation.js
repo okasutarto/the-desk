@@ -113,6 +113,7 @@ export function createAnimation(runtime) {
     ["trophy", () => runtime.shelfCollectibles.trophyCelebrating],
     ["drag", () => runtime.pointer.lanyardDrag || runtime.pointer.hatDrag || runtime.aboutBoard.noteDrag || runtime.pointer.shelfDrag || runtime.pointer.stickyDrag || runtime.pointer.chairDrag],
     ["screen", () => gsap.isTweening(runtime.workstation.screenPower)],
+    ["headset", () => runtime.headset.swinging],
   ];
   const motionFrames = new Map();
   const shadowRedraws = new Map();
@@ -324,7 +325,7 @@ export function createAnimation(runtime) {
     const fidgeting = runtime.cat.catIdleTl?.isActive();
     // Input and camera tweens keep the frame rate up; the rest also move what casts shadows
     const viewActing = now < runtime.core.responsiveUntil || gsap.isTweening(runtime.camera.cam);
-    const propsActing = runtime.theme.lightingBlending || runtime.cat.catBusy || gsap.isTweening(runtime.windowBlind.blind) || runtime.mouse.mouseRunning || runtime.lamp.lampHopping || runtime.shelfCollectibles.trophyCelebrating || runtime.pointer.lanyardDrag || runtime.pointer.hatDrag || runtime.aboutBoard.noteDrag || runtime.pointer.shelfDrag || runtime.pointer.stickyDrag || runtime.pointer.chairDrag || gsap.isTweening(runtime.workstation.screenPower);
+    const propsActing = runtime.theme.lightingBlending || runtime.cat.catBusy || gsap.isTweening(runtime.windowBlind.blind) || runtime.mouse.mouseRunning || runtime.lamp.lampHopping || runtime.shelfCollectibles.trophyCelebrating || runtime.pointer.lanyardDrag || runtime.pointer.hatDrag || runtime.aboutBoard.noteDrag || runtime.pointer.shelfDrag || runtime.pointer.stickyDrag || runtime.pointer.chairDrag || gsap.isTweening(runtime.workstation.screenPower) || runtime.headset.swinging;
     const acting = viewActing || propsActing;
     const moving = acting || fidgeting;
     // Do not skip presentation frames during interaction. Idle uses a tolerant interval rather
@@ -431,6 +432,7 @@ export function createAnimation(runtime) {
     }
     runtime.plant.plant.rotation.z = Math.sin(now / 1400) * 0.015;
     runtime.coffee.updateSteam(now);
+    runtime.headset.updateHeadset(dt, now);
     runtime.lamp.updateLampGlow();
     runtime.robot.updateRobot(now);
     if (runtime.handheld.switchGame.live && now - runtime.handheld.switchDrawnAt > 40) {

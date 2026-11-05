@@ -12,15 +12,30 @@ const THREE = require('three');
   const scene = new THREE.Scene();
   const desk = new THREE.Mesh(new THREE.BoxGeometry(16, 0.35, 8.4));
   desk.position.set(-1, -0.175, 0);
-  const paint = new Proxy({}, { get: () => () => {}, set: () => true });
+  // Canvas calls (and the gradients they return) are recorded and otherwise ignored.
+  const painted = [];
+  const paint = new Proxy({}, { get: (_, key) => (...args) => (painted.push(key), key === 'createLinearGradient' ? { addColorStop() {} } : undefined), set: () => true });
+  const DEVICE_FINISHES = vm.runInNewContext(fs.readFileSync('src/features/desk3d/deviceFinishes.js', 'utf8').replace(/export /g, '') + '; DEVICE_FINISHES');
+  const sounds = [];
+  const sfx = new Proxy({}, { get: (_, name) => options => sounds.push([name, options]) });
   const factory = vm.runInNewContext(source.replace(/^import .*;\n/gm, '').replace('export function', 'function') + ';createHeadset', {
     THREE, mergeVertices, canvasTexture: () => ({ texture: new THREE.Texture(), ctx: paint }),
+    DEVICE_FINISHES, sfx, hoverSound: (key, cue) => cue(sfx), performance, Math,
   });
-  const { assembly, headset } = factory({ room: { desk }, core: {
+  const registered = new Map();
+  const listeners = new Map();
+  const domElement = { addEventListener: (type, fn, options) => listeners.set(type, { fn, options }) };
+  const lofi = { playing: false, volume: 0.55, setVolume(v) { return (this.volume = Math.round(Math.min(0.9, Math.max(0, v)) * 100) / 100); } };
+  const notes = [];
+  const workstation = { lofi, soundMuted: false, floatNoteAt: (...args) => notes.push(args) };
+  const model = factory({ room: { desk }, workstation, camera: { focus: { name: null } }, options: { deviceFinishes: {} }, core: {
     scene, track, toon: color => track(new THREE.MeshToonMaterial({ color })),
     mesh: (geometry, material) => new THREE.Mesh(track(geometry), material),
     rbox: (w, h, d, radius) => new RoundedBoxGeometry(w, h, d, 2, radius),
+    register: (object, handlers) => registered.set(object, handlers),
+    renderer: { domElement },
   } });
+  const { assembly, headset, swing } = model;
   scene.updateMatrixWorld(true);
   const bounds = object => new THREE.Box3().setFromObject(object, true);
   const find = name => { const object = assembly.getObjectByName(name); assert.ok(object, name); return object; };
@@ -51,10 +66,22 @@ const THREE = require('three');
   const pad = bounds(find('hook-pad'));
   const innerBand = bounds(find('headband-inner-padding'));
   // Inner crown (0.86 high, before the 1.5 mm bevel) rests on the saddle.
-  assert.ok(Math.abs(headset.position.y + 0.86 - (pad.max.y)) < 0.02, 'headband underside rests on padded saddle');
+  assert.ok(Math.abs(headset.getWorldPosition(new THREE.Vector3()).y + 0.86 - (pad.max.y)) < 0.02, 'headband underside rests on padded saddle');
+  assert.ok(Math.abs(swing.position.y - pad.max.y) < 1e-6, 'swing pivots where the crown rests on the pad');
   assert.ok(innerBand.max.y > pad.max.y, 'crown wraps over the supporting saddle');
   for (const name of ['left-earcup', 'right-earcup', 'metal-slider-rail', 'swivel-holder', 'volume-dial', 'configurable-roller', 'usb-c-recess', 'usb-c-tongue', 'anc-button', 'smartswitch-button', 'mute-button', 'detachable-boom-mic', 'mic-foam-windscreen']) find(name);
-  assert.ok(!source.includes('razer-snake-emblem'), 'no Razer logo on either earcup');
+  const emblems = [];
+  assembly.traverse(object => object.name === 'tri-talon-emblem' && emblems.push(object));
+  assert.equal(emblems.length, 2, 'an original tri-talon emblem on each earcup');
+  assert.ok(emblems.every(mark => mark.material.alphaTest > 0 && mark.material.map && mark.material.emissiveMap === mark.material.map), 'emblem is cut out of its canvas and lit by it');
+  assert.ok(painted.filter(call => call === 'bezierCurveTo').length >= 15, 'emblem is painted in detail (blades, grooves, catch-lights)');
+  for (const mark of emblems) {
+    const face = mark.parent.getObjectByName('magnetic-faceplate');
+    face.geometry.computeBoundingBox();
+    assert.ok(mark.position.z > face.position.z + face.geometry.boundingBox.max.z, 'emblem sits on the faceplate front');
+    assert.ok(mark.position.y - 0.2 > mark.parent.getObjectByName('dial-seat').position.y + 0.112, 'emblem clears the dial');
+  }
+  assert.ok(!/razer|blackshark/i.test(JSON.stringify(DEVICE_FINISHES.headset)), 'headset finishes carry no brand names');
   const mic = find('detachable-boom-mic');
   const micPoints = mic.geometry.parameters.path.points;
   assert.ok(micPoints.every(point => point.z < 0) && micPoints.at(-1).z < -1 && Math.abs(micPoints.at(-1).x) < 0.1, 'plug and boom project towards the mouth on the front (-Z) side');
@@ -88,6 +115,58 @@ const THREE = require('three');
   assert.ok(Math.abs(openingSize.x - 0.44) < 0.001 && Math.abs(openingSize.y - 0.66) < 0.001, 'real 44 × 66 mm open cushion aperture');
   assert.equal(find('earcup-shell').material.color.getHexString(), 'e9e9e5');
   assert.ok(find('cushion-flowknit').material.map.isTexture);
+  // Finishes recolour the mouldings, stitching, dial caps and emblem ink in place.
+  for (const [name, coat] of Object.entries(DEVICE_FINISHES.headset.finishes)) {
+    model.setHeadsetFinish(name);
+    assert.equal('#' + find('earcup-shell').material.color.getHexString(), coat.shell, name + ' shell');
+    assert.equal('#' + find('faceplate-seam').material.color.getHexString(), coat.seam, name + ' seam');
+    assert.equal('#' + find('dial-brushed-cap').material.color.getHexString(), coat.cap, name + ' cap');
+    assert.equal('#' + emblems[0].material.color.getHexString(), coat.ink, name + ' emblem ink');
+  }
+  assert.doesNotThrow(() => model.setHeadsetFinish('constructor'));
+  model.setHeadsetFinish('white');
+  // A click sets it swinging round the saddle; the spring brings it back to rest.
+  const handlers = registered.get(swing);
+  assert.ok(handlers?.onClick && handlers.onHover, 'headset is registered for hover and click');
+  handlers.onClick();
+  let peak = 0;
+  for (let i = 0; i < 30; i++) model.updateHeadset(1 / 60, i * 16), peak = Math.max(peak, Math.abs(swing.rotation.x));
+  assert.ok(peak > 0.08 && peak <= 0.26, 'click swings it visibly but within its limit');
+  assert.ok(model.swinging, 'a swing counts as motion');
+  for (let i = 0; i < 60 * 8; i++) model.updateHeadset(1 / 60, i * 16);
+  assert.ok(Math.abs(swing.rotation.x) < 0.01 && !model.swinging, 'swing settles');
+  assert.ok(sounds.some(([name]) => name === 'rubber'), 'click is heard');
+  // The wheel turns the volume dial (and the music) only while the headset is hovered.
+  const wheel = listeners.get('wheel');
+  assert.equal(wheel.options.passive, false);
+  const event = deltaY => ({ deltaY, prevented: false, preventDefault() { this.prevented = true; } });
+  let e = event(-100);
+  wheel.fn(e);
+  assert.ok(!e.prevented && lofi.volume === 0.55, 'wheel ignored away from the headset');
+  handlers.onHover(true);
+  wheel.fn(e = event(-100));
+  assert.ok(e.prevented && lofi.volume === 0.6, 'wheel up turns the music up a detent');
+  for (let i = 0; i < 60; i++) model.updateHeadset(1 / 60, i * 16);
+  assert.ok(find('volume-dial').rotation.y > 0.3, 'volume dial turns with it');
+  for (let i = 0; i < 20; i++) wheel.fn(event(100));
+  assert.equal(lofi.volume, 0, 'volume stops at silent');
+  handlers.onHover(false);
+  // With music playing the LED and emblem light up, and each kick flares the emblem.
+  const ledMaterial = find('status-led').material;
+  model.updateHeadset(1 / 60, 0);
+  assert.equal(ledMaterial.emissive.getHex(), 0, 'LED dark at rest');
+  lofi.playing = true;
+  for (let i = 0; i < 120; i++) model.updateHeadset(1 / 60, i * 16);
+  assert.ok(ledMaterial.emissive.g > 0.1, 'LED lights while music plays');
+  const steady = emblems[0].material.emissive.g;
+  model.beat('kick');
+  model.updateHeadset(1 / 60, 2000);
+  assert.ok(emblems[0].material.emissive.g > steady * 1.5, 'kick flares the emblem');
+  assert.ok(find('left-earcup').scale.x > 1, 'earcups thump on the beat');
+  assert.ok(!model.swinging, 'the beat only trembles it: no shadow redraws');
+  for (let i = 0; i < 40; i++) model.beat('snare');
+  assert.ok(notes.length > 0 && notes.every(([point]) => point.isVector3), 'notes leak out of the earcups');
+  assert.ok(fs.readFileSync('src/features/desk3d/scene/lifecycle.js', 'utf8').includes('runtime.headset.onWheel'), 'wheel listener removed on teardown');
   assembly.traverse(object => {
     if (!object.isMesh) return;
     assert.ok(resources.has(object.geometry), object.name + ' geometry tracked for teardown');
@@ -97,5 +176,5 @@ const THREE = require('three');
   });
   assert.ok(fs.readFileSync('src/features/desk3d/deskScene.js', 'utf8').includes('runtime.headset = createHeadset(runtime)'), 'factory assembled');
   for (const item of resources) item.dispose();
-  console.log('Headset scale, hollow cushions, hook contact, clearances, detail and resource tracking checks passed.');
+  console.log('Headset scale, hollow cushions, hook contact, clearances, detail, emblem, finishes, swing, volume dial, beat and resource tracking checks passed.');
 })().catch(error => { console.error(error); process.exitCode = 1; });

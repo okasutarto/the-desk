@@ -203,7 +203,7 @@ for (const hz of [60, 90, 120, 144, 165]) {
       sun: light(), windowLight: light(), lampLight: light(), lightbarLight: light(), refreshMs: 1000 / 60,
       lightingBlending: active === "lighting", responsiveUntil: active === "interaction" ? Infinity : 0, gsap: { isTweening: () => false }, cam: {}, blind: {}, screenPower: {}, lofi: { playing: active === "music" }, catIdleTl: null, catBusy: false, THREE: require('three'), updateShaft() {},
       benchmark: null, createToonBatch: () => () => {}, scene: {}, renderer: {}, track: (x) => x,
-      mouseRunning: false, lampHopping: false, trophyCelebrating: false, lanyardDrag: null, hatDrag: null, noteDrag: null, shelfDrag: null, stickyDrag: null, chairDrag: null,
+      mouseRunning: false, lampHopping: false, trophyCelebrating: false, lanyardDrag: null, hatDrag: null, noteDrag: null, shelfDrag: null, stickyDrag: null, chairDrag: null, swinging: false,
       perfReadout: null, requestAnimationFrame() {}, frame: null, accepted: [], lowPower: false, probe: null });
     scheduler.idleMs = vm.runInContext(idlePace, scheduler);
     vm.runInContext(source.slice(start, end) + 'accepted.push(now); lastTick = now; }', scheduler);
