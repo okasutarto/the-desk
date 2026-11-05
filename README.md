@@ -115,6 +115,7 @@ remembered in your browser. Close the panel with its ✕, the gear or Esc.
 | 📱 **Phone** | Black · Silver · Glacier · Burgundy | Burgundy |
 | ⌨️ **Keyboard** | Ionic White · Obsidian Black · Mojito · Blue Lagoon · Sakura Fizz; matching casing and full keycap sets | Obsidian Black |
 | 🖱️ **Mouse** | Black · White · Magenta · Red | White |
+| 🪑 **Chair** | Black · White leatherette; the frame, base and red stitching stay | Black |
 | 🎧 **Headset** | White · Black · Pink · Mint; shell, stitching, dial caps, emblem ink and glow colour | White |
 | 🟧 **Smart Pixel Art** (Times Gate) | Silver · Pink · White · Yellow | Silver |
 

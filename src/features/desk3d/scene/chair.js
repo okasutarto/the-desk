@@ -2,6 +2,7 @@ import * as THREE from "three";
 import gsap from "gsap";
 import { hoverSound, sfx } from "@/shared/composables/useSfx";
 import { canvasTexture, drawLeatherGrain, drawChairCrest } from "../textures";
+import { DEVICE_FINISHES } from "../deviceFinishes";
 
 export function createChair(runtime) {
   // Secretlab TITAN Evo Regular: 85 cm backrest, 56 × 49 cm seat, set to 52 cm high.
@@ -38,6 +39,19 @@ export function createChair(runtime) {
   const leather = leatherTile(false, 1);
   const leatherPanel = leatherTile(true, 1.6);
   const leatherBox = leatherTile(false, 3.5);
+  // Black or white leatherette (see DEVICE_FINISHES.chair); the frame and base stay black.
+  function setChairFinish(finish) {
+    if (!Object.hasOwn(DEVICE_FINISHES.chair.finishes, finish)) return;
+    const coat = DEVICE_FINISHES.chair.finishes[finish];
+    for (const mat of [leather, leatherPanel, leatherBox]) {
+      mat.color.set(coat.shell);
+      // Adding or dropping the colour map changes the shader, so it is rebuilt then.
+      if (!!mat.map !== coat.grain) mat.needsUpdate = true;
+      mat.map = coat.grain ? mat.bumpMap : null;
+      mat.bumpScale = coat.bump;
+    }
+  }
+  setChairFinish(runtime.options.deviceFinishes?.chair || DEVICE_FINISHES.chair.default);
   const CHAIR_STITCH = "#7a1a24";
   // Stitching is a fine dashed thread: a dash, a gap, along every seam
   const dashTex = canvasTexture(16, 4);
@@ -440,6 +454,7 @@ export function createChair(runtime) {
   return {
     chair,
     chairTop,
+    setChairFinish,
     SEAT_TOP,
     REST_Z,
     SPIN_Z,

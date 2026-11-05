@@ -148,4 +148,29 @@ for (const [part, file, method] of [['phone', 'chat', 'setPhoneFinish'], ['mouse
   }
   assert.doesNotThrow(() => set('constructor'));
 }
-console.log('Device finishes: all 84 keycaps, legends, saved startup, GPU resource reuse, RGB, status LED, phone and mouse passed.');
+// The chair's leatherette: dark keeps its grain in the colour, white uses it only as a bump,
+// and the shader is rebuilt only when the colour map comes or goes.
+{
+  const source = read('scene/chair.js');
+  const start = source.indexOf('  function setChairFinish(');
+  const end = source.indexOf('  setChairFinish(runtime.options', start);
+  const grain = new THREE.Texture();
+  const mats = [0, 1, 2].map(() => Object.assign(new THREE.MeshToonMaterial(), { map: grain, bumpMap: grain, bumpScale: 2.2 }));
+  const [leather, leatherPanel, leatherBox] = mats;
+  const set = vm.runInNewContext(palettes + source.slice(start, end) + '; setChairFinish', { leather, leatherPanel, leatherBox });
+  const versions = mats.map(mat => mat.version);
+  set('black');
+  assert.deepEqual(mats.map(mat => mat.version), versions, 'no shader rebuild when the map stays');
+  for (const [name, coat] of Object.entries(DEVICE_FINISHES.chair.finishes)) {
+    set(name);
+    for (const mat of mats) {
+      assert.equal('#' + mat.color.getHexString(), coat.shell, name + ' leather colour');
+      assert.equal(mat.map, coat.grain ? grain : null, name + ' grain as colour');
+      assert.equal(mat.bumpMap, grain, name + ' grain still bumps');
+      assert.equal(mat.bumpScale, coat.bump);
+    }
+  }
+  assert.equal(DEVICE_FINISHES.chair.default, 'black', 'the chair stays black unless picked');
+  assert.doesNotThrow(() => set('constructor'));
+}
+console.log('Device finishes: all 84 keycaps, legends, saved startup, GPU resource reuse, RGB, status LED, phone, mouse and chair passed.');

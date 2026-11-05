@@ -29,6 +29,15 @@ export const DEVICE_FINISHES = {
       red: { name: "Red", shell: "#e23c42" },
     },
   },
+  // The chair's leatherette: `grain` paints the pebbled tile into the colour (dark leather), or
+  // leaves it to bump the shading only, so a light leather stays clean rather than speckled.
+  chair: {
+    label: "Chair", default: "black",
+    finishes: {
+      black: { name: "Black", shell: "#35312e", grain: true, bump: 2.2 },
+      white: { name: "White", shell: "#e9e9e5", grain: false, bump: 1.2 },
+    },
+  },
   // Shell for the white mouldings, seam for stitching and knurls, cap for the dial ends, ink for
   // the unlit earcup emblem and glow for the emblem and status LED once music plays.
   headset: {

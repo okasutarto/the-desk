@@ -7,7 +7,7 @@ const read = name => fs.readFileSync(`src/features/desk3d/scene/${name}.js`, 'ut
   .replace(/^import .*;\n/gm, '').replace('export function', 'function');
 const material = new THREE.MeshToonMaterial();
 const scene = new THREE.Scene();
-const runtime = { core: {
+const runtime = { options: {}, core: {
   scene, toon: () => material, track: value => value,
   mesh: (geometry, mat) => new THREE.Mesh(geometry, mat),
   rbox: (w, h, d) => new THREE.BoxGeometry(w, h, d),
@@ -24,6 +24,7 @@ const context = vm.createContext({ THREE, runtime, gsap: {}, sfx: {},
   canvasTexture: () => ({ texture: new THREE.Texture(), ctx: { fillRect() {} } }),
   drawWoodTop() {}, drawLeatherGrain() {}, drawChairCrest() {},
   DEFAULT_WOODS: { desk: {} }, PALETTES: { light: { desk: '#fff' } },
+  DEVICE_FINISHES: vm.runInNewContext(fs.readFileSync('src/features/desk3d/deviceFinishes.js', 'utf8').replace(/export /g, '') + '; DEVICE_FINISHES'),
 });
 const roomSource = read('room');
 vm.runInContext(roomSource.slice(0, roomSource.indexOf('  // ---------- full-viewport room:')) +
