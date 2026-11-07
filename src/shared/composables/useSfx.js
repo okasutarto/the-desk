@@ -127,6 +127,19 @@ export function initializeAudio() {
   return muted.value ? Promise.resolve(false) : unlock();
 }
 
+// Opening the audio output takes a beat (around a hundred milliseconds on a Mac), and done in the
+// gesture that lets the visitor in it held up the first frames of the camera drawing back. Made
+// ahead, while the room waits behind the loader, the context starts suspended (or running, where
+// autoplay is allowed) and the gesture only has to resume it. Nothing plays until then.
+export function prepareAudio() {
+  if (muted.value || ctx) return;
+  try {
+    createContext();
+  } catch {
+    ctx = null;
+  }
+}
+
 // First interaction enables audio if autoplay was blocked.
 // Later gestures also recover Safari audio after an interruption.
 // Browsers only allow audio after a real gesture (a press, a tap or a key); moving the pointer
