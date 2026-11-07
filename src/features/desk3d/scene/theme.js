@@ -96,11 +96,13 @@ export function createTheme(runtime) {
       washMat.opacity = isDark ? runtime.room.DESK_WASH : 0;
     });
     runtime.workstation.monitorGlowMat.opacity = isDark ? 0.7 : 0;
-    runtime.core.ambient.intensity = isDark ? 0.16 : 0.38;
+    // Night's fill is a little above a true dark room: the corners away from the lamp (the
+    // chair, the floor, the far walls) keep their shapes, while the lamp and neons stay in charge
+    runtime.core.ambient.intensity = isDark ? 0.18 : 0.38;
     runtime.core.ambient.color.set(isDark ? "#aab9df" : "#ffffff");
     runtime.core.skyFill.color.set(isDark ? "#94acdb" : "#f2f5ff");
-    runtime.core.skyFill.intensity = isDark ? 0.12 : 0.9;
-    runtime.core.readabilityFill.intensity = isDark ? 0.12 : 0.18;
+    runtime.core.skyFill.intensity = isDark ? 0.2 : 0.9;
+    runtime.core.readabilityFill.intensity = isDark ? 0.16 : 0.18;
     runtime.lamp.jointMat.color.set(isDark ? "#3d3749" : "#1a1714");
     runtime.core.sun.color.set(isDark ? "#aabfff" : "#fff1cc");
     // The sky through the window spreads faint soft shadows across the whole room, wall-mounted
