@@ -212,7 +212,8 @@ part of the scene, not a video playing behind the page.
 | 🚪 **The room starts before the scene** | An HTML boot loader appears before JavaScript and reports each step, shader warm-up included, then hands its terminal over to the monitor on the desk. |
 
 Audio respects the shared mute setting. The app tries to start Web Audio automatically;
-when the browser blocks autoplay, a user gesture unlocks it. Recorded layers and their
+when the browser blocks autoplay, a user gesture unlocks it. The audio output is opened
+while the loader is still up, so coming in only resumes it and the first frames don't stall. Recorded layers and their
 licenses live in `public/sfx/`; the lo-fi music is generated in the browser.
 
 <details>
@@ -223,6 +224,10 @@ licenses live in `public/sfx/`; the lo-fi music is generated in the browser.
   Active camera moves and interactions follow browser frames.
 - **Reuse work while idle.** AO and shadow maps are cached and refreshed on schedules, with
   more frequent updates while things move. Unsupported batching falls back to original meshes.
+- **Only lights that land are shaded.** Every light stays in the scene, so switching one on
+  never recompiles the shaders, but a light that's off, or doesn't reach a surface, costs that
+  surface nothing. This roughly halves the room's GPU time on high-density screens, with the
+  same picture.
 - **A still room redraws at about 30 fps.** Steam, rain and the plant's sway keep going at half
   the display's pace; input, camera moves, moving props and playing music go back to every
   browser frame. The Times Gate's FPS screen reads `IDLE FPS` while the room is still.
@@ -233,7 +238,9 @@ licenses live in `public/sfx/`; the lo-fi music is generated in the browser.
   bump maps, toon ramps and the window projection. The budget prioritizes active key lights;
   some secondary lights can stay lit without their own shadow map when slots are scarce.
 - **Quality has a cost.** AO, high pixel density and multiple shadows can be
-  demanding. Use the profiling controls below to compare costs on the target browser and device.
+  demanding. Add `?perf` to the address for frame rate, draw calls and GPU time, and see
+  [profiling](docs/development.md#development-previews-and-profiling) to compare costs on the
+  target browser and device.
 
 </details>
 

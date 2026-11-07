@@ -21,6 +21,16 @@ Callbacks may use parts initialized later, but construction code must only read
 parts already initialized. `animation.start()` runs after the animation API has
 been published, so the first resize can read the camera and render state.
 
+Lights are created once and kept: to switch one off, set its intensity to 0 rather than
+removing it or hiding it. The light count is compiled into every lit shader, so adding or
+removing one recompiles them all (a freeze of seconds on Windows), while a light at zero, or
+out of a surface's reach, is skipped in the shader and costs nothing (see `sceneShaders.js`).
+The same goes for `castShadow`, which follows the shadow budget in `animation.js`.
+
+A canvas whose pixels are read back (`getImageData`) every redraw takes
+`canvasTexture(w, h, { willReadFrequently: true })`, so it stays in memory: reading a GPU
+canvas makes the frame wait for the GPU. Keep such canvases small.
+
 Track disposable Three.js resources through `runtime.core.track`. Keep teardown
 in `lifecycle.js` synchronized with added listeners, timers, tweens and resources.
 Remove listeners with the original function reference.
