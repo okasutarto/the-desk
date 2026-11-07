@@ -183,26 +183,25 @@ export function createTimesGate(runtime) {
   }
   // The screens' glow on the desk and riser: each picture is boiled down to its mean colour as
   // it redraws, and one light in front of the row carries their blend. It's faint by day,
-  // comes up as the room goes dark, and brightens on hover.
-  const glowSample = document.createElement("canvas");
-  glowSample.width = glowSample.height = 8;
-  const glowCtx = glowSample.getContext("2d", { willReadFrequently: true });
+  // comes up as the room goes dark, and brightens on hover. The pictures are drawn on canvases
+  // kept in memory (see addScreen) and read straight back: scaling a GPU canvas down to read it
+  // made every redraw wait for the GPU, a stall of a frame or more each time on a busy night.
   const screenColors = [];
   const screenTint = { color: new THREE.Color("#9fc4ff") };
   let screenLevel = 0.5;
   let glowBoost = 1;
   const glowLevel = () => (0.15 + 0.85 * runtime.core.roomLight.night) * glowBoost;
-  function sampleScreen(i, canvas) {
-    if (!canvas || !glowCtx) return;
-    glowCtx.drawImage(canvas, 0, 0, 8, 8);
-    const { data } = glowCtx.getImageData(0, 0, 8, 8);
+  function sampleScreen(i, ctx) {
+    if (!ctx) return;
+    const { data } = ctx.getImageData(0, 0, ctx.canvas.width, ctx.canvas.height);
     const rgb = [0, 0, 0];
     for (let p = 0; p < data.length; p += 4) {
       rgb[0] += data[p];
       rgb[1] += data[p + 1];
       rgb[2] += data[p + 2];
     }
-    screenColors[i] = rgb.map((v) => v / 64 / 255);
+    const pixels = data.length / 4;
+    screenColors[i] = rgb.map((v) => v / pixels / 255);
     const drawn = screenColors.filter(Boolean);
     const mean = [0, 1, 2].map((c) => drawn.reduce((sum, colour) => sum + colour[c], 0) / drawn.length);
     const peak = Math.max(...mean);
@@ -238,7 +237,7 @@ export function createTimesGate(runtime) {
     const rim = flat(runtime.core.mesh(runtime.core.phoneSlab(MODULE.w + 0.008, MODULE.h + 0.008, 0.028, 0.075), buttonMat, { outline: 0, cast: false }));
     rim.position.set(x, CY, 0.067);
     gate.add(rim);
-    const tex = canvasTexture(GATE_PX, GATE_PX);
+    const tex = canvasTexture(GATE_PX, GATE_PX, { willReadFrequently: true });
     runtime.core.track(tex.texture);
     const panelMat = runtime.core.track(new THREE.MeshBasicMaterial({ map: tex.texture }));
     panelMat.onBeforeCompile = sharpPixels;
@@ -255,7 +254,7 @@ export function createTimesGate(runtime) {
       redraw(t) {
         draw(tex.ctx, t);
         tex.texture.needsUpdate = true;
-        sampleScreen(i, tex.canvas);
+        sampleScreen(i, tex.ctx);
       },
     };
     screens.push(screen);
