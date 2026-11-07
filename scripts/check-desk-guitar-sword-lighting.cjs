@@ -48,6 +48,11 @@ assert.ok(light.isSpotLight);
 assert.ok(Math.abs(light.intensity - key) < 1e-10);
 assert.equal(light.castShadow, true, 'swords and rack occlude the focus light');
 assert.equal(light.shadow.mapSize.x, 1024);
+// The shadow frustum is narrowed to the rack for finer texels, but still clears the swords' ends
+const shadowHalfAngle = light.angle * light.shadow.focus;
+assert.ok(light.shadow.focus < 1, 'the shadow map covers the rack, not the whole cone');
+assert.ok(Math.tan(shadowHalfAngle) * light.position.distanceTo(katanaRack.position) > 9 / 2 + 2, 'the shadow frustum clears both ends of the 90 cm swords');
+assert.ok(light.shadow.radius / 4 > 1, 'the narrowest blur spans more than a texel, so curved shadows show no steps');
 assert.equal(light.shadow.autoUpdate, false, 'inactive focus does not render a shadow map every frame');
 assert.equal(light.shadow.needsUpdate, true, 'active focus refreshes shadows for sword animation');
 assert.equal(light.decay, 0, 'focus light has stable output over the sword sweep');
