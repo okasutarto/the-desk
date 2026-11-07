@@ -29,6 +29,13 @@ export function drawClockFace(c, w, h) {
   });
   c.textAlign = "left";
   c.textBaseline = "alphabetic";
+  // The case's lip shades the dial's edge, most along the top, where the light comes from
+  const lip = c.createRadialGradient(cx - r * 0.02, cx + r * 0.05, r * 0.8, cx, cx, r);
+  lip.addColorStop(0, "rgba(40, 30, 20, 0)");
+  lip.addColorStop(0.6, "rgba(40, 30, 20, 0.08)");
+  lip.addColorStop(1, "rgba(40, 30, 20, 0.3)");
+  c.fillStyle = lip;
+  c.fillRect(0, 0, w, h);
 }
 
 // The guitar's top, laid out in the body outline's own units (x -1..1 across, y -0.95..1.92),

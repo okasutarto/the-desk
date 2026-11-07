@@ -33,6 +33,8 @@ export function createWallDecor(runtime) {
   drawClockFace(dial.ctx, 512, 512);
   const clockFace = new THREE.Mesh(runtime.core.track(new THREE.CircleGeometry(DIAL_R, 48)), runtime.core.printMaterial(dial.texture));
   clockFace.position.z = 0.045;
+  // (the room's light shades the dial, as it does the other prints)
+  clockFace.receiveShadow = true;
   const clockHandMat = runtime.core.toon("#000000");
   const hourHand = new THREE.Group();
   const minuteHand = new THREE.Group();

@@ -354,11 +354,12 @@ export function createCoffee(runtime) {
   const roamTurn = new THREE.Quaternion();
   const roamEuler = new THREE.Euler(0, 0, 0, "YXZ");
   // Behind something hung on the back or side wall. `swing` is the part of it that sways, which
-  // the shadow follows.
-  const wallShadow = (object, wall, strength, { box = true, swing = object } = {}) => {
+  // the shadow follows. `reach` is how far the shade spreads past its edge, `drop` how far
+  // below it the shade sits (a share of its height).
+  const wallShadow = (object, wall, strength, { box = true, swing = object, reach = 1.05, drop = 0.08 } = {}) => {
     const { centre, size } = boundsOf(object);
     swing.updateWorldMatrix(true, false);
-    addContact({ object, wall, strength, box, swing, centre: swing.worldToLocal(centre), width: (wall === "side" ? size.z : size.x) * 1.05, depth: size.y * 1.05 });
+    addContact({ object, wall, strength, box, swing, drop, centre: swing.worldToLocal(centre), width: (wall === "side" ? size.z : size.x) * reach, depth: size.y * reach });
   };
 
   const contactMatrix = new THREE.Matrix4();
@@ -479,7 +480,7 @@ export function createCoffee(runtime) {
         // and along the wall away from the key
         entry.swing.localToWorld(contactPlace.copy(entry.centre));
         const lean = leanFrom(contactPlace.x, contactPlace.z);
-        contactPlace.y -= entry.depth * 0.08;
+        contactPlace.y -= entry.depth * entry.drop;
         if (entry.wall === "side") {
           contactPlace.x = runtime.room.SIDE_X + 0.13;
           contactPlace.z += lean.z * lean.weight * 0.15 * entry.width;
@@ -593,7 +594,10 @@ export function createCoffee(runtime) {
   shelfShadow([runtime.shelfConsole.holder], 2, 0.7, { follow: false });
   shelfShadow([runtime.gauntlet.gauntlet], 3, 0.8);
   shelfItem("switch").forEach((handheld) => shelfShadow([handheld], 3, 0.7, { box: true }));
-  wallShadow(runtime.wallDecor.clock, "back", 0.7, { box: false });
+  // The clock stands off the wall on its nail, so its shade spreads well past the rim (the
+  // decal fades out over its outer half: at a frame's 1.05 it all stays behind the case) and
+  // is deeper, a little lower down, where the light from above throws it
+  wallShadow(runtime.wallDecor.clock, "back", 3.5, { box: false, reach: 1.45, drop: 0.1 });
   wallShadow(runtime.wallDecor.paintingHang, "back", 0.7);
   wallShadow(runtime.aboutBoard.aboutBoard, "back", 0.6);
   wallShadow(runtime.guitar.guitar, "side", 0.7, { box: false, swing: runtime.guitar.guitarSwing });
