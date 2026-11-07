@@ -10,7 +10,20 @@ const textures = [];
 const draws = [];
 let handlers;
 let chirps = 0;
-const ctx = new Proxy({}, { get: (_, key) => key === 'createLinearGradient' ? () => ({ addColorStop() {} }) : () => {} });
+// Each screen's pixels as the glow reads them back: a 4 × 4 picture, the colour set below
+let screenPixel = [255, 0, 0];
+const readBacks = [];
+const ctx = new Proxy({ canvas: { width: 4, height: 4 } }, { get: (target, key) => {
+  if (key in target) return target[key];
+  if (key === 'createLinearGradient') return () => ({ addColorStop() {} });
+  if (key === 'getImageData') return (...area) => {
+    readBacks.push(area);
+    const data = new Uint8ClampedArray(4 * 4 * 4);
+    for (let p = 0; p < data.length; p += 4) data.set([...screenPixel, 255], p);
+    return { data };
+  };
+  return () => {};
+} });
 const glows = [];
 const runtime = {
   options: { timesGateFinish: 'silver' },
@@ -39,7 +52,7 @@ const sandbox = {
   THREE, runtime, console, performance, process, GATE_PX: 128,
   document: { createElement: () => ({ getContext: () => null }) },
   fetch: () => new Promise(() => {}), sessionStorage: { getItem: () => null },
-  canvasTexture: () => { const texture = new THREE.Texture(); textures.push(texture); return { ctx, texture }; },
+  canvasTexture: (w, h, options) => { const texture = new THREE.Texture(); texture.options = options; textures.push(texture); return { ctx, texture }; },
   drawBrushedMetal() {}, hoverSound() {}, sfx: { chirp: () => chirps++ },
   gsap: { to(target, values) {
     for (const axis of ['x', 'y', 'z']) if (axis in values) target[axis] = values[axis];
@@ -56,6 +69,13 @@ for (const widget of ['Weather', 'Github', 'Visitors', 'Performance', 'Pet']) {
 const model = vm.runInNewContext(finishes + source + '; createTimesGate(runtime)', sandbox);
 assert.equal(handlers.focus, 'timesgate');
 assert.equal(glows.length, 1, 'one glow for the screens; the arc strips cast none');
+// The glow takes the screens' mean colour, read straight from their own canvases: kept in
+// memory (no GPU readback on every redraw) and read whole, not drawn into a second canvas
+assert.equal(readBacks.length, 5, 'every screen is read back as it is first drawn');
+readBacks.forEach((area) => assert.deepEqual(area, [0, 0, 4, 4], 'the whole picture is read'));
+assert.equal(textures.filter((t) => t.options?.willReadFrequently).length, 5, 'the five screens keep their canvases in memory');
+const tint = glows[0].tint.color;
+assert.ok(tint.r > 0.99 && tint.g < 0.01 && tint.b < 0.01, 'a red picture tints the glow red');
 const dayGlow = glows.map(g => g.level());
 runtime.core.roomLight.night = 1;
 glows.forEach((g, i) => assert.ok(g.level() > dayGlow[i] * 2, 'the glow comes up at night'));

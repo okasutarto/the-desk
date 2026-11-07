@@ -394,7 +394,7 @@ import { useMediaQuery } from "@vueuse/core";
 import { projects } from "@/data/projects";
 import { experiences } from "@/data/experience";
 import { useTheme } from "@/shared/composables/useTheme";
-import { useSfx, initializeAudio, sfx } from "@/shared/composables/useSfx";
+import { useSfx, initializeAudio, prepareAudio, sfx } from "@/shared/composables/useSfx";
 import { hideBootLoader, showEnterGate, setBootProgress, bootLoaderShowing } from "@/shared/utils/bootLoader";
 import { WOODS, WOOD_PATTERNS, PART_PATTERNS, WOOD_TARGETS, FLOOR_LAYOUTS, FRAME_PAINTS, BRICKS } from "@/features/desk3d/woods";
 import { DAY_PARTS, TIME_MODES, RAIN_MODES, partOfDay, partFor } from "@/features/desk3d/daylight";
@@ -499,6 +499,8 @@ function onEvent(name, payload = {}) {
   // With the loader up, the room goes dark behind it, close on the monitor, and the loader's
   // screen hands over to the monitor's
   else if (name === "ready") {
+    // (opened now so the gesture coming in only has to resume it; see prepareAudio)
+    prepareAudio();
     if (!bootLoaderShowing()) enterDesk();
     else scene.value.standby().then((screen) => showEnterGate(enterDesk, screen, () => scene.value?.landStandby()) || enterDesk());
   }

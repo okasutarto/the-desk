@@ -7,14 +7,16 @@ export const TYPE_COLORS = {
 };
 export const colorFor = (project) => TYPE_COLORS[project.type] || TYPE_COLORS.Fullstack;
 
-export function canvasTexture(w, h) {
+// `willReadFrequently` keeps the canvas in memory rather than on the GPU, for a small one whose
+// pixels are read back as it redraws: reading a GPU canvas waits for the GPU to finish the frame
+export function canvasTexture(w, h, { willReadFrequently = false } = {}) {
   const canvas = document.createElement("canvas");
   canvas.width = w;
   canvas.height = h;
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
   texture.anisotropy = 4;
-  return { canvas, ctx: canvas.getContext("2d"), texture };
+  return { canvas, ctx: canvas.getContext("2d", willReadFrequently ? { willReadFrequently } : undefined), texture };
 }
 
 // Box with a hard offset shadow and a thick outline

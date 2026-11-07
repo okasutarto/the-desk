@@ -87,5 +87,21 @@ vm.runInContext(source, sandbox);
   vm.runInContext('ctx = null;', sandbox);
   await vm.runInContext('initializeAudio()', sandbox);
   assert.equal(vm.runInContext('ctx', sandbox), null, 'autoplay must respect mute');
+  // Opened ahead behind the loader: muted, nothing is made; otherwise the context exists but
+  // isn't resumed, and the gesture coming in resumes that same context rather than making one
+  vm.runInContext('prepareAudio()', sandbox);
+  assert.equal(vm.runInContext('ctx', sandbox), null, 'preparing audio must respect mute');
+  vm.runInContext('muted.value = false;', sandbox);
+  const primesBefore = primed;
+  vm.runInContext('prepareAudio()', sandbox);
+  const prepared = vm.runInContext('ctx', sandbox);
+  assert.equal(prepared.state, 'suspended', 'a prepared context waits for the gesture');
+  assert.equal(primed, primesBefore, 'preparing starts nothing');
+  vm.runInContext('prepareAudio()', sandbox);
+  assert.equal(vm.runInContext('ctx', sandbox), prepared, 'preparing twice keeps one context');
+  gestureListeners.keydown();
+  await new Promise(setImmediate);
+  assert.equal(vm.runInContext('ctx', sandbox), prepared, 'the gesture resumes the prepared context');
+  assert.equal(prepared.state, 'running');
   console.log('Audio entry checks passed.');
 })().catch((error) => { console.error(error); process.exitCode = 1; });

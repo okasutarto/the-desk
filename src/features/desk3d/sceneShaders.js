@@ -103,6 +103,32 @@ export function installSceneShaders(benchmark, lowPower = false) {
       );
   }
 
+  // Most of the room's point and spot lights sit at zero most of the time (neons by day, strip
+  // lights, the lamp until it's switched on, the sword spot until it's focused). They stay in
+  // the scene so that switching one on doesn't change the light count and recompile every lit
+  // shader, but three still works each of them out for every fragment: the falloff, the toon
+  // ramp's texture read, the shadow test. A light whose colour is zero adds exactly nothing, so
+  // skip it. The test reads a uniform, so every fragment takes the same branch.
+  // A lit light still reaches only so far: past its distance, or outside a spot's cone, three
+  // gives it no colour and no `visible`, skips its shadow, yet still shades with it (the ramp's
+  // texture read and all) to add nothing. At night most of the room is out of reach of most of
+  // its twenty lit lights (neons, strips, the sign, the screen glow), so that work goes as well.
+  if (benchmark !== "no-light-skip" && !THREE.ShaderChunk.lights_fragment_begin.includes("skipDarkLight")) {
+    const skip = (chunk, kind) => {
+      const open = `for ( int i = 0; i < NUM_${kind.toUpperCase()}_LIGHTS; i ++ ) {`;
+      const start = chunk.indexOf(open);
+      const end = chunk.indexOf("#pragma unroll_loop_end", start);
+      const close = chunk.lastIndexOf("}", end);
+      if (start < 0 || end < 0 || close < start) throw new Error(`lights_fragment_begin: no ${kind} light loop to patch`);
+      const shade = "RE_Direct( directLight,";
+      const body = chunk.slice(start + open.length, close);
+      if (body.split(shade).length !== 2) throw new Error(`lights_fragment_begin: no single ${kind} light to shade`);
+      return chunk.slice(0, start) + `${open}\n\t\t// skipDarkLight\n\t\tif ( ${kind}Lights[ i ].color != vec3( 0.0 ) ) {` +
+        body.replace(shade, `if ( directLight.visible ) ${shade}`) + "}\n\t}" + chunk.slice(close + 1);
+    };
+    THREE.ShaderChunk.lights_fragment_begin = skip(skip(THREE.ShaderChunk.lights_fragment_begin, "point"), "spot");
+  }
+
   // Toon bands that change colour, not just brightness, as a painter shades: the turned-away band
   // leans cool violet and the band at the turn, where light gives way to shade, runs a little
   // warm and saturated. Every toon material (the batched one too) picks it up, at the cost of a

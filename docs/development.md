@@ -19,6 +19,7 @@
 | `node scripts/check-desk-toon-batch.cjs` | Batching, transforms, visibility, picking and material fallbacks |
 | `node scripts/check-desk-lightbar.cjs` | Task-light geometry, direction, output and night fade |
 | `node scripts/check-desk-guitar-sword-lighting.cjs` | Lit guitar strings and independent sword focus lighting |
+| `node scripts/check-desk-light-skip.cjs` | Lit shaders skip point and spot lights that are switched off or out of reach, and otherwise match three's loops |
 | `node scripts/check-desk-keyboard.cjs` | Keyboard layout, keycap geometry, picking, travel clearance and legend fitting |
 
 Other `scripts/check-*.cjs` files exercise individual props, layout, scene wiring and audio.
@@ -62,7 +63,8 @@ change it.
 
 Add `?perf` (or `&perf` to an existing query) for FPS, draw calls, triangles, CPU submission,
 GPU timing when available, frame p95 and render density. For comparisons, reload with one
-benchmark at a time: `?perf&bench=no-ao`, `no-shadows`, `no-pcss`, `no-batch` or `no-ao-cache`.
+benchmark at a time: `?perf&bench=no-ao`, `no-shadows`, `no-pcss`, `no-batch`, `no-ao-cache` or
+`no-light-skip` (shades with every point and spot light for every fragment, even those switched off or out of reach).
 Benchmark toggles isolate rendering costs; they do not change saved settings. Use a production
 build for representative performance comparisons; development compilation and startup can skew
 measurements. The `time`/`rain` previews themselves do not override production behaviour.
