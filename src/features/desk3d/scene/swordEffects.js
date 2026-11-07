@@ -730,7 +730,13 @@ export function createSwordEffects(runtime) {
   swordSpotlight.shadow.camera.far = 32;
   swordSpotlight.shadow.bias = -0.0002;
   swordSpotlight.shadow.normalBias = 0.015;
-  swordSpotlight.shadow.radius = 2;
+  // The map's frustum is narrowed to the rack and the strike's space round it (about ±7.5 units
+  // at the rack, past the swords' ends) rather than the light's whole cone: the edge of the cone
+  // only lights the vignette's ink. Its texels come out half the size, and a wider minimum blur
+  // smooths what's left: the swords hang a hand off the wall, so their shadows never spread far
+  // and a narrow filter showed each texel as a step along the curved saya.
+  swordSpotlight.shadow.focus = 0.65;
+  swordSpotlight.shadow.radius = 6;
   swordSpotlight.shadow.autoUpdate = false;
   runtime.core.scene.add(swordSpotlight, swordSpotlight.target);
   const spotUniforms = {
