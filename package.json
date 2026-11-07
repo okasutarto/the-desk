@@ -10,7 +10,9 @@
     "check:app": "node scripts/check-app.cjs",
     "check:desk": "node scripts/check-desk.cjs",
     "check:bundles": "vite build --manifest && node scripts/check-bundles.cjs",
-    "check:browser": "npm run check:bundles && playwright test"
+    "check:browser": "npm run check:bundles && playwright test",
+    "spike:bake": "blender --background --factory-startup --python spike/bake/bake_room.py -- spike/bake/out",
+    "spike:bake:view": "vite spike/bake --port 8099"
   },
   "dependencies": {
     "@emailjs/browser": "^4.4.1",
