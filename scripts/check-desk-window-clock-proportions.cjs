@@ -12,8 +12,8 @@ const apply = (target, values) => {
   for (const axis of ['x', 'y', 'z']) if (axis in values) target[axis] = values[axis];
   values.onComplete?.();
 };
-const { mergeGeometries } = require('three/examples/jsm/utils/BufferGeometryUtils.js');
-const context = vm.createContext({ THREE, mergeGeometries, room, scene, FLOOR_Y: -7.4, SIDE_X: -9.6, WALL_Z: -4.9,
+const { mergeGeometries, mergeVertices } = require('three/examples/jsm/utils/BufferGeometryUtils.js');
+const context = vm.createContext({ THREE, mergeGeometries, mergeVertices, room, scene, FLOOR_Y: -7.4, SIDE_X: -9.6, WALL_Z: -4.9,
   WINDOW_AT: vm.runInNewContext('(' + source.match(/const WINDOW_AT = ([^;]+);/)[1] + ')'),
   sideWallMat: material,
   DEFAULT_WOODS: {}, dark: false, time: 'day', previewRain: 0, previewTime: null,
@@ -22,7 +22,9 @@ const context = vm.createContext({ THREE, mergeGeometries, room, scene, FLOOR_Y:
     get: (_, key) => key.startsWith('create') ? () => ({ addColorStop() {} }) : () => {},
   }) }),
   drawWoodTop() {}, drawClockFace() {},
-  track: value => value, toon: () => material, printMaterial: () => material,
+  DEVICE_FINISHES: vm.runInNewContext(fs.readFileSync('src/features/desk3d/deviceFinishes.js', 'utf8').replace(/export /g, '') + '; DEVICE_FINISHES'),
+  deviceFinishes: { clock: 'green' },
+  track: value => value, toon: color => new THREE.MeshToonMaterial({ color }), printMaterial: () => material,
   mesh: (geo, mat) => new THREE.Mesh(geo, mat),
   rbox: (w, h, d) => new THREE.BoxGeometry(w, h, d),
   printed: (w, h) => new THREE.Mesh(new THREE.PlaneGeometry(w, h), material),
@@ -56,17 +58,53 @@ near(context.WINDOW_AT.h, frameBox.max.y - frameBox.min.y, 'wall opening matches
 assert.ok(frameBox.min.z > context.WALL_Z + 0.12, 'window clears the back-wall corner');
 assert.ok(bounds(sill).min.y > 1.5, 'sill clears the desktop by at least 15 cm');
 vm.runInContext(source.slice(source.indexOf('  const clock ='), source.indexOf('  // The rug runs')) +
-  '\nvar clockModel = { clock, clockMount, clockRim };', context);
-const { clock, clockMount, clockRim } = context.clockModel;
+  '\nvar clockModel = { clock, clockMount, clockRim, clockCaseMat, clockShellMat, clockHandMat, setClockFinish, front, back };', context);
+const { clock, clockMount, clockRim, clockCaseMat, clockShellMat, clockHandMat, setClockFinish, front, back } = context.clockModel;
 assert.equal(clockMount.parent, room, 'clock stays mounted on the wall');
 // Measured where it would hang, ready for when it returns to the wall.
 clockMount.updateMatrixWorld(true);
 const clockBox = bounds(clockRim);
-near(clockBox.max.x - clockBox.min.x, 3, '30 cm clock diameter');
+// A flag clock: the case stands straight out from the wall, its faces turned to either side
+// (to a millimetre: the bevels' curves round off a hair outside the capsule)
+const nearMm = (a, b, label) => assert.ok(Math.abs(a - b) < 0.01, label);
+nearMm(clockBox.max.z - clockBox.min.z, 4.75, '40 cm capsule face and its 7.5 cm neck, running out from the wall');
+nearMm(clockBox.min.z, context.WALL_Z + 0.21 - 0.05 * 30 / 18, 'the case is fixed flat to the wall');
+nearMm(clockBox.max.y - clockBox.min.y, 2.6, '26 cm capsule face height');
+nearMm(clockBox.max.x - clockBox.min.x, 0.7, '7 cm thick case, a face either side');
 near(clockBox.getCenter(new THREE.Vector3()).y + 7.4, 20.0, 'clock centre is 200 cm above floor');
+assert.ok(bounds(clock).min.z > context.WALL_Z + 0.12 - 1e-6, 'the case sits on the wall, not in it');
+const frontNormal = new THREE.Vector3(0, 0, 1).transformDirection(front.half.matrixWorld);
+const backNormal = new THREE.Vector3(0, 0, 1).transformDirection(back.half.matrixWorld);
+assert.ok(frontNormal.x > 0.999 && backNormal.x < -0.999, 'one face looks into the room\'s right, the other towards the window');
 handlers.get(clock).onClick();
 clockMount.updateMatrixWorld(true);
-near(bounds(clockRim).max.x - bounds(clockRim).min.x, 3, 'click animation restores the full-size clock');
+nearMm(bounds(clockRim).max.z - bounds(clockRim).min.z, 4.75, 'click animation restores the full-size clock');
+assert.equal(back.hourHand.rotation.z, front.hourHand.rotation.z, 'both faces tell the same hour');
+assert.equal(back.minuteHand.rotation.z, front.minuteHand.rotation.z, 'both faces tell the same minute');
+// The saved colour is applied on construction; each pick recolours the case and hands in place
+const hex = mat => '#' + mat.color.getHexString();
+const clockFinishes = context.DEVICE_FINISHES.clock.finishes;
+assert.equal(hex(clockCaseMat), clockFinishes.green.shell, 'saved clock colour applied at construction');
+assert.deepEqual(Object.keys(clockFinishes), ['yellow', 'red', 'blue', 'black', 'white', 'green']);
+for (const [name, coat] of Object.entries(clockFinishes)) {
+  setClockFinish(name);
+  assert.equal(hex(clockCaseMat), coat.shell, name + ' case');
+  assert.equal(hex(clockShellMat), coat.shell, name + ' shell');
+  assert.equal(hex(clockHandMat), coat.hands, name + ' hands');
+}
+// The shell's faces keep the full colour and its sides take a shade darker
+const shell = clockRim.children.find(mesh => mesh.material === clockShellMat);
+assert.ok(clockShellMat.vertexColors && shell, 'the shell is shaded by vertex colour');
+const shades = { face: [], side: [] };
+const { normal, color } = shell.geometry.attributes;
+for (let i = 0; i < normal.count; i++) {
+  if (Math.abs(normal.getZ(i)) > 0.95) shades.face.push(color.getX(i));
+  else if (Math.abs(normal.getZ(i)) < 0.05) shades.side.push(color.getX(i));
+}
+assert.ok(shades.face.length && shades.face.every(v => v === 1), 'faces keep the full colour');
+assert.ok(shades.side.length && shades.side.every(v => v < 0.8), 'sides take a shade darker');
+setClockFinish('constructor');
+assert.equal(hex(clockCaseMat), clockFinishes.green.shell, 'unknown clock colours are ignored');
 const lightSource = fs.readFileSync('src/features/desk3d/scene/windowLighting.js', 'utf8').replace(/^import .*;\n/gm, '').replace('export function', 'function');
 const lightContext = vm.createContext({ THREE, lowPower: false, runtime: { core: { scene, sun: new THREE.SpotLight() }, room: { windowGroup, GLASS: context.GLASS } } });
 vm.runInContext(lightSource.slice(0, lightSource.indexOf('  const windowRay =')) + '\nreturn { windowGlass, windowLight }; }\nvar result = createWindowLighting(runtime);', lightContext);
@@ -83,4 +121,4 @@ const halfGlass = Math.atan(Math.hypot(context.GLASS.x, context.GLASS.y) * windo
 assert.ok(sun.angle * (1 - sun.penumbra) > halfGlass, 'the full-strength cone covers the whole glass');
 assert.ok(halfGlass < 0.05, 'rays through the glass stay all but parallel, so the noon beam keeps off the back wall');
 assert.ok(sun.shadow.camera.near < sunFar - 4 && sun.shadow.camera.far > sunFar + 30, 'the shadow range spans the glass and the room behind it');
-console.log('Window dimensions/opening, sill, light origin/cone and clock diameter/mount/click recovery passed.');
+console.log('Window dimensions/opening, sill, light origin/cone, two-faced flag clock size/mount/click recovery and colours passed.');

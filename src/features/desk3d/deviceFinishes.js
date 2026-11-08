@@ -49,4 +49,17 @@ export const DEVICE_FINISHES = {
       mint: { name: "Mint", shell: "#bfe2cf", seam: "#93c6ab", cap: "#daf0e4", ink: "#f3faf6", glow: "#6dffc4" },
     },
   },
+  // The capsule wall clock: `shell` for its stacked case and bezel, `hands` for the hour and
+  // minute hands (the case's own colour, except where that would vanish on the cream dial).
+  clock: {
+    label: "Wall clock", default: "blue",
+    finishes: {
+      yellow: { name: "Yellow", shell: "#f4c21b", hands: "#d99a00" },
+      red: { name: "Red", shell: "#d7263d", hands: "#d7263d" },
+      blue: { name: "Blue", shell: "#2149c6", hands: "#2149c6" },
+      black: { name: "Black", shell: "#26272b", hands: "#26272b" },
+      white: { name: "White", shell: "#f2f1ec", hands: "#1a1714" },
+      green: { name: "Green", shell: "#1f9a55", hands: "#1f9a55" },
+    },
+  },
 };
