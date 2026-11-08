@@ -6,7 +6,7 @@ import { TIME_MODES, partFor } from "../daylight";
 import { PALETTES } from "../sceneConfig";
 import { createNightLift, toonMaterialsUnder } from "../nightLift";
 
-// Added to the chair's and headset's own colours at full night (sRGB; see nightLift)
+// Added to the chair's and headset's own colours at full dusk or night (sRGB; see nightLift)
 const NIGHT_PROP_LIFT = "#2a2e3a";
 
 export function createTheme(runtime) {
@@ -35,8 +35,11 @@ export function createTheme(runtime) {
 
   // ---------- theme ----------
   let darkNow = runtime.options.dark;
-  // The chair and the headset hang in the dim corner away from the lamp; by night their dark
-  // finishes get a faint moonlit lift (see nightLift), as the walls and floor are moonlit
+  // The chair and the headset stand in the dim corner away from the lamp and the window's
+  // patch; by dusk and night their dark finishes get a faint moonlit lift (see nightLift), as
+  // the walls and floor are moonlit. `propLift.level` is how much of it this part of the day
+  // takes (PROP_LIFT), blended with the rest of the light.
+  const propLift = { level: 0 };
   const nightLift = createNightLift();
   nightLift.add(toonMaterialsUnder(runtime.chair.chair, runtime.headset.assembly), NIGHT_PROP_LIFT);
   // The walls' paint is the visitor's pick (graphite by default); by night it is tinted by the
@@ -148,10 +151,14 @@ export function createTheme(runtime) {
     // things in the room, so they settle into the room's own light
     const part = isDark ? "night" : runtime.room.daylightPart;
     runtime.core.printGlow.level = PRINT_GLOW[part];
+    propLift.level = PROP_LIFT[part];
     runtime.wastebasket.net.material.color.setScalar(HOOP_NET[part]);
     runtime.badge.sleeveMat.color.setScalar(SLEEVE_SHEEN[part]);
   }
   const PRINT_GLOW = { morning: 0.6, day: 0.6, evening: 0.22, night: 0.08 };
+  // Evening's fill is as dim as night's, and its low sun lights only the desk's far end, so
+  // the chair's corner needs the lift then too
+  const PROP_LIFT = { morning: 0, day: 0, evening: 1, night: 1 };
   const HOOP_NET = { morning: 1, day: 1, evening: 0.62, night: 0.4 };
   // The badge sleeve's gloss is a reflection of the room's light, so it fades with it
   const SLEEVE_SHEEN = { morning: 1, day: 1, evening: 0.55, night: 0.3 };
@@ -188,7 +195,7 @@ export function createTheme(runtime) {
     [runtime.core.ambient, "intensity"], [runtime.core.skyFill, "intensity"], [runtime.core.readabilityFill, "intensity"],
     [runtime.core.sun, "intensity"], [runtime.windowLighting.windowLight, "intensity"], [runtime.lamp.lampLight, "intensity"],
     [runtime.core.roomLight, "night"], [runtime.workstation.monitorGlowMat, "opacity"], [runtime.windowBlind.blindFabric, "emissiveIntensity"],
-    [runtime.core.printGlow, "level"],
+    [runtime.core.printGlow, "level"], [propLift, "level"],
     ...runtime.room.deskNeons.map(({ washMat }) => [washMat, "opacity"]),
   ];
   const lightingColors = [runtime.core.ambient.color, runtime.core.skyFill.color, runtime.core.sun.color, runtime.windowLighting.windowLight.color,
@@ -222,7 +229,7 @@ export function createTheme(runtime) {
       if (object === runtime.lamp.lampLight && !lightingBlending) return;
       object[key] = THREE.MathUtils.lerp(lightingFrom.values[i], lightingTarget.values[i], blend);
     });
-    nightLift.update(runtime.core.roomLight.night);
+    nightLift.update(propLift.level);
     lightingColors.forEach((color, i) => color.copy(lightingFrom.colors[i]).lerp(lightingTarget.colors[i], blend));
     // Clouds remove the direct beam much more than diffuse sky/bounce light.
     runtime.windowLighting.windowLight.intensity *= 1 - 0.88 * runtime.room.outside.rain;

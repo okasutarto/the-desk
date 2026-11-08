@@ -1,4 +1,4 @@
-// The night's moonlit lift on the chair and headset: none by day, added by night, following the
+// The dusk and night moonlit lift on the chair and headset: none by day, added by dusk and night, following the
 // day/night blend, taking a finish picked at night as its new base, and wired into the theme.
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -53,6 +53,6 @@ assert.equal(toonMaterialsUnder(group, other, undefined).length, 2, 'toon materi
 
 const theme = fs.readFileSync(root + 'scene/theme.js', 'utf8');
 assert.ok(theme.includes('toonMaterialsUnder(runtime.chair.chair, runtime.headset.assembly)'), 'the chair and headset are lifted');
-assert.ok(theme.includes('nightLift.update(runtime.core.roomLight.night)'), 'the lift follows the lighting blend');
+assert.ok(theme.includes('nightLift.update(propLift.level)') && theme.includes('[propLift, "level"]'), 'the lift follows the lighting blend');
 
 console.log('Night lift: none by day, cool lift by night, follows the blend, repaints and wiring passed.');

@@ -299,6 +299,9 @@ for (const part of ['morning', 'day', 'evening', 'night']) {
   run(`daylightPart = '${part}'; setRoomTheme(${part === 'night'})`);
   update(now + 5000);
   hoopGlow[part] = [context.printGlow.level, context.net.material.color.r, context.sleeveMat.color.r];
+  // Evening's fill is as dim as night's: the black chair is lifted then too, and not by day
+  const lifted = chairLeather.color.r > new THREE.Color('#35312e').r * 1.5;
+  assert.equal(lifted, part === 'evening' || part === 'night', `${part}: black chair lifted only by dusk and night`);
   const clear = windowLight.intensity;
   const clearRadius = windowLight.shadow.radius;
   const localLamp = lampLight.intensity;
