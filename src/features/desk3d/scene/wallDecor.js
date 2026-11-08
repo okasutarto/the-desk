@@ -103,17 +103,19 @@ export function createWallDecor(runtime) {
     // Chunky round-ended hands, flattened, the hour hand the broader. Each sits in its own
     // layer clear of the dial and of the other (they'd cut through each other and flicker
     // where they cross), and they take no shadow: the case's would speckle them at a slant.
+    // Nor are they inked: from across the room a hand is a few pixels wide, and the outline's
+    // least width would double it as a dark ghost to one side; blue on cream reads on its own.
     const hourHand = new THREE.Group();
     const minuteHand = new THREE.Group();
     [[hourHand, 0.3, 0.045, 0.152], [minuteHand, 0.48, 0.034, 0.178]].forEach(([pivot, length, radius, z]) => {
-      const hand = runtime.core.mesh(new THREE.CapsuleGeometry(radius, length, 4, 10).scale(1, 1, 0.25), clockHandMat, { cast: false, outline: 0.006 });
+      const hand = runtime.core.mesh(new THREE.CapsuleGeometry(radius, length, 4, 10).scale(1, 1, 0.25), clockHandMat, { cast: false, outline: 0 });
       hand.receiveShadow = false;
       hand.position.y = length / 2;
       pivot.position.z = z;
       pivot.add(hand);
     });
     // A small brass cap over the pivot
-    const cap = runtime.core.mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.02, 16), clockCapMat, { outline: 0.006, cast: false });
+    const cap = runtime.core.mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.02, 16), clockCapMat, { outline: 0, cast: false });
     cap.rotation.x = Math.PI / 2;
     cap.receiveShadow = false;
     cap.position.z = 0.198;
