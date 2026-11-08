@@ -417,7 +417,6 @@ export function createAnimation(runtime) {
     runtime.cat.updateCatWatch(now);
     runtime.cat.updateCatLife(now);
     runtime.cat.updateCatNeck();
-    runtime.wallDecor.updateSecondHand();
     runtime.theme.updateDaylight(now);
     runtime.room.outside.t += dt;
     runtime.room.outside.rain += (runtime.room.outside.rainTarget - runtime.room.outside.rain) * Math.min(1, dt * 0.35);

@@ -64,7 +64,7 @@ Prefer a classic page? The same content lives at [`/2d`](https://okasp.dev/2d).
 | 🖱️ **Mouse** | A life-size wireless gaming mouse with two thumb buttons and a green status light, in four colours. It follows your pointer, and grows ears and a tail and scampers off for a lap when clicked. |
 | 🪑 **Chair** | A Titan Evo-inspired gaming chair, traced from photos. Click to spin it, or drag it round on its post. |
 | 🖼️ **Painting** | A small gallery: it flips to the next picture. |
-| 🕰️ **Clock** | Spins its hands round and chimes. |
+| 🕰️ **Clock** | A two-faced flag clock standing straight out from the wall, in six colours. Spins its hands round and chimes. |
 | 🎸 **Guitar** | Strums the next chord; its strings react to hover and vibration, and respond to the room lighting. |
 | 👒 **Straw hat** | Luffy has something to say. |
 | ⚔️ **Sword rack** | Inspect three swords, draw one and strike, with technique cards, manga effects and falling sakura. Its close-up has an independent spotlight. |
@@ -117,6 +117,7 @@ remembered in your browser. Close the panel with its ✕, the gear or Esc.
 | 🖱️ **Mouse** | Black · White · Magenta · Red | White |
 | 🪑 **Chair** | Black · White leatherette; the frame, base and red stitching stay | Black |
 | 🎧 **Headset** | White · Black · Pink · Mint; shell, stitching, dial caps, emblem ink and glow colour | White |
+| 🕰️ **Wall clock** | Yellow · Red · Blue · Black · White · Green; case and hands | Blue |
 | 🟧 **Smart Pixel Art** (Times Gate) | Silver · Pink · White · Yellow | Silver |
 
 "Where you are" comes from your browser's time zone (`Asia/Jakarta` is Jakarta), looked up

@@ -15,6 +15,7 @@ export function createLifecycle(runtime) {
       mouse: runtime.mouse.setMouseFinish,
       headset: runtime.headset.setHeadsetFinish,
       chair: runtime.chair.setChairFinish,
+      clock: runtime.wallDecor.setClockFinish,
     })[part]?.(finish),
     setTimesGateFinish: runtime.timesGate.setTimesGateFinish,
     setTime: runtime.theme.setTime,

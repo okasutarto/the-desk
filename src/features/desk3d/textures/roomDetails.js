@@ -2,40 +2,77 @@ import { DISPLAY } from "./base";
 import { WOODS, BRICKS, DEFAULT_BRICK, DEFAULT_SLATS } from "../woods";
 
 // ---------- room details: the clock face, the guitar's top, straw, the chair's quilting ----------
-// The wall clock's dial: bold hour bars and four numerals
+// The wall clock's dial: a capsule (a stadium) filling the canvas, its half-height the round
+// ends' radius. Bold numerals at the quarters and a short bar at every other hour, each set in
+// from the edge along its own ray from the centre, so they follow the capsule round.
 export function drawClockFace(c, w, h) {
   const cx = w / 2;
-  const r = w / 2;
+  const cy = h / 2;
+  const r = h / 2;
+  const straight = w / 2 - r;
+  const capsule = () => {
+    c.beginPath();
+    c.moveTo(cx - straight, cy - r);
+    c.lineTo(cx + straight, cy - r);
+    c.arc(cx + straight, cy, r, -Math.PI / 2, Math.PI / 2);
+    c.lineTo(cx - straight, cy + r);
+    c.arc(cx - straight, cy, r, Math.PI / 2, Math.PI * 1.5);
+    c.closePath();
+  };
+  // How far the edge is from the centre along a ray (the capsule is every point within r of
+  // its straight middle line)
+  const edge = (dx, dy) => {
+    let lo = 0;
+    let hi = straight + r;
+    for (let i = 0; i < 24; i++) {
+      const t = (lo + hi) / 2;
+      const off = Math.max(0, Math.abs(dx * t) - straight);
+      if (Math.hypot(off, dy * t) < r) lo = t;
+      else hi = t;
+    }
+    return lo;
+  };
   c.fillStyle = "#fffdf5";
   c.fillRect(0, 0, w, h);
-  for (let i = 0; i < 60; i += 5) {
-    const a = (i / 60) * Math.PI * 2;
-    const inner = r * 0.78;
-    c.strokeStyle = "#1a1714";
-    c.lineWidth = r * 0.035;
-    c.lineCap = "round";
-    c.beginPath();
-    c.moveTo(cx + Math.sin(a) * inner, cx - Math.cos(a) * inner);
-    c.lineTo(cx + Math.sin(a) * r * 0.92, cx - Math.cos(a) * r * 0.92);
-    c.stroke();
-  }
+  c.strokeStyle = "#1a1714";
   c.fillStyle = "#1a1714";
-  c.font = `900 ${Math.round(r * 0.2)}px ${DISPLAY}`;
+  c.lineCap = "round";
+  c.lineWidth = r * 0.075;
+  c.font = `900 ${Math.round(r * 0.36)}px ${DISPLAY}`;
   c.textAlign = "center";
   c.textBaseline = "middle";
-  [["12", 0], ["3", 90], ["6", 180], ["9", 270]].forEach(([n, deg]) => {
-    const a = (deg * Math.PI) / 180;
-    c.fillText(n, cx + Math.sin(a) * r * 0.6, cx - Math.cos(a) * r * 0.6 + r * 0.01);
-  });
+  for (let hour = 1; hour <= 12; hour++) {
+    const a = (hour / 12) * Math.PI * 2;
+    const dx = Math.sin(a);
+    const dy = -Math.cos(a);
+    const t = edge(dx, dy);
+    if (hour % 3 === 0) {
+      const at = t - r * 0.3;
+      c.fillText(String(hour), cx + dx * at, cy + dy * at + r * 0.02);
+    } else {
+      c.beginPath();
+      c.moveTo(cx + dx * (t - r * 0.27), cy + dy * (t - r * 0.27));
+      c.lineTo(cx + dx * (t - r * 0.13), cy + dy * (t - r * 0.13));
+      c.stroke();
+    }
+  }
   c.textAlign = "left";
   c.textBaseline = "alphabetic";
-  // The case's lip shades the dial's edge, most along the top, where the light comes from
-  const lip = c.createRadialGradient(cx - r * 0.02, cx + r * 0.05, r * 0.8, cx, cx, r);
-  lip.addColorStop(0, "rgba(40, 30, 20, 0)");
-  lip.addColorStop(0.6, "rgba(40, 30, 20, 0.08)");
-  lip.addColorStop(1, "rgba(40, 30, 20, 0.3)");
-  c.fillStyle = lip;
-  c.fillRect(0, 0, w, h);
+  // The bezel shades the dial's edge, a little more along the top, where the light comes from
+  c.save();
+  capsule();
+  c.clip();
+  c.lineCap = "butt";
+  [[0.22, 0.05], [0.12, 0.07], [0.05, 0.1]].forEach(([width, alpha]) => {
+    c.strokeStyle = `rgba(40, 30, 20, ${alpha})`;
+    c.lineWidth = r * width;
+    c.save();
+    c.translate(0, -r * 0.015);
+    capsule();
+    c.stroke();
+    c.restore();
+  });
+  c.restore();
 }
 
 // The guitar's top, laid out in the body outline's own units (x -1..1 across, y -0.95..1.92),

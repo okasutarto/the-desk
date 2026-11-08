@@ -2,13 +2,18 @@ import * as THREE from "three";
 import gsap from "gsap";
 import { hoverSound, sfx } from "@/shared/composables/useSfx";
 import { canvasTexture, drawPainting, PAINTING_COUNT, drawClockFace, drawRug } from "../textures";
+import { DEVICE_FINISHES } from "../deviceFinishes";
+import { mergeVertices } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 
 export function createWallDecor(runtime) {
-  // Wall clock and a small print give the empty upper area a purpose.
+  // A flag clock, the kind hung in a station corridor: one plain case fixed square to the wall
+  // and standing straight out from it, rounded at its far end, a face on either side: a
+  // rounded bezel round each cream dial, and chunky hands in the case's own colour.
   const clock = new THREE.Group();
-  // Lined up over the monitor as seen from the desk view
   // Low enough that its top stays in frame on wide, short screens
-  clock.position.set(11.05, 12.6, runtime.room.WALL_Z + 0.21); // centred over the shelf, well above the gauntlet
+  // Over the Switch, towards the shelf's right end (its centre is at x 11.05), so the case
+  // standing out from the wall stays clear of the gauntlet
+  clock.position.set(13.3, 12.6, runtime.room.WALL_Z + 0.21);
   const clockMount = new THREE.Group();
   clockMount.position.copy(clock.position).add(new THREE.Vector3(0, 0.78, 0));
   clock.position.set(0, -0.78, 0);
@@ -17,60 +22,143 @@ export function createWallDecor(runtime) {
   const SHOW_CLOCK = true;
   if (SHOW_CLOCK) runtime.room.room.add(clockMount);
   const CLOCK_SCALE = 30 / 18;
-  clock.scale.setScalar(CLOCK_SCALE); // 30 cm diameter; centre 200 cm above the floor.
-  // One slim turned white case, like the family photo's frame: a flat back, a shallow side,
-  // then a narrow rolled lip that curls over and drops in a short step to the dial (radius,
-  // depth; lathed round y, then stood up so its depth runs along z). It's outlined by a plain
-  // drum of its size: its own lip, facing in, would push the ink in over the dial's edge.
-  const DIAL_R = 0.84;
-  const CASE_PROFILE = [[0, -0.05], [0.885, -0.05], [0.9, -0.035], [0.9, 0.045], [0.895, 0.063], [0.882, 0.074], [0.866, 0.077],
-    [0.851, 0.072], [0.843, 0.058], [DIAL_R, 0.045], [0, 0.04]];
-  const caseHull = new THREE.CylinderGeometry(0.9, 0.9, 0.127, 48).translate(0, (0.077 - 0.05) / 2, 0);
-  const clockRim = runtime.core.mesh(new THREE.LatheGeometry(CASE_PROFILE.map(([r, z]) => new THREE.Vector2(r, z)), 48), runtime.core.toon("#f4f3ef"), { outline: 0.018, hull: caseHull });
-  clockRim.rotation.x = Math.PI / 2;
-  const dial = canvasTexture(512, 512);
+  // Each face is 40 × 26 cm; its centre 200 cm above the floor. In the clock's own units the
+  // round ends have a radius of 0.78 and the straight run between their centres is 2 × 0.42.
+  clock.scale.setScalar(CLOCK_SCALE);
+  const CLOCK_RUN = 0.42;
+  const DIAL_R = 0.64;
+  // Each arc draws its own straight run in from the point before it. (Drawn to the arc's
+  // start by hand, the line would end a rounding error short of it, and the near-duplicate
+  // point makes a sliver of a side wall whose stray normal inks a line across the case.)
+  // For the same reason the outlines start mid-way along a straight, not at an arc's end.
+  const capsuleShape = (r) => {
+    const shape = new THREE.Shape();
+    shape.moveTo(0, -r);
+    shape.absarc(CLOCK_RUN, 0, r, -Math.PI / 2, Math.PI / 2, false);
+    shape.absarc(-CLOCK_RUN, 0, r, Math.PI / 2, Math.PI * 1.5, false);
+    return shape;
+  };
+  // The case's own outline: the capsule's far end, then a straight run on past the dial to a
+  // square end (softly rounded at the corners) that is fixed flat to the wall. The case and
+  // its bracket are one piece, so no seam is inked between them. `r` is the half-height; a
+  // smaller r insets the whole outline evenly (for the bevel).
+  const CASE_R = 0.78;
+  const CLOCK_NECK = 0.45;
+  const caseShape = (r) => {
+    const inset = CASE_R - r;
+    const end = CLOCK_RUN + CASE_R + CLOCK_NECK - inset;
+    const corner = Math.max(0.02, 0.12 - inset);
+    const shape = new THREE.Shape();
+    shape.moveTo(0, -r);
+    shape.lineTo(end - corner, -r);
+    shape.quadraticCurveTo(end, -r, end, -r + corner);
+    shape.lineTo(end, r - corner);
+    shape.quadraticCurveTo(end, r, end - corner, r);
+    shape.absarc(-CLOCK_RUN, 0, r, Math.PI / 2, Math.PI * 1.5, false);
+    return shape;
+  };
+  // A rounded capsule plate from z0 to z1 (its bevel inside those bounds), with an optional
+  // capsule hole (the bevel rounds the hole's lip too)
+  const capsulePlate = (r, z0, z1, bevel, hole = 0, outline = capsuleShape) => {
+    const shape = outline(r - bevel);
+    if (hole) shape.holes.push(capsuleShape(hole + bevel));
+    const geo = new THREE.ExtrudeGeometry(shape, {
+      depth: z1 - z0 - 2 * bevel, bevelEnabled: true, bevelThickness: bevel, bevelSize: bevel, bevelSegments: 3, curveSegments: 24,
+    });
+    return geo.translate(0, 0, z0 + bevel);
+  };
+  // The same, shaded smooth: an extrusion comes with a flat normal per facet, and in the toon
+  // ramp a narrow facet where a side turns into a curve drops into the dark band as a thin line
+  const smoothPlate = (...args) => {
+    const flat = capsulePlate(...args);
+    flat.deleteAttribute("uv");
+    flat.deleteAttribute("normal");
+    const smooth = mergeVertices(flat, 1e-4);
+    smooth.computeVertexNormals();
+    flat.dispose();
+    return smooth;
+  };
+  const clockCaseMat = runtime.core.toon("#2149c6");
+  const clockHandMat = runtime.core.toon("#2149c6");
+  const clockCapMat = runtime.core.toon("#d4a72c");
+  // One dial print serves both faces
+  const DIAL_W = 2 * (CLOCK_RUN + DIAL_R);
+  const DIAL_H = 2 * DIAL_R;
+  const dial = canvasTexture(Math.round(DIAL_W * 400), Math.round(DIAL_H * 400));
   runtime.core.track(dial.texture);
-  drawClockFace(dial.ctx, 512, 512);
-  const clockFace = new THREE.Mesh(runtime.core.track(new THREE.CircleGeometry(DIAL_R, 48)), runtime.core.printMaterial(dial.texture));
-  clockFace.position.z = 0.045;
-  // (the room's light shades the dial, as it does the other prints)
-  clockFace.receiveShadow = true;
-  const clockHandMat = runtime.core.toon("#000000");
-  const hourHand = new THREE.Group();
-  const minuteHand = new THREE.Group();
-  [[hourHand, 0.42], [minuteHand, 0.62]].forEach(([pivot, length]) => {
-    const hand = runtime.core.mesh(new THREE.BoxGeometry(0.075, length, 0.025), clockHandMat, { cast: false, outline: 0 });
-    hand.position.y = length / 2;
-    pivot.position.z = 0.085;
-    pivot.add(hand);
-  });
-  // A red seconds hand with a round counterweight that ticks round, and a gold cap over the pivot
-  const secondHand = new THREE.Group();
-  secondHand.position.z = 0.1;
-  const secondMat = runtime.core.toon("#e11d48");
-  secondHand.add(
-    runtime.core.at(runtime.core.mesh(new THREE.BoxGeometry(0.022, 0.86, 0.012), secondMat, { cast: false, outline: 0 }), 0, 0.27, 0),
-    runtime.core.at(runtime.core.mesh(new THREE.CircleGeometry(0.05, 16), secondMat, { cast: false, outline: 0 }), 0, -0.12, 0.008),
-  );
-  const clockCap = runtime.core.mesh(new THREE.CylinderGeometry(0.055, 0.055, 0.03, 16), runtime.core.toon("#ffd34d"), { outline: 0.008, cast: false });
-  clockCap.rotation.x = Math.PI / 2;
-  clockCap.position.z = 0.115;
-  clock.add(clockRim, clockFace, hourHand, minuteHand, secondHand, clockCap);
-  let lastSecond = -1;
-  function updateSecondHand() {
-    const sec = new Date().getSeconds();
-    if (sec === lastSecond || clockBusy) return;
-    lastSecond = sec;
-    gsap.to(secondHand.rotation, { z: -(sec / 60) * Math.PI * 2, duration: 0.25, ease: "elastic.out(1.2, 0.5)", overwrite: true });
-    if (sec === 0) secondHand.rotation.z = Math.PI * 2 / 60;
+  drawClockFace(dial.ctx, Math.round(DIAL_W * 400), Math.round(DIAL_H * 400));
+  // A shape's UVs are its own coordinates: stretched here over the dial's canvas
+  const dialGeo = runtime.core.track(new THREE.ShapeGeometry(capsuleShape(DIAL_R), 24));
+  const dialUv = dialGeo.attributes.uv;
+  for (let i = 0; i < dialUv.count; i++) dialUv.setXY(i, dialUv.getX(i) / DIAL_W + 0.5, dialUv.getY(i) / DIAL_H + 0.5);
+  const dialMat = runtime.core.printMaterial(dial.texture);
+  // One face and its hands, from the case's middle (z = 0) out: the dial sits 0.075 back
+  // inside the bezel's lip. The back face is the same turned round.
+  function clockHalf() {
+    const half = new THREE.Group();
+    const face = new THREE.Mesh(dialGeo, dialMat);
+    face.position.z = 0.135;
+    // (the room's light shades the dial, as it does the other prints)
+    face.receiveShadow = true;
+    // Chunky round-ended hands, flattened, the hour hand the broader
+    const hourHand = new THREE.Group();
+    const minuteHand = new THREE.Group();
+    [[hourHand, 0.3, 0.045, 0.155], [minuteHand, 0.48, 0.034, 0.17]].forEach(([pivot, length, radius, z]) => {
+      const hand = runtime.core.mesh(new THREE.CapsuleGeometry(radius, length, 4, 10).scale(1, 1, 0.35), clockHandMat, { cast: false, outline: 0.006 });
+      hand.position.y = length / 2;
+      pivot.position.z = z;
+      pivot.add(hand);
+    });
+    // A small brass cap over the pivot
+    const cap = runtime.core.mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.02, 16), clockCapMat, { outline: 0.006, cast: false });
+    cap.rotation.x = Math.PI / 2;
+    cap.position.z = 0.185;
+    half.add(face, hourHand, minuteHand, cap);
+    return { half, hourHand, minuteHand };
   }
+  const front = clockHalf();
+  const back = clockHalf();
+  back.half.rotation.y = Math.PI;
+  // The case: one plain shell 2 × 0.21 thick, open at both faces, with a solid core behind
+  // the dials. Its outline is drawn round a solid plate: the openings' own walls, facing in,
+  // would push ink in over the dials.
+  const clockRim = new THREE.Group();
+  clockRim.add(
+    runtime.core.mesh(smoothPlate(CASE_R, -0.21, 0.21, 0.05, DIAL_R, caseShape), clockCaseMat, { outline: 0.018, hull: capsulePlate(CASE_R, -0.21, 0.21, 0.05, 0, caseShape) }),
+    runtime.core.mesh(capsulePlate(0.7, -0.13, 0.13, 0.01), clockCaseMat, { outline: 0, cast: false }),
+    front.half,
+    back.half,
+  );
+  // The case stands out from the wall, its faces turned to either side (one towards the
+  // room's right, the other the window's way): turned a quarter round y, its length runs out
+  // from the wall
+  clockRim.rotation.y = Math.PI / 2;
+  // (its square end flat on the wall, at z = -0.05)
+  clockRim.position.z = -0.05 + CLOCK_RUN + CASE_R + CLOCK_NECK;
+  clock.add(clockRim);
+  const hourHand = front.hourHand;
+  const minuteHand = front.minuteHand;
+  // The back face's hands follow the front's (each face turns its own hands clockwise)
+  const syncBackHands = () => {
+    back.hourHand.rotation.z = hourHand.rotation.z;
+    back.minuteHand.rotation.z = minuteHand.rotation.z;
+  };
+  let clockCoat = DEVICE_FINISHES.clock.finishes[DEVICE_FINISHES.clock.default];
+  function setClockFinish(finish) {
+    if (!Object.hasOwn(DEVICE_FINISHES.clock.finishes, finish)) return;
+    clockCoat = DEVICE_FINISHES.clock.finishes[finish];
+    clockCaseMat.color.set(clockCoat.shell);
+    clockHandMat.color.set(clockCoat.hands);
+  }
+  setClockFinish(runtime.options.deviceFinishes?.clock || DEVICE_FINISHES.clock.default);
   const updateRoomClock = () => {
     const now = new Date();
     minuteHand.rotation.z = -(now.getMinutes() / 60) * Math.PI * 2;
     hourHand.rotation.z = -((now.getHours() % 12 + now.getMinutes() / 60) / 12) * Math.PI * 2;
+    syncBackHands();
   };
   updateRoomClock();
-  // Click the clock: its hands whirl round twice, it rocks on its nail, then strikes the hour
+  // Click the clock: its hands whirl round twice, it rocks on its mount, then strikes the hour
   let clockBusy = false;
   runtime.core.register(clock, {
     onHover: (on) => {
@@ -87,13 +175,13 @@ export function createWallDecor(runtime) {
       clockBusy = true;
       gsap.to(clockMount.rotation, { z: 0, duration: 0.2, overwrite: true });
       runtime.secrets.discover("clock");
-      gsap.to(minuteHand.rotation, { z: minuteHand.rotation.z - Math.PI * 4, duration: 1.4, ease: "power2.inOut" });
+      gsap.to(minuteHand.rotation, { z: minuteHand.rotation.z - Math.PI * 4, duration: 1.4, ease: "power2.inOut", onUpdate: syncBackHands });
       gsap.to(hourHand.rotation, {
-        z: hourHand.rotation.z - Math.PI * 2, duration: 1.4, ease: "power2.inOut",
+        z: hourHand.rotation.z - Math.PI * 2, duration: 1.4, ease: "power2.inOut", onUpdate: syncBackHands,
         onComplete: () => {
           updateRoomClock();
           gsap.fromTo(clockMount.rotation, { z: 0.14 }, { z: 0, duration: 1.4, ease: "elastic.out(1, 0.2)", overwrite: true, onComplete: () => (clockBusy = false) });
-          gsap.fromTo(clock.scale, { x: CLOCK_SCALE * 1.1, y: CLOCK_SCALE * 1.1 }, { x: CLOCK_SCALE, y: CLOCK_SCALE, duration: 0.5, ease: "back.out(3)" });
+          gsap.fromTo(clock.scale, { x: CLOCK_SCALE * 1.1, y: CLOCK_SCALE * 1.1, z: CLOCK_SCALE * 1.1 }, { x: CLOCK_SCALE, y: CLOCK_SCALE, z: CLOCK_SCALE, duration: 0.5, ease: "back.out(3)" });
           // It strikes the hour, as a wall clock does (a few strokes at most)
           sfx.clockStrike({ count: Math.min(3, new Date().getHours() % 12 || 12) });
         },
@@ -194,7 +282,9 @@ export function createWallDecor(runtime) {
     rugTop,
     paintingHang,
     clock,
+    // the case's colour first, for the dust it leaves when it's snapped away
+    clockColours: () => [clockCoat.shell, "#fffdf5", "#1a1714"],
+    setClockFinish,
     updateRoomClock,
-    updateSecondHand,
   };
 }
