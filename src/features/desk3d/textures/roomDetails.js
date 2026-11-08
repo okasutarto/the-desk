@@ -4,7 +4,8 @@ import { WOODS, BRICKS, DEFAULT_BRICK, DEFAULT_SLATS } from "../woods";
 // ---------- room details: the clock face, the guitar's top, straw, the chair's quilting ----------
 // The wall clock's dial: a capsule (a stadium) filling the canvas, its half-height the round
 // ends' radius. Bold numerals at the quarters and a short bar at every other hour, each set in
-// from the edge along its own ray from the centre, so they follow the capsule round.
+// from the edge along its own ray from the centre, so they follow the capsule round, and a
+// fine tick at every minute between them.
 export function drawClockFace(c, w, h) {
   const cx = w / 2;
   const cy = h / 2;
@@ -37,6 +38,19 @@ export function drawClockFace(c, w, h) {
   c.strokeStyle = "#1a1714";
   c.fillStyle = "#1a1714";
   c.lineCap = "round";
+  // A fine tick at every minute between the hour marks, set in at the edge
+  c.lineWidth = r * 0.022;
+  for (let minute = 0; minute < 60; minute++) {
+    if (minute % 5 === 0) continue;
+    const a = (minute / 60) * Math.PI * 2;
+    const dx = Math.sin(a);
+    const dy = -Math.cos(a);
+    const t = edge(dx, dy);
+    c.beginPath();
+    c.moveTo(cx + dx * (t - r * 0.16), cy + dy * (t - r * 0.16));
+    c.lineTo(cx + dx * (t - r * 0.11), cy + dy * (t - r * 0.11));
+    c.stroke();
+  }
   c.lineWidth = r * 0.075;
   c.font = `900 ${Math.round(r * 0.36)}px ${DISPLAY}`;
   c.textAlign = "center";

@@ -76,9 +76,21 @@ export function createWallDecor(runtime) {
     const smooth = mergeVertices(flat, 1e-4);
     smooth.computeVertexNormals();
     flat.dispose();
+    // Each face and its bezel lip keep the full colour; the sides (and the dial recess's inner
+    // walls) take a shade darker, so the faces stand proud of the case without a drawn line
+    const normals = smooth.attributes.normal;
+    const shade = new Float32Array(normals.count * 3);
+    for (let i = 0; i < normals.count; i++) {
+      const v = THREE.MathUtils.lerp(0.78, 1, THREE.MathUtils.smoothstep(Math.abs(normals.getZ(i)), 0.3, 0.85));
+      shade.fill(v, i * 3, i * 3 + 3);
+    }
+    smooth.setAttribute("color", new THREE.BufferAttribute(shade, 3));
     return smooth;
   };
   const clockCaseMat = runtime.core.toon("#2149c6");
+  // The shell's own (its faces and sides shaded apart by vertex colour, see smoothPlate)
+  const clockShellMat = runtime.core.toon("#2149c6");
+  clockShellMat.vertexColors = true;
   const clockHandMat = runtime.core.toon("#2149c6");
   const clockCapMat = runtime.core.toon("#d4a72c");
   // One dial print serves both faces
@@ -130,7 +142,7 @@ export function createWallDecor(runtime) {
   // would push ink in over the dials.
   const clockRim = new THREE.Group();
   clockRim.add(
-    runtime.core.mesh(smoothPlate(CASE_R, -0.21, 0.21, 0.05, DIAL_R, caseShape), clockCaseMat, { outline: 0.018, hull: capsulePlate(CASE_R, -0.21, 0.21, 0.05, 0, caseShape) }),
+    runtime.core.mesh(smoothPlate(CASE_R, -0.21, 0.21, 0.05, DIAL_R, caseShape), clockShellMat, { outline: 0.018, hull: capsulePlate(CASE_R, -0.21, 0.21, 0.05, 0, caseShape) }),
     runtime.core.mesh(capsulePlate(0.7, -0.13, 0.13, 0.01), clockCaseMat, { outline: 0, cast: false }),
     front.half,
     back.half,
@@ -154,6 +166,7 @@ export function createWallDecor(runtime) {
     if (!Object.hasOwn(DEVICE_FINISHES.clock.finishes, finish)) return;
     clockCoat = DEVICE_FINISHES.clock.finishes[finish];
     clockCaseMat.color.set(clockCoat.shell);
+    clockShellMat.color.set(clockCoat.shell);
     clockHandMat.color.set(clockCoat.hands);
   }
   setClockFinish(runtime.options.deviceFinishes?.clock || DEVICE_FINISHES.clock.default);

@@ -58,8 +58,8 @@ near(context.WINDOW_AT.h, frameBox.max.y - frameBox.min.y, 'wall opening matches
 assert.ok(frameBox.min.z > context.WALL_Z + 0.12, 'window clears the back-wall corner');
 assert.ok(bounds(sill).min.y > 1.5, 'sill clears the desktop by at least 15 cm');
 vm.runInContext(source.slice(source.indexOf('  const clock ='), source.indexOf('  // The rug runs')) +
-  '\nvar clockModel = { clock, clockMount, clockRim, clockCaseMat, clockHandMat, setClockFinish, front, back };', context);
-const { clock, clockMount, clockRim, clockCaseMat, clockHandMat, setClockFinish, front, back } = context.clockModel;
+  '\nvar clockModel = { clock, clockMount, clockRim, clockCaseMat, clockShellMat, clockHandMat, setClockFinish, front, back };', context);
+const { clock, clockMount, clockRim, clockCaseMat, clockShellMat, clockHandMat, setClockFinish, front, back } = context.clockModel;
 assert.equal(clockMount.parent, room, 'clock stays mounted on the wall');
 // Measured where it would hang, ready for when it returns to the wall.
 clockMount.updateMatrixWorld(true);
@@ -89,8 +89,20 @@ assert.deepEqual(Object.keys(clockFinishes), ['yellow', 'red', 'blue', 'black', 
 for (const [name, coat] of Object.entries(clockFinishes)) {
   setClockFinish(name);
   assert.equal(hex(clockCaseMat), coat.shell, name + ' case');
+  assert.equal(hex(clockShellMat), coat.shell, name + ' shell');
   assert.equal(hex(clockHandMat), coat.hands, name + ' hands');
 }
+// The shell's faces keep the full colour and its sides take a shade darker
+const shell = clockRim.children.find(mesh => mesh.material === clockShellMat);
+assert.ok(clockShellMat.vertexColors && shell, 'the shell is shaded by vertex colour');
+const shades = { face: [], side: [] };
+const { normal, color } = shell.geometry.attributes;
+for (let i = 0; i < normal.count; i++) {
+  if (Math.abs(normal.getZ(i)) > 0.95) shades.face.push(color.getX(i));
+  else if (Math.abs(normal.getZ(i)) < 0.05) shades.side.push(color.getX(i));
+}
+assert.ok(shades.face.length && shades.face.every(v => v === 1), 'faces keep the full colour');
+assert.ok(shades.side.length && shades.side.every(v => v < 0.8), 'sides take a shade darker');
 setClockFinish('constructor');
 assert.equal(hex(clockCaseMat), clockFinishes.green.shell, 'unknown clock colours are ignored');
 const lightSource = fs.readFileSync('src/features/desk3d/scene/windowLighting.js', 'utf8').replace(/^import .*;\n/gm, '').replace('export function', 'function');
