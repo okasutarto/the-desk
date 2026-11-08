@@ -35,6 +35,13 @@ const readabilityFill = new THREE.DirectionalLight();
 const skyFill = new THREE.HemisphereLight();
 const events = [];
 const speakerWoodPaints = [];
+// The chair and headset the night lift reaches (see nightLift), with the theme's own lift
+const nightLiftSource = fs.readFileSync(path.join(__dirname, '../src/features/desk3d/nightLift.js'), 'utf8').replace(/^import .*;\n/gm, '').replace(/export /g, '');
+const { createNightLift, toonMaterialsUnder } = vm.runInNewContext(nightLiftSource + '; ({ createNightLift, toonMaterialsUnder })', { THREE });
+const NIGHT_PROP_LIFT = fs.readFileSync(path.join(__dirname, '../src/features/desk3d/scene/theme.js'), 'utf8').match(/const NIGHT_PROP_LIFT = "(#[0-9a-f]{6})"/)[1];
+const chairLeather = new THREE.MeshToonMaterial({ color: '#35312e' });
+const chair = new THREE.Mesh(new THREE.BoxGeometry(), chairLeather);
+const assembly = new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshToonMaterial({ color: '#26282c' }));
 const context = vm.createContext({
   ...vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../src/features/desk3d/woods.js'), 'utf8').replace(/export /g, '') + '; ({ WOODS, WOOD_PATTERNS, PART_PATTERNS, DEFAULT_WOODS, DEFAULT_FLOOR, DEFAULT_FRAME_PAINT, FLOOR_LAYOUTS, SPEAKER_FINISHES })'),
   wallColor: '#3a3a3a', wallPattern: {}, WALL_MATERIALS: ['brick', 'slats'], woods: {}, floor: {}, diorama: false, roomBackground: isDark => isDark ? '#d6d3e6' : '#ffffff',
@@ -53,6 +60,7 @@ const context = vm.createContext({
   riserMat: material(), riserLegMat: material(), RISER_LEG_SHADE: 0.8,
   hoopBoardFace: { material: { emissiveIntensity: 0 } }, net: { material: material() }, sleeveMat: material(),
   sun, windowLight, lampLight, ambient, readabilityFill, skyFill,
+  createNightLift, toonMaterialsUnder, NIGHT_PROP_LIFT, chair, assembly,
   jointMat: material(), floorMat: material(), backWallMat: material(),
   sideWallMat: material(), trimMat: material(), deskMat: material(), shadowFill: material(),
   scene: {}, gsap: { killTweensOf() {} }, setNeon() {}, catSettle() {}, desktop: { setTheme() {} }, redrawScreen() {},
@@ -138,6 +146,13 @@ assert.ok(windowLight.intensity < clearDay / 10, 'moonlight stays subtle compare
 assert.ok(windowLight.intensity < clearDay / 2);
 assert.ok(context.shadowedNeons.every((light) => light.castShadow));
 assert.deepEqual(events, [['nightShift', true]]);
+// By night the black chair is lifted out of the dark corner, and by day shows as picked
+assert.ok(chairLeather.color.r > new THREE.Color('#35312e').r * 1.5, 'night lifts the black chair');
+run('setRoomTheme(false)');
+update(205000);
+assert.equal('#' + chairLeather.color.getHexString(), '#35312e', 'day shows the chair as picked');
+run('setRoomTheme(true)');
+update(208000);
 // The exposed bulb uses an omnidirectional light at the filament, not a displaced cone.
 {
   const lampStart = source.indexOf('  const lampLight = new THREE.');

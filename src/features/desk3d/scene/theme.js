@@ -4,6 +4,10 @@ import { loadPortrait, windowSky, drawWoodTop, drawWoodFloor, drawWallPaint, WAL
 import { WOODS, PART_PATTERNS, DEFAULT_WOODS, SPEAKER_FINISHES, FLOOR_LAYOUTS, DEFAULT_FLOOR, DEFAULT_FRAME_PAINT } from "../woods";
 import { TIME_MODES, partFor } from "../daylight";
 import { PALETTES } from "../sceneConfig";
+import { createNightLift, toonMaterialsUnder } from "../nightLift";
+
+// Added to the chair's and headset's own colours at full night (sRGB; see nightLift)
+const NIGHT_PROP_LIFT = "#2a2e3a";
 
 export function createTheme(runtime) {
   // ---------- textures (redrawn once the web fonts are in, and every minute for the clocks) ----------
@@ -31,6 +35,10 @@ export function createTheme(runtime) {
 
   // ---------- theme ----------
   let darkNow = runtime.options.dark;
+  // The chair and the headset hang in the dim corner away from the lamp; by night their dark
+  // finishes get a faint moonlit lift (see nightLift), as the walls and floor are moonlit
+  const nightLift = createNightLift();
+  nightLift.add(toonMaterialsUnder(runtime.chair.chair, runtime.headset.assembly), NIGHT_PROP_LIFT);
   // The walls' paint is the visitor's pick (graphite by default); by night it is tinted by the
   // moonlight the white walls used to be given directly
   // A brick or slatted wall shows its own colours, so the paint is left off it
@@ -214,6 +222,7 @@ export function createTheme(runtime) {
       if (object === runtime.lamp.lampLight && !lightingBlending) return;
       object[key] = THREE.MathUtils.lerp(lightingFrom.values[i], lightingTarget.values[i], blend);
     });
+    nightLift.update(runtime.core.roomLight.night);
     lightingColors.forEach((color, i) => color.copy(lightingFrom.colors[i]).lerp(lightingTarget.colors[i], blend));
     // Clouds remove the direct beam much more than diffuse sky/bounce light.
     runtime.windowLighting.windowLight.intensity *= 1 - 0.88 * runtime.room.outside.rain;
