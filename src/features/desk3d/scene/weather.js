@@ -78,10 +78,6 @@ export function createWeather(runtime) {
       loadWeather();
       runtime.windowBlind.lookOut();
     },
-    // Leaving the close-up shuts the window behind you
-    onLeave: () => {
-      if (runtime.windowLighting.isWindowOpen()) runtime.windowLighting.toggleWindow();
-    },
     onClick: runtime.windowBlind.lookOut,
   });
 

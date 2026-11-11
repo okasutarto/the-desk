@@ -12,22 +12,69 @@ const strip = (file) => fs.readFileSync(path.join(dir, file), 'utf8')
 
 // ---------- the mix ----------
 let bus = null;
-const engine = vm.runInNewContext(`${strip('ambience.js')}\n; ({ ambienceMix, nextGap, createAmbience, lightningFlash, BED_PEAK, STORM_RAIN, UNDER_MUSIC })`, {
+// the rustle is a soft swell, not a crackle: over 2 ms stretches at a browser's 48 kHz, its
+// loud ones are well under 2.5× its quiet ones (the old one ticked in sharp flutters at about 4×)
+{
+  const stub = { sampleRate: 48000, createBuffer: (_c, length) => { const data = new Float32Array(length); return { data, getChannelData: () => data }; } };
+  const src = fs.readFileSync(path.join(dir, 'ambience.js'), 'utf8');
+  const body = src.slice(src.indexOf('  function rustleBuffer(ctx) {'), src.indexOf('  function loop('));
+  const { data } = vm.runInNewContext(`${body}; rustleBuffer(ctx)`, { ctx: stub, Math });
+  const windows = Array.from({ length: Math.floor((data.length - 2048) / 96) }, (_, k) => {
+    let sum = 0;
+    for (let i = k * 96; i < k * 96 + 96; i++) sum += data[i] * data[i];
+    return Math.sqrt(sum / 96);
+  }).sort((a, b) => a - b);
+  const [quiet, loud] = [windows[Math.floor(windows.length * 0.05)], windows[Math.floor(windows.length * 0.95)]];
+  assert.ok(loud / quiet < 2.5, `the leaves swell softly rather than crackle (${(loud / quiet).toFixed(2)}×)`);
+}
+
+const engine = vm.runInNewContext(`${strip('ambience.js')}\n; ({ ambienceMix, nextGap, createAmbience, lightningFlash, gustInTrees, BED_PEAK, STORM_RAIN, UNDER_MUSIC, LEAVES_STILL, WIND_STILL, LAP_PACE })`, {
   audioBus: () => bus, Math, setTimeout,
 });
-const { ambienceMix, nextGap, createAmbience, lightningFlash, BED_PEAK, STORM_RAIN, UNDER_MUSIC } = engine;
+const { ambienceMix, nextGap, createAmbience, lightningFlash, gustInTrees, BED_PEAK, STORM_RAIN, UNDER_MUSIC, LEAVES_STILL, WIND_STILL, LAP_PACE } = engine;
 
 const morning = ambienceMix({ part: 'morning' });
 const night = ambienceMix({ part: 'night' });
 assert.equal(morning.level, 1);
 assert.ok(morning.rates.birds > 0 && morning.rates.crickets === 0, 'birds sing in the morning, crickets wait for dark');
 assert.ok(night.rates.crickets > 0 && night.rates.birds === 0, 'crickets at night, no birds');
-assert.ok(night.town > morning.town, 'the town is louder after dark');
+// only what the window shows: a lake and trees, no town or road
+assert.equal(morning.town, undefined, 'no town outside');
+assert.ok(Object.values({ morning, night }).every((mix) => !('cars' in mix.rates)), 'no cars go by');
+// the wind only blows in through the open window, softly, rising with the gusts
+assert.equal(ambienceMix({ part: 'day', gust: 1 }).wind, 0, 'no wind with the window shut');
+const breath = ambienceMix({ part: 'day', windowOpen: true, gust: 0 }).wind;
+const blast = ambienceMix({ part: 'day', windowOpen: true, gust: 1 }).wind;
+assert.ok(breath > 0 && Math.abs(breath / blast - WIND_STILL) < 1e-9, 'a breath between gusts, more as one blows in');
+const OPEN_BOOST = 2.2;
 for (const part of ['morning', 'day', 'evening', 'night']) {
-  const mix = ambienceMix({ part, rain: 1 });
-  assert.ok(mix.wind <= BED_PEAK.wind * 1.4 && mix.town <= BED_PEAK.town, `${part}: beds stay under their peaks`);
-  assert.ok(mix.wind < 0.03 && mix.town < 0.03, `${part}: beds stay a background, like the rain (0.01)`);
+  const storm = ambienceMix({ part, windowOpen: true, gust: 1, rain: 1 });
+  assert.ok(storm.wind * OPEN_BOOST < 0.01, `${part}: even a storm's gust stays under the rain's hiss`);
+  assert.ok(ambienceMix({ part, windowOpen: true, gust: 1 }).wind < ambienceMix({ part, windowOpen: true }).lake, `${part}: and softer than the lake`);
+  assert.ok(storm.leaves * OPEN_BOOST < 0.01, `${part}: the leaves in a storm's gust, window open, stay under the rain's hiss`);
+  assert.ok(ambienceMix({ part, windowOpen: true, gust: 1 }).leaves < ambienceMix({ part, windowOpen: true }).lake, `${part}: and under the lake`);
 }
+assert.match(fs.readFileSync(path.join(dir, 'ambience.js'), 'utf8'), /g\.outside\.gain\.setTargetAtTime\(mix\.open \? 2\.2 : 1/, 'the open window boost the wind is kept under');
+assert.ok(morning.lake > 0 && night.lake > 0, 'the lake laps day and night');
+assert.ok(ambienceMix({ part: 'day', rain: 1 }).lake < ambienceMix({ part: 'day' }).lake, 'the rain drowns the lapping');
+const still = ambienceMix({ part: 'day', gust: 0 }).leaves;
+const swept = ambienceMix({ part: 'day', gust: 1 }).leaves;
+assert.ok(still > 0 && Math.abs(still / swept - LEAVES_STILL) < 1e-9, 'the leaves rustle softly between gusts, fully as one sweeps through');
+assert.ok(ambienceMix({ part: 'day', gust: 1 }).leaves > ambienceMix({ part: 'night', gust: 1 }).leaves, 'the trees are stiller at night');
+for (const part of ['morning', 'day', 'evening', 'night']) {
+  const mix = ambienceMix({ part, rain: 1, gust: 1 });
+  assert.ok(mix.lake <= BED_PEAK.lake && mix.leaves <= BED_PEAK.leaves * 1.3, `${part}: beds stay under their peaks`);
+  assert.ok(mix.lake < 0.03 && mix.leaves < 0.03, `${part}: beds stay a background, like the rain (0.01)`);
+}
+
+// ---------- the gust in the trees, on the view's clock ----------
+const gusts = Array.from({ length: 700 }, (_, i) => gustInTrees(i / 100, 7));
+assert.ok(gusts.every((g) => g >= 0 && g <= 1), 'the gust stays 0–1');
+assert.ok(Math.max(...gusts) > 0.99, 'it peaks as the front crosses the trees');
+assert.equal(gustInTrees(0, 7), 0, 'nothing while the front is still off the view');
+assert.ok(gustInTrees(3.5, 7) > 0.9, 'strongest halfway across');
+assert.equal(gustInTrees(3.5, 7), gustInTrees(10.5, 7), 'one every seven seconds');
+assert.match(fs.readFileSync(path.join(dir, 'textures/windowView.js'), 'utf8'), /export const GUST_EVERY = 7;/, 'on the same clock as the painted gust');
 
 const downpour = ambienceMix({ part: 'morning', rain: 0.8 });
 assert.equal(downpour.rates.birds, 0, 'no birds in a downpour');
@@ -58,7 +105,7 @@ for (const quiet of [{ on: false }, { muted: true }, { hidden: true }]) {
 }
 assert.equal(ambienceMix({ part: 'day', music: true }).level, UNDER_MUSIC, 'steps back under the music');
 assert.equal(ambienceMix({ part: 'day', windowOpen: true }).open, 1);
-assert.equal(ambienceMix({ part: 'nonsense' }).wind, ambienceMix({ part: 'day' }).wind, 'an unknown part falls back to midday');
+assert.equal(ambienceMix({ part: 'nonsense' }).lake, ambienceMix({ part: 'day' }).lake, 'an unknown part falls back to midday');
 
 assert.ok(nextGap(60, 0) >= 1, 'events never bunch under a second apart');
 assert.ok(Math.abs(nextGap(6, 1 - Math.exp(-1)) - 10) < 1e-9, 'on average one gap per rate');
@@ -72,6 +119,7 @@ assert.equal(lightningFlash(2000), 0, 'gone within two seconds');
 
 // ---------- the engine, on a stand-in audio context ----------
 const param = () => ({ value: 0, targets: [], setValueAtTime() {}, linearRampToValueAtTime() {}, exponentialRampToValueAtTime(v) { assert.ok(v > 0, 'exponential ramps never reach zero'); }, setTargetAtTime(v) { this.targets.push(v); this.value = v; } });
+const oscillators = [];
 let started = 0;
 let stopped = 0;
 const sources = new Set();
@@ -81,7 +129,7 @@ const ctx = {
   createGain: () => node({ gain: param() }),
   createBiquadFilter: () => node({ frequency: param(), Q: param(), gain: param() }),
   createStereoPanner: () => node({ pan: param() }),
-  createOscillator: () => source({ frequency: param() }),
+  createOscillator: () => { const osc = source({ frequency: param() }); oscillators.push(osc); return osc; },
   createBufferSource: () => source(),
   createBuffer: (_channels, length) => ({ getChannelData: () => new Float32Array(length) }),
 };
@@ -97,13 +145,18 @@ const amb = createAmbience({ onLightning: () => flashes++ });
 amb.update({ part: 'night', muted: true });
 assert.equal(started, 0, 'nothing is built while there is nothing to hear');
 amb.update({ part: 'night', rain: 1 });
-assert.equal(started, 2, 'the two beds start once there is something to hear');
+assert.equal(started, 4, 'the lake (and its waves), the leaves and the wind start once there is something to hear');
 for (let t = 0; t < 600; t += 0.25) {
   ctx.currentTime = t;
-  amb.update({ part: 'night', rain: 1 });
+  amb.update({ part: 'night', rain: 1, gust: gustInTrees(t, 7), windowOpen: t > 300 });
 }
 assert.ok(flashes > 0, 'ten minutes of storm bring lightning');
-assert.ok(started > 50, 'and drips, cars and thunder along the way');
+// the lake's waves are the first oscillator built: slow laps, one every five to eight seconds
+const waves = oscillators[0].frequency;
+assert.ok(LAP_PACE[0] >= 1 / 8 && LAP_PACE[1] <= 1 / 5, 'a calm lake laps every five to eight seconds');
+assert.ok(waves.targets.length > 50, 'its pace drifts through the ten minutes');
+assert.ok([waves.value, ...waves.targets].every((hz) => hz >= LAP_PACE[0] && hz <= LAP_PACE[1]), 'and never quickens past a lap every five seconds');
+assert.ok(started > 50, 'and drips and thunder along the way');
 amb.hush();
 amb.destroy();
 assert.equal(sources.size, 0, 'teardown stops every source, the beds included');
@@ -117,6 +170,12 @@ assert.match(read('scene/animation.js'), /runtime\.ambience\.update\(now\)/, 'th
 assert.match(read('scene/lifecycle.js'), /runtime\.ambience\.destroy\(\)/, 'teardown stops it');
 assert.match(read('scene/lifecycle.js'), /setAmbience: runtime\.ambience\.setAmbience/, 'settings can switch it');
 assert.match(read('scene/ambience.js'), /removeEventListener\("visibilitychange"/, 'its listener is removed');
+assert.match(read('scene/ambience.js'), /gust: gustInTrees\(runtime\.room\.outside\.t, GUST_EVERY\)/, 'the leaves follow the view\'s own gusts');
 assert.match(read('composables/useDeskSettings.js'), /ambience: saved\.ambience !== false/, 'on unless switched off');
+// the window stays as it's left, and blows in on the blind while it's open
+assert.doesNotMatch(read('scene/weather.js'), /onLeave[\s\S]{0,120}toggleWindow/, 'leaving the window\'s close-up no longer shuts it');
+assert.match(read('scene/animation.js'), /runtime\.windowBlind\.blowIn\(dt\)/, 'the breeze is stepped each frame');
+assert.match(read('scene/windowBlind.js'), /const open = 1 - \(outside\.glass \?\? 1\)/, 'only through the open window');
+assert.match(read('scene/windowBlind.js'), /gustInTrees\(outside\.t - BREEZE_LAG, GUST_EVERY\)/, 'on the view\'s own gusts');
 
 console.log('Ambience mix, storm, silence, lightning and teardown checks passed.');
