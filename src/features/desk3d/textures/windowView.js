@@ -225,21 +225,41 @@ export function drawWindowView(c, w, h, { t = 0, time = "day", rain = 0, glass =
     c.fillStyle = warmth;
     c.fillRect(0, h * 0.2, w, h * 0.4);
   }
-  // High wisps of cirrus drawn out by the wind, drifting slowly above everything else
+  // High ribbons of cirrus drawn out by the wind, drifting slowly above everything else. Each is
+  // a tapered sliver cel-shaded in two flat tones: lit along its top, a cooler tone beneath,
+  // with a thinner trailing wisp under it. No ink: they sit far behind everything else.
   if (rain < 0.6) {
-    c.globalAlpha = (dark ? 0.25 : 0.85) * (1 - rain);
+    const cirrusLit = mixHex(SKY[0], dark ? "#c9d4ff" : "#ffffff", dark ? 0.3 : 0.7);
+    const cirrusShade = mixHex(SKY[0], dark ? "#c9d4ff" : "#ffffff", dark ? 0.12 : 0.3);
+    const ribbon = (x0, y0, x1, y1, bow, thick) => {
+      c.beginPath();
+      c.moveTo(x0, y0);
+      c.quadraticCurveTo((x0 + x1) / 2, (y0 + y1) / 2 - bow - thick, x1, y1);
+      c.quadraticCurveTo((x0 + x1) / 2 + (x1 - x0) * 0.08, (y0 + y1) / 2 - bow + thick, x0, y0);
+      c.closePath();
+    };
+    c.globalAlpha = (dark ? 0.4 : 0.9) * (1 - rain);
     for (let i = 0; i < 4; i++) {
-      const len = w * (0.12 + (i % 3) * 0.05);
+      const len = w * (0.13 + (i % 3) * 0.05);
       const x = wrapX(((i * 0.29 + 0.18) % 1) * w + t * u * (0.25 + i * 0.08), len);
       const y = h * (0.05 + ((i * 0.37) % 1) * 0.17);
-      c.beginPath();
-      c.moveTo(x - len / 2, y + u * 0.6);
-      c.quadraticCurveTo(x, y - u * 0.9, x + len / 2, y - u * 0.2);
-      stroke(u * (0.7 + (i % 2) * 0.35), mixHex(SKY[0], "#ffffff", dark ? 0.25 : 0.55));
-      c.beginPath();
-      c.moveTo(x - len * 0.3, y + u * 1.8);
-      c.quadraticCurveTo(x + len * 0.05, y + u * 1.1, x + len * 0.35, y + u * 1.5);
-      stroke(u * 0.45, mixHex(SKY[0], "#ffffff", dark ? 0.2 : 0.45));
+      const thick = u * (2.4 + (i % 2) * 0.8);
+      [[0, 1], [0.12, 0.55]].forEach(([drop, k]) => {
+        const x0 = x - len * 0.5 * k + len * drop;
+        const x1 = x + len * 0.5 * k + len * drop * 0.6;
+        const y0 = y + u * 0.6 + drop * u * 22;
+        const y1 = y - u * 0.3 + drop * u * 22;
+        ribbon(x0, y0, x1, y1, u * 0.8, thick * k);
+        c.fillStyle = cirrusShade;
+        c.fill();
+        c.save();
+        c.clip();
+        c.translate(0, -thick * k * 0.55);
+        ribbon(x0, y0, x1, y1, u * 0.8, thick * k);
+        c.fillStyle = cirrusLit;
+        c.fill();
+        c.restore();
+      });
     }
     c.globalAlpha = 1;
   }
@@ -994,6 +1014,73 @@ export function drawWindowView(c, w, h, { t = 0, time = "day", rain = 0, glass =
     c.lineTo(w * 0.58, y);
     stroke(line * 0.4, "#6b4a2a");
   }
+  // A little split-rail fence following the path's right side down from the pier: hand-cut
+  // posts leaning a touch each their own way, larger as they come nearer, and two rails sagging
+  // between them
+  const FENCE = [[0.646, 0.83, 0.05], [0.63, 0.885, -0.04], [0.606, 0.94, 0.06], [0.61, 1.0, -0.03]];
+  const wood = grey(dark ? "#7a5634" : "#c08552");
+  const posts = FENCE.map(([x, y, lean]) => {
+    const k = 0.75 + (y - 0.83) * 3;
+    return { x: w * x, y: h * y, lean, k, ph: u * 6.4 * k, pw: u * 0.9 * k };
+  });
+  [0.32, 0.7].forEach((at) => {
+    for (let i = 0; i < posts.length - 1; i++) {
+      const a = posts[i];
+      const b = posts[i + 1];
+      const ax = a.x + a.lean * a.ph * at;
+      const ay = a.y - a.ph * at;
+      const bx2 = b.x + b.lean * b.ph * at;
+      const by2 = b.y - b.ph * at;
+      const rail = () => {
+        c.beginPath();
+        c.moveTo(ax, ay);
+        c.quadraticCurveTo((ax + bx2) / 2 + u * 0.3, (ay + by2) / 2 + u * 0.5 * a.k, bx2, by2);
+      };
+      const rw = u * 0.7 * (a.k + b.k) / 2;
+      rail();
+      stroke(rw + line * 1.6, "#000");
+      rail();
+      stroke(rw, wood);
+      c.save();
+      c.translate(0, rw * 0.25);
+      rail();
+      stroke(rw * 0.35, shade(wood, 0.35));
+      c.restore();
+    }
+  });
+  posts.forEach(({ x, y, lean, ph, pw }) => {
+    // a post: tapering a little, its top cut at a slant and its foot sunk in the grass
+    const post = () => {
+      c.beginPath();
+      c.moveTo(x - pw, y + u * 0.3);
+      c.quadraticCurveTo(x - pw * 1.05 + lean * ph * 0.5, y - ph * 0.5, x - pw * 0.85 + lean * ph, y - ph * 0.96);
+      c.quadraticCurveTo(x + lean * ph, y - ph * 1.08, x + pw * 0.85 + lean * ph, y - ph * 0.9);
+      c.quadraticCurveTo(x + pw * 1.05 + lean * ph * 0.5, y - ph * 0.5, x + pw, y + u * 0.3);
+      c.quadraticCurveTo(x, y + u * 0.6, x - pw, y + u * 0.3);
+      c.closePath();
+    };
+    post();
+    c.save();
+    c.translate(line * 1.2, line * 1.2);
+    c.fillStyle = "#000";
+    c.fill();
+    c.restore();
+    post();
+    stroke(line * 1.6, "#000");
+    post();
+    c.fillStyle = wood;
+    c.fill();
+    c.save();
+    c.clip();
+    c.fillStyle = shade(wood, 0.35);
+    c.fillRect(lightSide > 0 ? x - pw * 2 + lean * ph * 0.5 : x + pw * 0.2 + lean * ph * 0.5, y - ph * 1.2, pw * 1.8, ph * 1.4);
+    c.beginPath();
+    c.moveTo(x - pw * 0.2 + lean * ph * 0.2, y - ph * 0.2);
+    c.quadraticCurveTo(x + pw * 0.1 + lean * ph * 0.5, y - ph * 0.5, x - pw * 0.1 + lean * ph * 0.75, y - ph * 0.75);
+    stroke(line * 0.4, shade(wood, 0.5));
+    c.restore();
+  });
+
   // Reeds and cattails at the water's edge, swaying
   [0.24, 0.255, 0.27, 0.285, 0.72, 0.735, 0.75].forEach((x, i) => {
     const sway = (wind(x) + Math.sin(t * 2.2 + i) * 0.08) * u * 1.3;
@@ -1049,7 +1136,7 @@ export function drawWindowView(c, w, h, { t = 0, time = "day", rain = 0, glass =
   // Gathered in clumps either side of the path rather than dotted evenly, back to front, so the
   // nearer heads overlap the ones behind
   const FLOWERS = [
-    [0.75, 0.855, "#c4b5fd", "lavender"], [0.36, 0.86, "#ff90e8", "daisy"], [0.635, 0.875, "#fffdf5", "daisy"],
+    [0.75, 0.855, "#c4b5fd", "lavender"], [0.36, 0.86, "#ff90e8", "daisy"], [0.665, 0.875, "#fffdf5", "daisy"],
     [0.775, 0.88, "#a78bfa", "lavender"], [0.315, 0.9, "#a78bfa", "lavender"], [0.385, 0.905, "#fffdf5", "daisy"],
     [0.43, 0.93, "#ffdd00", "tulip"], [0.71, 0.925, "#ffdd00", "tulip"], [0.29, 0.95, "#c4b5fd", "lavender"],
     [0.685, 0.955, "#ff6b6b", "tulip"], [0.345, 0.975, "#ff6b6b", "tulip"], [0.4, 0.99, "#fffdf5", "daisy"],
@@ -1189,7 +1276,8 @@ export function drawWindowView(c, w, h, { t = 0, time = "day", rain = 0, glass =
     c.restore();
   });
   const tree = (x, scale, i, round) => {
-    const base = h * 0.97;
+    // the smaller trees stand a little further back up the bank
+    const base = h * (0.97 - Math.max(0, 1 - scale) * 0.1);
     // its shadow stretched across the grass, away from the light
     c.globalAlpha = dark ? 0.32 : 0.24;
     c.fillStyle = SHADE;
@@ -1285,10 +1373,10 @@ export function drawWindowView(c, w, h, { t = 0, time = "day", rain = 0, glass =
     }
     c.restore();
   };
-  tree(0.09, 1.2, 0, false);
-  tree(0.22, 0.9, 1, true);
-  tree(0.85, 1.05, 2, false);
-  tree(0.96, 0.8, 3, true);
+  tree(0.09, 1.38, 0, false);
+  tree(0.22, 0.72, 1, true);
+  tree(0.85, 1.12, 2, false);
+  tree(0.96, 0.92, 3, true);
 
   // Right up against the glass, framing the view: a bush heaped in the near corner, a pair of
   // boulders at the pine's foot, and a bough reaching in over the top from a tree out of sight.
