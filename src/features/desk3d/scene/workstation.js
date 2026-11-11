@@ -3,6 +3,7 @@ import gsap from "gsap";
 import { hoverSound, sfx, GROOVE_BEAT, setRainLevel, initializeAudio } from "@/shared/composables/useSfx";
 import { canvasTexture, drawTerminal, drawWoodTop, drawBrushedMetal, drawMatteFinish, drawStudioTop, drawVentSlots, drawPowerScreen } from "../textures";
 import { createDesktop, SCREEN_W, SCREEN_H } from "../desktop";
+import { createStrikeBoard } from "../strikeBoard";
 import { createLofi, TRACKS } from "../lofi";
 import { PALETTES } from "../sceneConfig";
 import { DEFAULT_WOODS, SPEAKER_FINISHES } from "../woods";
@@ -873,6 +874,8 @@ export function createWorkstation(runtime) {
       focus: (name) => runtime.camera.setFocus(name),
       terminalClick: () => autotype(AUTORUN[autorunIndex++ % AUTORUN.length]),
       sound: (name) => sfx[name]?.(),
+      // Straw Hat Strike's bounty board, and the name typed onto a poster
+      strike: createStrikeBoard({ textInput: runtime.textInput }),
     },
   });
   let screenDrawnAt = 0;

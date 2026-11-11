@@ -94,6 +94,12 @@ Gatling to clear the sky. A Sea King surfaces at the end of every stage.
 
 Chain kills for a multiplier, and if you go down you get your own wanted poster.
 
+**Bounty board.** The title screen shows the top five bounties of everyone who has played, and
+the poster the top ten. A bounty that beats the tenth puts your name on the poster: type up to
+12 characters (on a phone the keyboard comes up) and press Enter, or Skip. Each player keeps
+one line, their best. Names go through a word list and OpenAI's moderation before they're
+shown, and if the board can't be reached the game plays on with your own best.
+
 ## 🎨 Make it your room
 
 The ⚙️ gear next to **2D site** opens the room settings, grouped into **Time & weather**,

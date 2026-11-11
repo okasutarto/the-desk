@@ -35,12 +35,27 @@ const SKIES = [
   { sky: ["#18163a", "#463c7c"], sea: ["#1f3470", "#0d1636"], sun: "#f4f1ff", ray: "rgba(0,0,0,0)", wave: "rgba(190,200,255,.5)", isle: "#2b2550", cloud: "#5a5290", night: true },
 ];
 
+// A touch screen has no Space bar to point at
+const TOUCH = typeof matchMedia === "function" && matchMedia("(hover: none)").matches;
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 const clamp01 = (v) => clamp(v, 0, 1);
 const easeOut = (t) => 1 - (1 - t) ** 3;
 const backOut = (t) => 1 + 2.7 * (t - 1) ** 3 + 1.7 * (t - 1) ** 2;
 const rand = (a, b) => a + Math.random() * (b - a);
 const berries = (n) => `฿ ${Math.floor(n).toLocaleString("en-US")}`;
+// The name last put on a bounty, offered again next time
+const NAME_KEY = "strike-name";
+export const NAME_MAX = 12;
+const readName = () => {
+  try {
+    return (localStorage.getItem(NAME_KEY) || "").slice(0, NAME_MAX);
+  } catch {
+    return "";
+  }
+};
+// The bounty board holds the top ten; a run that would beat the tenth can post its name
+export const BOARD_SIZE = 10;
+export const qualifies = (board, score) => score > 0 && (board.length < BOARD_SIZE || score > board[BOARD_SIZE - 1].score);
 const readBest = () => {
   try {
     return Number(localStorage.getItem("strike-best")) || 0;
@@ -59,18 +74,55 @@ const fresh = () => ({
   shake: 0, flash: 0, chain: 0, chainUntil: 0, overAt: 0, newBest: false, paused: false,
 });
 
-export function createStrike(sound) {
-  const g = { state: "ready", t: 0, last: 0, scroll: 0, best: readBest(), keys: new Set(), aim: null, padWas: {}, ...fresh() };
+// `hooks` connect the game to the bounty board, all optional: onStart() as a run begins,
+// onEntry() once a poster that made the board asks for a name, focusName() when its name box
+// is tapped, post() to send it, and caret() whether the name's caret shows
+export function createStrike(sound, hooks = {}) {
+  const g = {
+    state: "ready", t: 0, last: 0, scroll: 0, best: readBest(), keys: new Set(), aim: null, padWas: {}, ...fresh(),
+    // the bounty board as last heard: "loading", "ready" or "offline"
+    board: [], boardState: "loading",
+    // a name being put to a bounty that made the board: { name, state, reason, rank, improved }
+    // with state "typing", "sending", "posted", "refused" or "offline"
+    entry: null, name: readName(), hooks,
+  };
 
   g.reset = () => {
-    Object.assign(g, fresh(), { state: "play", inv: 1.5, aim: null });
+    Object.assign(g, fresh(), { state: "play", inv: 1.5, aim: null, entry: null });
     g.keys.clear();
     sound("power");
+    hooks.onStart?.();
   };
+  // Waiting on a name: a tap or a key goes to the name box instead of starting over
+  const naming = () => g.entry && (g.entry.state === "typing" || g.entry.state === "refused" || g.entry.state === "sending");
   g.start = () => {
     // Over: a moment for the poster to land before a stray key restarts
     if (g.state === "over" && g.t - g.overAt < 0.8) return;
+    if (g.state === "over" && naming()) return void (g.entry.state !== "sending" && hooks.focusName?.());
     if (g.state !== "play") g.reset();
+  };
+  // Leave the board be and sail again
+  g.skipEntry = () => {
+    if (!g.entry || g.entry.state === "sending") return;
+    g.entry = null;
+    hooks.stopName?.();
+  };
+  // The name's been sent: what the board said
+  g.posted = (result) => {
+    if (!g.entry) return;
+    if (result.ok) {
+      Object.assign(g.entry, { state: "posted", rank: result.rank, improved: result.improved });
+      g.board = result.top || g.board;
+      g.name = g.entry.name.trim();
+      try {
+        localStorage.setItem(NAME_KEY, g.name);
+      } catch {
+        // the name is just asked for again next time
+      }
+    } else {
+      const fixable = ["empty", "long", "characters", "words"].includes(result.reason);
+      Object.assign(g.entry, { state: fixable ? "refused" : "offline", reason: result.reason });
+    }
   };
   g.pause = () => {
     if (g.state === "play") g.paused = !g.paused;
@@ -288,6 +340,11 @@ export function createStrike(sound) {
         }
       }
       sound("stamp");
+      // A bounty that makes the board gets its name on it, once the poster has landed
+      if (g.boardState === "ready" && qualifies(g.board, g.score)) {
+        g.entry = { state: "typing", name: g.name };
+        g.later.push({ at: g.t + 0.7, run: () => g.entry?.state === "typing" && hooks.onEntry?.() });
+      }
     }
   }
 
@@ -1343,6 +1400,15 @@ function drawHud(c, g, t, hotspots) {
   c.fillStyle = INK;
   c.font = `800 8px ${DISPLAY}`;
   c.fillText(String(g.bombs), bx + 18, by - 17.5);
+  // its key, on a little keycap beside it (faded while there's no Gatling to fire)
+  if (!TOUCH) {
+    c.globalAlpha = ready ? 1 : 0.55;
+    card(c, bx - 84, by - 9, 50, 18, CREAM, 4, 2);
+    c.fillStyle = INK;
+    c.font = `800 8px ${DISPLAY}`;
+    c.fillText("SPACE", bx - 59, by + 0.5);
+    c.globalAlpha = 1;
+  }
   c.textAlign = "left";
   hotspots.push({ id: "strikeBomb", x: bx - 26, y: by - 26, w: 52, h: 52 });
   hotspots.push({ id: "strikePause", x: 18, y: 8, w: 380, h: 38 });
@@ -1430,10 +1496,108 @@ function drawTitle(c, g, t) {
     c.fillText(`BEST BOUNTY ${berries(g.best)}`, W / 2, 266);
   }
   c.textAlign = "left";
+  // everyone's best, under the logo
+  drawBoard(c, g, W / 2 - 110, 276, 220, { rows: 5, line: 13 });
+}
+
+// The bounty board: the best runs of everyone who's played, `rows` of them, with this run's
+// place picked out
+function drawBoard(c, g, x, y, w, { rows = BOARD_SIZE, mine = null, line = 16 } = {}) {
+  const list = g.board.slice(0, rows);
+  // as tall as what's on it: a line for a note when there's nothing yet
+  const h = 30 + Math.max(1, g.boardState === "ready" ? list.length : 1) * line + 6;
+  card(c, x, y, w, h, CREAM, 6);
+  c.textBaseline = "middle";
+  c.textAlign = "center";
+  c.fillStyle = RED;
+  c.beginPath();
+  c.roundRect(x + w / 2 - 56, y + 8, 112, 14, 3);
+  c.fill();
+  c.fillStyle = CREAM;
+  c.font = `800 8px ${DISPLAY}`;
+  c.fillText("TOP BOUNTIES", x + w / 2, y + 15.5);
+  if (g.boardState !== "ready" || !list.length) {
+    c.fillStyle = INK;
+    c.font = `600 8px ${BODY}`;
+    const note = g.boardState === "loading" ? "Fetching the board..." : g.boardState === "offline" ? "The board is out at sea" : "No bounties yet. Be the first!";
+    c.fillText(note, x + w / 2, y + 30 + line / 2);
+    c.textAlign = "left";
+    return;
+  }
+  list.forEach((row, i) => {
+    const ry = y + 30 + i * line + line / 2;
+    const own = mine && row.rank === mine;
+    if (own) {
+      c.fillStyle = YELLOW;
+      c.fillRect(x + 6, ry - line / 2 + 1, w - 12, line - 2);
+    }
+    c.fillStyle = i < 3 ? RED : INK;
+    c.textAlign = "left";
+    c.font = `800 8px ${DISPLAY}`;
+    c.fillText(`${row.rank}.`, x + 10, ry);
+    c.fillStyle = INK;
+    c.font = `700 8px ${BODY}`;
+    c.fillText(String(row.name).slice(0, NAME_MAX), x + 28, ry);
+    c.textAlign = "right";
+    c.font = `800 8px ${BODY}`;
+    c.fillText(berries(row.score), x + w - 10, ry);
+  });
+  c.textAlign = "left";
+}
+
+// What's happening to the name: asked for, refused, on its way or on the board
+const REFUSED = {
+  empty: "Type a name first.",
+  long: `${NAME_MAX} characters at most.`,
+  characters: "Letters, numbers and . _ - ' ! only.",
+  words: "That one can't go on a poster.",
+};
+function drawEntry(c, g, t, hotspots) {
+  const e = g.entry;
+  const x = 434;
+  const y = 70;
+  const w = 182;
+  const asking = e.state === "typing" || e.state === "refused";
+  const head = {
+    typing: "ON THE BOARD!",
+    refused: "PICK ANOTHER NAME",
+    sending: "POSTING...",
+    posted: e.improved === false ? "YOUR BEST STANDS" : `#${e.rank} ON THE BOARD!`,
+    offline: "BOARD OUT AT SEA",
+  }[e.state];
+  const body = {
+    typing: ["This bounty makes the top ten.", `Type a name (${NAME_MAX} at most)`, "and press ENTER to post it."],
+    refused: [REFUSED[e.reason] || "Try another name.", "Fix it and press ENTER."],
+    sending: ["Nailing your poster up..."],
+    posted: e.improved === false ? [`An older run of yours holds #${e.rank}.`, "It stays on the board."] : ["Every visitor can see it now."],
+    offline: e.reason === "token" || e.reason === "score" ? ["This run couldn't be checked,", "so it stays off the board."] : ["Couldn't reach the board.", "Your best is kept on this desk."],
+  }[e.state];
+  const h = 50 + body.length * 13 + (asking ? 34 : 0);
+  card(c, x, y, w, h, CREAM, 6);
+  c.textAlign = "center";
+  c.textBaseline = "middle";
+  c.fillStyle = e.state === "refused" || e.state === "offline" ? RED : INK;
+  c.font = `800 12px ${DISPLAY}`;
+  c.fillText(head, x + w / 2, y + 20);
+  c.fillStyle = INK;
+  c.font = `600 8px ${BODY}`;
+  body.forEach((text, i) => c.fillText(text, x + w / 2, y + 42 + i * 13));
+  if (asking) {
+    const by = y + h - 30;
+    [["POST", "strikePost", YELLOW, x + 14], ["SKIP", "strikeSkip", CREAM, x + w / 2 + 6]].forEach(([word, id, fill, bx]) => {
+      const bw = w / 2 - 20;
+      card(c, bx, by, bw, 20, fill, 4, 2);
+      c.fillStyle = INK;
+      c.font = `800 9px ${DISPLAY}`;
+      c.fillText(word, bx + bw / 2, by + 10.5);
+      hotspots.push({ id, x: bx, y: by, w: bw, h: 20 });
+    });
+  }
+  c.textAlign = "left";
 }
 
 // Game over: a wanted poster with the bounty on it
-function drawWanted(c, g, t) {
+function drawWanted(c, g, t, hotspots = []) {
   const k = clamp01((t - g.overAt) / 0.6);
   c.fillStyle = `rgba(10,14,40,${0.55 * k})`;
   c.fillRect(0, 0, W, H);
@@ -1470,8 +1634,28 @@ function drawWanted(c, g, t) {
   c.strokeRect(-74, -ph / 2 + 50, 148, 92);
   c.font = `800 10px ${BODY}`;
   c.fillText("DEAD OR ALIVE", 0, -ph / 2 + 156);
+  // the name on the poster: the one being typed (with its caret), the last one posted, or the
+  // crew's own
+  const typing = g.entry && g.entry.state !== "posted" && g.entry.state !== "offline";
+  const shown = g.entry ? g.entry.name : g.name;
+  const label = (shown || (typing ? "YOUR NAME" : "STRAW HAT")).toUpperCase();
   c.font = `800 13px ${DISPLAY}`;
-  c.fillText("STRAW HAT", 0, -ph / 2 + 176);
+  const fit = Math.min(1, 150 / Math.max(1, c.measureText(label).width));
+  c.font = `800 ${(13 * fit).toFixed(1)}px ${DISPLAY}`;
+  c.globalAlpha = typing && !shown ? 0.45 : 1;
+  c.fillText(label, 0, -ph / 2 + 176);
+  c.globalAlpha = 1;
+  if (typing) {
+    const half = shown ? c.measureText(label).width / 2 : 0;
+    // the box being typed into
+    c.strokeStyle = RED;
+    c.lineWidth = 1.5;
+    c.setLineDash([4, 3]);
+    c.strokeRect(-80, -ph / 2 + 166, 160, 20);
+    c.setLineDash([]);
+    if (g.hooks.caret?.() && shown) c.fillRect(half + 2, -ph / 2 + 169, 1.5, 14);
+    hotspots.push({ id: "strikeName", x: W / 2 - 80, y: 180 - ph / 2 + 166 - 4, w: 160, h: 28 });
+  }
   c.font = `800 17px ${DISPLAY}`;
   c.fillText(`${berries(g.score)}-`, 0, -ph / 2 + 202);
   c.font = `600 7px ${BODY}`;
@@ -1495,7 +1679,11 @@ function drawWanted(c, g, t) {
     c.restore();
   }
   c.restore();
-  if (k >= 1 && Math.floor(t * 2) % 2 === 0) {
+  if (k >= 1) {
+    drawBoard(c, g, 24, 70, 182, { mine: g.entry?.state === "posted" ? g.entry.rank : null });
+    if (g.entry) drawEntry(c, g, t, hotspots);
+  }
+  if (k >= 1 && !typing && Math.floor(t * 2) % 2 === 0) {
     c.textAlign = "center";
     inked(c, "SPACE OR TAP TO SAIL AGAIN", W / 2, H - 28, 11, CREAM, { line: 4, drop: 2 });
   }
@@ -1623,9 +1811,10 @@ export function drawStrike(c, w, h, g, now, t0, hotspots) {
     c.textAlign = "left";
   }
   if (g.state === "over") {
-    drawWanted(c, g, t);
+    // the whole screen first, so the poster's own buttons sit on top of it
     hotspots.push({ id: "strikeStart", x: 0, y: 0, w, h });
     hotspots.push({ id: "consoleExit", x: W - 66, y: 8, w: 56, h: 20 });
+    drawWanted(c, g, t, hotspots);
   }
 }
 

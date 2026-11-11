@@ -151,11 +151,37 @@ CHAT_DAILY_CAP=300
 # Salts the visitor hashes behind the visit count. Any long random string; keep it fixed,
 # since changing it counts everyone again
 VISITS_SECRET=your-random-secret
+# Signs Straw Hat Strike's run tickets (falls back to VISITS_SECRET). Any long random string
+STRIKE_SECRET=your-random-secret
+# Lets you take a name off the bounty board (see below). Any long random string
+ADMIN_SECRET=your-random-secret
 ```
 
 Visit count: `POST /api/visits` counts the caller once (a keyed hash of address and browser,
 kept in a Redis set; bots and link previews are skipped) and returns `{ total }`; `GET` only
 reads it (`src/controllers/visitsController.js`). Without Upstash it answers 503.
+
+Bounty board (Straw Hat Strike, `src/controllers/strikeController.js`):
+
+| Endpoint | What it does |
+| --- | --- |
+| `GET /api/strike/top` | The top ten: `{ top: [{ id, rank, name, score, stage, at }] }` |
+| `POST /api/strike/run` | A signed ticket for a run that's starting: `{ token }` |
+| `POST /api/strike/score` | `{ token, score, stage, name }` → `{ improved, rank, top }`. 400 for a ticket or score that doesn't add up, 409 for a ticket already spent, 422 with `reason` (`empty`, `long`, `characters`, `words`) for a name that can't go up |
+| `DELETE /api/strike/score/:id` | Takes a player's line down; needs the `X-Admin-Secret` header |
+
+Scores are counted in the browser, so the server only checks they're plausible: the ticket
+must be genuine, unspent and at least 5 s old, and the score and stage must fit the time the
+run took. Names are 1–12 letters, digits, spaces or `. _ - ' !`, checked against a word list
+(`src/utils/nameGuard.js`) and OpenAI's moderation. Each player (a keyed hash of address and
+browser, as for visits) keeps one line, their best. Upstash keeps the best hundred. Without
+Upstash a local server keeps the board in memory, and production answers 503.
+
+To take a name down, use the `id` from `GET /api/strike/top`:
+
+```bash
+curl -X DELETE -H "X-Admin-Secret: $ADMIN_SECRET" https://your-api.vercel.app/api/strike/score/<id>
+```
 
 Chat limits: 10 questions per 10 minutes and 50 per day per visitor, plus the daily cap for
 everyone (`src/middleware/chatRateLimit.js`).

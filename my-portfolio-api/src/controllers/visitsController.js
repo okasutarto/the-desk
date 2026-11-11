@@ -39,4 +39,4 @@ async function visits(req, res) {
   }
 }
 
-module.exports = { visits, isPerson };
+module.exports = { visits, isPerson, visitorId };
