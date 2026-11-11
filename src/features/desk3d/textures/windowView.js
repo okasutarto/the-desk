@@ -215,6 +215,37 @@ export function drawWindowView(c, w, h, { t = 0, time = "day", rain = 0, glass =
   sweep.addColorStop(1, SKY[2]);
   c.fillStyle = sweep;
   c.fillRect(0, 0, w, h);
+  // ...breaking into hard, gently waving bands of light toward the horizon, the way a painted
+  // background steps its sky. At sunrise and sunset they catch the sun's own colour.
+  const warm = time === "evening" || time === "morning" ? 0.35 : 0.08;
+  for (let k = 0; k < 3; k++) {
+    const top = h * (0.25 + k * 0.07);
+    c.beginPath();
+    c.moveTo(-u, h * 0.6);
+    for (let x = 0; x <= w + u * 4; x += u * 4) c.lineTo(x, top + Math.sin(x / (w * 0.13) + k * 1.9 + t * 0.05) * u * 0.9);
+    c.lineTo(w + u * 4, h * 0.6);
+    c.closePath();
+    c.fillStyle = mixHex(mixHex(SKY[1], SKY[2], 0.25 + k * 0.33), grey(look.sun[2]), dark ? 0 : warm * (k + 1) / 3);
+    c.fill();
+  }
+  // High wisps of cirrus drawn out by the wind, drifting slowly above everything else
+  if (rain < 0.6) {
+    c.globalAlpha = (dark ? 0.25 : 0.85) * (1 - rain);
+    for (let i = 0; i < 4; i++) {
+      const len = w * (0.12 + (i % 3) * 0.05);
+      const x = wrapX(((i * 0.29 + 0.18) % 1) * w + t * u * (0.25 + i * 0.08), len);
+      const y = h * (0.05 + ((i * 0.37) % 1) * 0.17);
+      c.beginPath();
+      c.moveTo(x - len / 2, y + u * 0.6);
+      c.quadraticCurveTo(x, y - u * 0.9, x + len / 2, y - u * 0.2);
+      stroke(u * (0.7 + (i % 2) * 0.35), mixHex(SKY[0], "#ffffff", dark ? 0.25 : 0.55));
+      c.beginPath();
+      c.moveTo(x - len * 0.3, y + u * 1.8);
+      c.quadraticCurveTo(x + len * 0.05, y + u * 1.1, x + len * 0.35, y + u * 1.5);
+      stroke(u * 0.45, mixHex(SKY[0], "#ffffff", dark ? 0.2 : 0.45));
+    }
+    c.globalAlpha = 1;
+  }
 
   if (dark && rain < 0.6) {
     VIEW_STARS.forEach((star) => {
@@ -659,6 +690,19 @@ export function drawWindowView(c, w, h, { t = 0, time = "day", rain = 0, glass =
   const lakeColor = grey(dark ? "#172554" : "#3b82f6");
   c.fillStyle = lakeColor;
   c.fillRect(0, lakeTop, w, lakeBottom - lakeTop);
+  // The water deepens toward us in hard steps: a pale sheet of sky along the far bank, then
+  // two darker shelves whose edges wave slowly, like a bed dropping away under the surface
+  [[0, glow(lakeColor, dark ? 0.08 : 0.16), 0.32], [0.5, shade(lakeColor, 0.12), 1], [0.78, shade(lakeColor, 0.24), 1]].forEach(([at, color, until], k) => {
+    const top = lakeTop + (lakeBottom - lakeTop) * at;
+    const bottom = lakeTop + (lakeBottom - lakeTop) * until;
+    c.beginPath();
+    c.moveTo(0, bottom);
+    for (let x = 0; x <= w + u * 3; x += u * 3) c.lineTo(x, top + (at ? Math.sin(x / (w * 0.09) + k * 2.2 + t * 0.4) * u * 0.6 : 0));
+    c.lineTo(w + u * 3, bottom);
+    c.closePath();
+    c.fillStyle = color;
+    c.fill();
+  });
   c.save();
   c.beginPath();
   c.rect(0, lakeTop, w, lakeBottom - lakeTop);
@@ -707,9 +751,6 @@ export function drawWindowView(c, w, h, { t = 0, time = "day", rain = 0, glass =
     c.quadraticCurveTo(x + len / 2, y + Math.sin(t * 1.3 + i) * u * 0.5, x + len, y);
     stroke(u * (0.5 + (i % 2) * 0.35), lakeColor);
   }
-  // deeper water toward the near shore
-  c.fillStyle = shade(lakeColor, 0.18);
-  c.fillRect(0, lakeBottom - u * 3.2, w, u * 3.2);
   // the gust darkening the water as it crosses (a cat's paw), ruffled with short strokes
   if (gustFront > -0.1 && gustFront < 1.1) {
     const gx = gustFront * w;
@@ -977,13 +1018,17 @@ export function drawWindowView(c, w, h, { t = 0, time = "day", rain = 0, glass =
     stroke(line * 0.35, shade(leafColor, 0.5));
     c.restore();
   };
+  // Gathered in clumps either side of the path rather than dotted evenly, back to front, so the
+  // nearer heads overlap the ones behind
   const FLOWERS = [
-    [0.36, 0.86, "#ff90e8", "daisy"], [0.43, 0.93, "#ffdd00", "tulip"], [0.62, 0.885, "#fffdf5", "daisy"],
-    [0.69, 0.95, "#ff6b6b", "tulip"], [0.3, 0.95, "#a78bfa", "lavender"], [0.75, 0.86, "#c4b5fd", "lavender"], [0.4, 0.99, "#fffdf5", "daisy"],
+    [0.75, 0.855, "#c4b5fd", "lavender"], [0.36, 0.86, "#ff90e8", "daisy"], [0.635, 0.875, "#fffdf5", "daisy"],
+    [0.775, 0.88, "#a78bfa", "lavender"], [0.315, 0.9, "#a78bfa", "lavender"], [0.385, 0.905, "#fffdf5", "daisy"],
+    [0.43, 0.93, "#ffdd00", "tulip"], [0.71, 0.925, "#ffdd00", "tulip"], [0.29, 0.95, "#c4b5fd", "lavender"],
+    [0.685, 0.955, "#ff6b6b", "tulip"], [0.345, 0.975, "#ff6b6b", "tulip"], [0.4, 0.99, "#fffdf5", "daisy"],
   ];
   FLOWERS.forEach(([x, y, color, kind], i) => {
-    // big enough to read their petals in the window close-up
-    const fu = u * 1.7;
+    // big enough to read their petals in the window close-up, and bigger still the nearer they stand
+    const fu = u * 1.7 * (0.8 + (y - 0.85) * 2.6);
     // the heads trail their stems a beat, and bob a touch on their own
     const sway = (wind(x, 0.12) + Math.sin(t * 2.4 + i * 1.7) * 0.06) * fu * 0.7;
     const bx = w * x;
