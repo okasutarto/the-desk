@@ -81,6 +81,9 @@ export function windowSky(time, from = SKIES[time], blend = 1) {
 
 // `time` is the part of the day outside (morning, day, evening, night), `rain` 0–1, `glass` how
 // much of the glass is still in front of the view (0 once the leaves have swung wide open)
+// A gust sweeps across the view this often (seconds); the leaves' rustle outside follows it
+export const GUST_EVERY = 7;
+
 export function drawWindowView(c, w, h, { t = 0, time = "day", rain = 0, glass = 1, flockAt = -99, starAt = -99, skyFrom, skyBlend = 1, flash = 0 } = {}) {
   const look = windowSky(time, skyFrom, skyBlend);
   const dark = look.night >= 0.5;
@@ -149,7 +152,6 @@ export function drawWindowView(c, w, h, { t = 0, time = "day", rain = 0, glass =
   // Wind instead of every stalk on its own metronome: a light breeze rolling across the view,
   // and every few seconds a gust sweeping in from the left. Each thing leans as the gust reaches
   // it, then springs back past upright and settles; `lag` lets a crown trail its trunk.
-  const GUST_EVERY = 7;
   const gustFront = ((t / GUST_EVERY) % 1) * 1.8 - 0.4;
   const wind = (x, lag = 0) => {
     const tt = t - lag;

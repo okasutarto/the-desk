@@ -1,7 +1,8 @@
 import * as THREE from "three";
 import gsap from "gsap";
 import { sfx } from "@/shared/composables/useSfx";
-import { canvasTexture, drawBlindCloth, blindRollColour } from "../textures";
+import { canvasTexture, drawBlindCloth, blindRollColour, GUST_EVERY } from "../textures";
+import { gustInTrees } from "../ambience";
 import { BLIND_PATTERNS, DEFAULT_BLIND } from "../blindFinishes";
 
 export function createWindowBlind(runtime) {
@@ -108,18 +109,22 @@ export function createWindowBlind(runtime) {
   // proportion to how far down it hangs (more than linearly, so the bottom whips), and the
   // weight goes with the last of them. x is across the blind, z out into the room.
   const chainSwing = { x: 0, z: 0 };
+  // The breeze through the open window, on top of any swing: how hard it's blowing in (0–1),
+  // the cloth's lift out into the room and the chain's drift
+  const breeze = { level: 0, cloth: 0, x: 0, z: 0 };
   let chainRun = 0;
   function placeBeads() {
     const bend = (depth) => (Math.max(0, depth) / CHAIN_LEN) ** 1.6;
+    const [swingX, swingZ] = [chainSwing.x + breeze.x, chainSwing.z + breeze.z];
     for (let i = 0; i < BEADS; i++) {
       const front = i * BEAD_GAP + chainRun;
       const back = i * BEAD_GAP + BEAD_GAP - chainRun;
-      beads.setMatrixAt(i, beadAt.makeTranslation(chainSwing.x * bend(front), -front, 0.04 + chainSwing.z * bend(front)));
-      beads.setMatrixAt(BEADS + i, beadAt.makeTranslation(chainSwing.x * bend(back), -back, -0.04 + chainSwing.z * bend(back)));
+      beads.setMatrixAt(i, beadAt.makeTranslation(swingX * bend(front), -front, 0.04 + swingZ * bend(front)));
+      beads.setMatrixAt(BEADS + i, beadAt.makeTranslation(swingX * bend(back), -back, -0.04 + swingZ * bend(back)));
     }
     beads.instanceMatrix.needsUpdate = true;
-    chainWeight.position.set(chainSwing.x, -CHAIN_LEN - 0.06, chainSwing.z);
-    chainWeight.rotation.set(chainSwing.z * 1.5, 0, -chainSwing.x * 1.5);
+    chainWeight.position.set(swingX, -CHAIN_LEN - 0.06, swingZ);
+    chainWeight.rotation.set(swingZ * 1.5, 0, -swingX * 1.5);
   }
   // a nudge: out one way, then swinging back and forth, smaller each time, until it hangs still
   const swingChain = (x, z) => gsap.fromTo(chainSwing, { x, z }, { x: 0, z: 0, duration: 2.2, ease: "elastic.out(1, 0.18)", onUpdate: placeBeads, overwrite: true });
@@ -131,7 +136,7 @@ export function createWindowBlind(runtime) {
     // hem only ever swings out into the room (a positive sway would carry it in, and let well
     // down even a small one put it through the glass): a swing back toward the glass bumps it
     // and leaves it hanging straight.
-    const sway = Math.min(0, blind.sway);
+    const sway = Math.min(0, blind.sway + breeze.cloth);
     fabric.position.set(0, ROLL_Y, ROLL_Z + radius);
     fabric.scale.set(BLIND_W, drop, 1);
     fabric.rotation.x = sway;
@@ -144,6 +149,24 @@ export function createWindowBlind(runtime) {
     placeBeads();
   }
   updateBlind();
+  // Each frame: with the window open, the gusts sweeping through the trees outside blow in a
+  // moment later, lifting the cloth out into the room (as far as it hangs down) and carrying
+  // the chain with them, with a quick flutter on top; shut, they settle back to hanging still.
+  const BREEZE_LAG = 0.6;
+  function blowIn(dt) {
+    const outside = runtime.room.outside;
+    const open = 1 - (outside.glass ?? 1);
+    const target = open * gustInTrees(outside.t - BREEZE_LAG, GUST_EVERY) * (1 + (outside.rain ?? 0) * 0.4);
+    if (!breeze.level && !target) return;
+    breeze.level += (target - breeze.level) * Math.min(1, dt * 2.5);
+    if (breeze.level < 0.001 && !target) breeze.level = 0;
+    const flutter = Math.sin(outside.t * 9) * 0.25 + Math.sin(outside.t * 23) * 0.12;
+    const hang = (FULL_DROP + (MIN_DROP - FULL_DROP) * blind.lift) / FULL_DROP;
+    breeze.cloth = -breeze.level * (0.16 + flutter * 0.05) * Math.min(1, 0.4 + hang);
+    breeze.z = breeze.level * (0.26 + flutter * 0.06);
+    breeze.x = breeze.level * flutter * 0.08;
+    updateBlind();
+  }
   // Repaint the cloth (and the roll it winds onto) in a new print or colour; either may be
   // left out to keep what's there. Unknown prints and malformed colours are ignored.
   function setBlindCloth({ pattern, colour } = {}) {
@@ -185,6 +208,8 @@ export function createWindowBlind(runtime) {
     BAR_H,
     blind,
     updateBlind,
+    blowIn,
+    breeze,
     blindChain,
     swingChain,
     pull,

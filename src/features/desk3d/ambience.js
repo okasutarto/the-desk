@@ -1,42 +1,55 @@
-// The world outside the window, heard quietly under everything else: wind and the far-off town
-// as steady beds, and birds, crickets, passing cars, drips on the glass and thunder as events
-// scattered at random. All synthesized on the sfx chain (no audio files). The rain's own hiss
-// lives in useSfx (setRainLevel); this adds what goes with it.
+// The world outside the window, heard quietly under everything else: the lake lapping at its
+// shore, the trees' leaves rustling as each gust in the view sweeps through them and, with the
+// window open, a soft breath of wind blowing in with each gust, as steady beds, and birds, crickets, drips on the glass and thunder as events scattered at
+// random. Only what the window shows: there's no town or road out there. All synthesized on
+// the sfx chain (no audio files). The rain's own hiss lives in useSfx (setRainLevel); this
+// adds what goes with it.
 //
 // Kept free of three.js and the scene, so the mix can be checked on its own.
 import { audioBus } from "@/shared/composables/useSfx";
 
 // How much of each bed, by the part of the day (0–1, scaled by BED_PEAK)
 const BEDS = {
-  morning: { wind: 0.45, town: 0.2 },
-  day: { wind: 0.75, town: 0.35 },
-  evening: { wind: 0.5, town: 0.6 },
-  night: { wind: 0.25, town: 0.45 },
+  morning: { lake: 0.6, leaves: 0.5, wind: 0.6 },
+  day: { lake: 0.5, leaves: 0.8, wind: 1 },
+  evening: { lake: 0.55, leaves: 0.6, wind: 0.7 },
+  night: { lake: 0.5, leaves: 0.35, wind: 0.45 },
 };
 // How often each event comes, per minute, by the part of the day (on a dry day)
 const RATES = {
-  morning: { birds: 9, crickets: 0, cars: 1.5 },
-  day: { birds: 3, crickets: 0, cars: 2 },
-  evening: { birds: 1, crickets: 10, cars: 2.5 },
-  night: { birds: 0, crickets: 30, cars: 1 },
+  morning: { birds: 9, crickets: 0 },
+  day: { birds: 3, crickets: 0 },
+  evening: { birds: 1, crickets: 10 },
+  night: { birds: 0, crickets: 30 },
 };
 // The loudest each bed gets on the sfx bus. For scale: full rain is 0.01.
-export const BED_PEAK = { wind: 0.016, town: 0.012 };
+// The leaves and the wind are kept soft: with the open window's boost, a full gust through the
+// trees or blowing in still sits under the rain's hiss and the lake. The wind only blows in
+// through the open window.
+export const BED_PEAK = { lake: 0.01, leaves: 0.0035, wind: 0.003 };
 // Rain at or above this brings thunder: a real thunderstorm (0.9, or 1 with hail) or the rain
 // knocked up at the window (0.9), but not the settings' plain "Rain" (0.8) or real rain, however
 // heavy (0.8 at most; see rainForCode)
 export const STORM_RAIN = 0.85;
 // While the lofi plays, the world outside steps back this far
 export const UNDER_MUSIC = 0.35;
+// How quiet the leaves are between gusts, against their full rustle as one sweeps through
+export const LEAVES_STILL = 0.25;
+// And the wind through the open window between gusts
+export const WIND_STILL = 0.3;
+// How often the lake laps at the shore (per second, slowest to quickest): one every five to
+// eight seconds, a calm lake's slow swell rather than a chop
+export const LAP_PACE = [0.125, 0.2];
 
 /**
  * What the outside should sound like right now.
- * @param {{ part: string, rain?: number, windowOpen?: boolean, music?: boolean, on?: boolean, muted?: boolean, hidden?: boolean }} state
- * @returns {{ level: number, open: number, wind: number, town: number, rates: Record<string, number> }}
- *   level is the whole ambience (0 silent), open 1 with the window open; wind and town are
- *   bed gains; rates are events per minute
+ * @param {{ part: string, rain?: number, gust?: number, windowOpen?: boolean, music?: boolean, on?: boolean, muted?: boolean, hidden?: boolean }} state
+ *   gust is how far the view's gust is through the trees right now (0–1)
+ * @returns {{ level: number, open: number, lake: number, leaves: number, wind: number, rates: Record<string, number> }}
+ *   level is the whole ambience (0 silent), open 1 with the window open; lake, leaves and
+ *   wind (none with the window shut) are bed gains (the leaves' already following the gust); rates are events per minute
  */
-export function ambienceMix({ part, rain = 0, windowOpen = false, music = false, on = true, muted = false, hidden = false }) {
+export function ambienceMix({ part, rain = 0, gust = 0, windowOpen = false, music = false, on = true, muted = false, hidden = false }) {
   const bed = BEDS[part] ?? BEDS.day;
   const rate = RATES[part] ?? RATES.day;
   // Birds and crickets go quiet as the rain sets in, and are gone in a downpour
@@ -44,13 +57,13 @@ export function ambienceMix({ part, rain = 0, windowOpen = false, music = false,
   return {
     level: !on || muted || hidden ? 0 : music ? UNDER_MUSIC : 1,
     open: windowOpen ? 1 : 0,
-    wind: BED_PEAK.wind * bed.wind * (1 + rain * 0.4),
-    town: BED_PEAK.town * bed.town * (1 - rain * 0.6),
+    // the rain's hiss drowns the lake's lapping; wet leaves rustle a little louder
+    lake: BED_PEAK.lake * bed.lake * (1 - rain * 0.6),
+    leaves: BED_PEAK.leaves * bed.leaves * (1 + rain * 0.3) * (LEAVES_STILL + (1 - LEAVES_STILL) * Math.min(1, Math.max(0, gust))),
+    wind: windowOpen ? BED_PEAK.wind * bed.wind * (1 + rain * 0.3) * (WIND_STILL + (1 - WIND_STILL) * Math.min(1, Math.max(0, gust))) : 0,
     rates: {
       birds: rate.birds * dry,
       crickets: rate.crickets * dry,
-      // fewer cars in the rain, but each one hisses on the wet road
-      cars: rate.cars * (1 - rain * 0.3),
       drips: rain > 0.2 ? rain * 70 : 0,
       // a storm with hail rolls in about three times as often as one just over the line
       thunder: rain >= STORM_RAIN ? 1 + (rain - STORM_RAIN) * 15 : 0,
@@ -61,6 +74,16 @@ export function ambienceMix({ part, rain = 0, windowOpen = false, music = false,
 // The wait until the next event at `perMinute`, in seconds: random (exponential), so the
 // events don't fall into a pattern, but never bunched closer than a second
 export const nextGap = (perMinute, random = Math.random()) => Math.max(1, (-Math.log(1 - random) * 60) / perMinute);
+
+// How much of the view's gust is in the trees at time `t` (the view's own clock, seconds): the
+// window paints a gust sweeping in from the left every `every` seconds (its front from −0.4 to
+// 1.4 across the view), so the leaves rise as it reaches the trees, peak as it crosses them
+// and fall away behind it (0–1)
+export function gustInTrees(t, every) {
+  const front = ((t / every) % 1) * 1.8 - 0.4;
+  const across = (front + 0.1) / 1.4;
+  return across > 0 && across < 1 ? Math.sin(Math.PI * across) ** 1.5 : 0;
+}
 
 // How bright a lightning flash is, `ms` after it struck: a flash, a dip, a second flash, then
 // a quick fade (0–1)
@@ -91,7 +114,9 @@ export function createAmbience({ onLightning = () => {} } = {}) {
   const voices = new Set();
   // Up to three crickets in the chorus, each singing at its own pitch and pace
   const crickets = [4300, 4650, 4950].map((freq) => ({ freq: freq * (0.98 + Math.random() * 0.04), pulses: 3 + Math.floor(Math.random() * 3) }));
-  let gust = 0.5;
+  // The leaves' level last asked for, so it's only set again when it has moved
+  let leavesAt = -1;
+  let windAt = -1;
 
   // Brown noise, four seconds of it so the beds' loop can't be heard turning over
   function brownBuffer(ctx) {
@@ -104,6 +129,28 @@ export function createAmbience({ onLightning = () => {} } = {}) {
       data[i] = last * 3.5;
     }
     // ease the seam so the loop doesn't click
+    for (let i = 0; i < 2048; i++) data[length - 1 - i] *= i / 2048;
+    return buffer;
+  }
+
+  // Leaves rustling: a soft "sssh", the noise's harsh top rounded off, swelling and easing
+  // gently every few hundredths of a second as the crowns stir (never sharp enough to tick or
+  // crackle), four seconds of it for the same reason
+  function rustleBuffer(ctx) {
+    const length = ctx.sampleRate * 4;
+    const buffer = ctx.createBuffer(1, length, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    const ease = Math.min(1, 1 / (ctx.sampleRate * 0.015));
+    let [level, target, soft, next] = [0.75, 0.75, 0, 0];
+    for (let i = 0; i < length; i++) {
+      if (i >= next) {
+        next = i + ctx.sampleRate * (0.04 + Math.random() * 0.05);
+        target = 0.55 + Math.random() * 0.45;
+      }
+      level += (target - level) * ease;
+      soft += ((Math.random() * 2 - 1) - soft) * 0.6;
+      data[i] = soft * level;
+    }
     for (let i = 0; i < 2048; i++) data[length - 1 - i] *= i / 2048;
     return buffer;
   }
@@ -123,8 +170,26 @@ export function createAmbience({ onLightning = () => {} } = {}) {
     return { src, filter, gain };
   }
 
+  // The lake lapping at the shore: low, soft water noise, each little wave swelling in and
+  // drawing back (a slow wave on its level, one lap every five to eight seconds, its pace
+  // drifting so the laps never quite repeat)
+  function lakeBed(g) {
+    const bed = loop(g, g.brown, "bandpass", 460, 0.6);
+    const lap = g.ctx.createGain();
+    lap.gain.value = 0.55;
+    bed.filter.disconnect();
+    bed.filter.connect(lap).connect(bed.gain);
+    const waves = g.ctx.createOscillator();
+    waves.frequency.value = LAP_PACE[0];
+    const depth = g.ctx.createGain();
+    depth.gain.value = 0.45;
+    waves.connect(depth).connect(lap.gain);
+    waves.start(0);
+    return { ...bed, lap, waves, depth };
+  }
+
   // Built once per audio context: a master level, the glass the outside is heard through, and
-  // the two beds running silently until they're wanted
+  // the beds running silently until they're wanted
   function build() {
     const bus = audioBus();
     if (!bus || destroyed) return null;
@@ -139,9 +204,14 @@ export function createAmbience({ onLightning = () => {} } = {}) {
     glass.gain.value = GLASS_DB;
     const outside = ctx.createGain();
     glass.connect(outside).connect(master);
-    graph = { ctx, master, glass, outside, noiseBuffer, brown: brownBuffer(ctx) };
-    graph.wind = loop(graph, graph.brown, "lowpass", 520);
-    graph.town = loop(graph, graph.brown, "lowpass", 170);
+    graph = { ctx, master, glass, outside, noiseBuffer, brown: brownBuffer(ctx), rustle: rustleBuffer(ctx) };
+    graph.lake = lakeBed(graph);
+    // (airy, so the shut glass takes most of it and the open window lets it in, but not so high
+    // that it hisses)
+    graph.leaves = loop(graph, graph.rustle, "bandpass", 2400, 0.4);
+    // a low, soft whoosh, brightening as a gust blows in
+    graph.wind = loop(graph, graph.brown, "lowpass", 380);
+    [leavesAt, windAt] = [-1, -1];
     heard = "";
     Object.keys(due).forEach((kind) => delete due[kind]);
     return graph;
@@ -217,35 +287,6 @@ export function createAmbience({ onLightning = () => {} } = {}) {
     voice(g, osc, t + one.pulses * pulse * 1.8 + 0.05, [osc, gain, end]);
   }
 
-  // A car going by down the road, left to right or back: a rumble that swells and fades, its
-  // tyres hissing on a wet road
-  function car(g, t, wet) {
-    const length = 4 + Math.random() * 3;
-    const src = g.ctx.createBufferSource();
-    src.buffer = g.brown;
-    const filter = g.ctx.createBiquadFilter();
-    filter.type = "lowpass";
-    filter.frequency.setValueAtTime(220, t);
-    filter.frequency.linearRampToValueAtTime(700 + wet * 900, t + length * 0.5);
-    filter.frequency.linearRampToValueAtTime(220, t + length);
-    const gain = g.ctx.createGain();
-    gain.gain.setValueAtTime(0.0001, t);
-    gain.gain.exponentialRampToValueAtTime(0.014, t + length * 0.5);
-    gain.gain.exponentialRampToValueAtTime(0.0001, t + length);
-    src.connect(filter).connect(gain);
-    let end = gain;
-    if (g.ctx.createStereoPanner) {
-      const way = Math.random() < 0.5 ? -1 : 1;
-      end = g.ctx.createStereoPanner();
-      end.pan.setValueAtTime(-0.8 * way, t);
-      end.pan.linearRampToValueAtTime(0.8 * way, t + length);
-      gain.connect(end);
-    }
-    end.connect(g.glass);
-    src.start(t, Math.random() * 3);
-    voice(g, src, t + length + 0.05, [src, filter, gain, end]);
-  }
-
   // A drop landing on the pane: on the glass itself, so not muffled by it
   function drip(g, t) {
     const src = g.ctx.createBufferSource();
@@ -290,7 +331,7 @@ export function createAmbience({ onLightning = () => {} } = {}) {
     }
   }
 
-  const EVENTS = { birds: bird, crickets: cricket, cars: car, drips: drip, thunder };
+  const EVENTS = { birds: bird, crickets: cricket, drips: drip, thunder };
 
   /**
    * Called every frame (or so) with the room as it is. Cheap when nothing has changed.
@@ -304,20 +345,29 @@ export function createAmbience({ onLightning = () => {} } = {}) {
     const g = build();
     if (!g || g.ctx.state !== "running") return;
     const now = g.ctx.currentTime;
-    const key = [mix.level, mix.open, mix.wind.toFixed(4), mix.town.toFixed(4)].join();
+    const key = [mix.level, mix.open, mix.lake.toFixed(4)].join();
     if (key !== heard) {
       heard = key;
       g.master.gain.setTargetAtTime(mix.level, now, mix.level ? GLIDE : 0.3);
       g.glass.gain.setTargetAtTime(mix.open ? 0 : GLASS_DB, now, 0.4);
       g.outside.gain.setTargetAtTime(mix.open ? 2.2 : 1, now, 0.4);
-      g.town.gain.gain.setTargetAtTime(mix.town, now, GLIDE);
+      g.lake.gain.gain.setTargetAtTime(mix.lake, now, GLIDE);
     }
-    // The wind wanders: a gust builds and dies every few seconds
-    if (now >= (due.gust ?? 0)) {
-      due.gust = now + 1.5 + Math.random() * 2.5;
-      gust = Math.min(1, Math.max(0.2, gust + (Math.random() - 0.5) * 0.6));
-      g.wind.gain.gain.setTargetAtTime(mix.wind * gust, now, 1.2);
-      g.wind.filter.frequency.setTargetAtTime(380 + gust * 420, now, 1.2);
+    // The leaves follow the gust in the view closely, so the rustle sweeps by with it
+    if (Math.abs(mix.leaves - leavesAt) > BED_PEAK.leaves * 0.02) {
+      leavesAt = mix.leaves;
+      g.leaves.gain.gain.setTargetAtTime(mix.leaves, now, 0.25);
+    }
+    // So does the wind through the open window, a little slower, so it breathes in and out
+    if (Math.abs(mix.wind - windAt) > BED_PEAK.wind * 0.02) {
+      windAt = mix.wind;
+      g.wind.gain.gain.setTargetAtTime(mix.wind, now, 0.4);
+      g.wind.filter.frequency.setTargetAtTime(320 + 480 * Math.min(1, Math.max(0, state.gust ?? 0)), now, 0.4);
+    }
+    // The lake's laps drift in pace from one to the next, so they never settle into a beat
+    if (now >= (due.waves ?? 0)) {
+      due.waves = now + 4 + Math.random() * 4;
+      g.lake.waves.frequency.setTargetAtTime(LAP_PACE[0] + Math.random() * (LAP_PACE[1] - LAP_PACE[0]), now, 3);
     }
     if (mix.level === 0) return;
     Object.entries(mix.rates).forEach(([kind, perMinute]) => {
@@ -349,11 +399,11 @@ export function createAmbience({ onLightning = () => {} } = {}) {
     });
     voices.clear();
     if (graph && graph.ctx.state !== "closed") {
-      const { master, wind, town } = graph;
+      const { master, lake, leaves, wind } = graph;
       master.gain.setTargetAtTime(0, graph.ctx.currentTime, 0.1);
       // once the beds have faded out, the whole graph comes off the bus
-      wind.src.onended = () => master.disconnect();
-      [wind, town].forEach((bed) => bed.src.stop(graph.ctx.currentTime + 0.5));
+      lake.src.onended = () => master.disconnect();
+      [lake.src, lake.waves, leaves.src, wind.src].forEach((src) => src.stop(graph.ctx.currentTime + 0.5));
     }
     graph = null;
   }

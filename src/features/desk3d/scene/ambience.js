@@ -1,9 +1,10 @@
-import { createAmbience, lightningFlash } from "../ambience";
+import { createAmbience, lightningFlash, gustInTrees } from "../ambience";
+import { GUST_EVERY } from "../textures";
 
 export function createAmbienceScene(runtime) {
   // ---------- the world outside, heard through the window ----------
-  // Follows the part of the day, the rain, the window (open, it's louder and brighter) and the
-  // music (playing, it steps back). Lightning lights the window up before its thunder.
+  // Follows the part of the day, the rain, the gusts sweeping through the trees in the view, the
+  // window (open, it's louder and brighter) and the music (playing, it steps back). Lightning lights the window up before its thunder.
   let on = runtime.options.ambience !== false;
   let struckAt = -Infinity;
   const engine = createAmbience({ onLightning: () => { struckAt = performance.now(); } });
@@ -20,6 +21,7 @@ export function createAmbienceScene(runtime) {
     engine.update({
       part: runtime.room.dayPart(),
       rain: runtime.room.outside.rain,
+      gust: gustInTrees(runtime.room.outside.t, GUST_EVERY),
       windowOpen: runtime.windowLighting.isWindowOpen(),
       music: runtime.workstation.lofi.playing,
       on,

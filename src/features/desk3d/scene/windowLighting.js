@@ -443,8 +443,9 @@ export function createWindowLighting(runtime) {
   // The window opens by its handles: click one and both turn up level, then the two leaves
   // swing right out on their hinges together, all but flat to the wall outside, clear of the
   // view; click again and they swing shut and the handles drop.
-  // Leaving the window's close-up shuts it. The leaves' shadows swing with them, so the sunlit
-  // patch on the desk opens up as they go.
+  // It stays as it's left when the view moves away: only its handles shut it again. Open, the
+  // gusts outside blow in on the blind (see windowBlind). The leaves' shadows swing with them,
+  // so the sunlit patch on the desk opens up as they go.
   const LEAF_SWING = 3.05; // about 175°, back against the outside wall
   const HANDLE_OPEN = Math.PI / 2;
   const sash = { open: 0 };
