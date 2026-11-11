@@ -238,6 +238,11 @@ export function createTheme(runtime) {
     runtime.core.sun.intensity *= THREE.MathUtils.lerp(0.25, 1, runtime.windowBlind.blind.lift);
     runtime.core.skyFill.intensity *= 1 - 0.38 * runtime.room.outside.rain;
     runtime.core.ambient.intensity *= 1 - 0.25 * runtime.room.outside.rain;
+    // Lightning: the window floods with cold light for a moment
+    if (runtime.room.outside.flash) {
+      runtime.windowLighting.windowLight.intensity *= 1 + 4 * runtime.room.outside.flash;
+      runtime.core.skyFill.intensity *= 1 + runtime.room.outside.flash;
+    }
     // The sun (or moon) is half a degree across, so its shadows soften by about 1 cm a metre:
     // the glazing bars' shadow on the desk, half a metre to a metre below them, has a 5-10 mm
     // edge. A wider blur would smear bars this thin into faint streaks drawn out along a low
