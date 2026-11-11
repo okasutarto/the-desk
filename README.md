@@ -58,7 +58,7 @@ Prefer a classic page? The same content lives at [`/2d`](https://okasp.dev/2d).
 | ☕ **Mug** | A sip and a quote. Finish the cup and the room switches to the night shift. |
 | 💡 **Lamp** | Day and night, by hand. |
 | 🔦 **Monitor lightbar** | Toggle the task light on or off during the night shift. |
-| 🔊 **Speakers** | Sound on or off, with a little groove when it comes on. |
+| 🔊 **Speakers** | An Edifier S1000MKIII pair: sound on or off, with a little groove when it comes on. |
 | 🪟 **Window & blind** | Morning, midday, sunset and moonlight scenery with birds, stars and rain. Pull the blind or its chain; three quick knocks toggle rain. The blind comes in seven prints and any colour. |
 | 🪴 **Plant** | Each click blooms a flower. Three blooms call a butterfly. |
 | 🖱️ **Mouse** | A life-size wireless gaming mouse with two thumb buttons and a green status light, in four colours. It follows your pointer, and grows ears and a tail and scampers off for a lap when clicked. |

@@ -749,6 +749,38 @@ export function drawMatteFinish(c, w, h, { grain = 0.03, speck = 1 } = {}) {
   }
 }
 
+// Pebbled leatherette, as on a speaker's front baffle: a mottle of soft grains, each ringed by
+// a darker crease, with the odd highlight caught on top, in a tile its material tints
+export function drawLeather(c, w, h) {
+  let r = 5527;
+  const rand = () => ((r = (r * 16807) % 2147483647) / 2147483647);
+  c.fillStyle = "#d4d4d4";
+  c.fillRect(0, 0, w, h);
+  // a whole number of grains across and down the tile, so its edges meet
+  const [cols, rows] = [Math.round(w / 8), Math.round(h / 6.4)];
+  const [cell, row] = [w / cols, h / rows];
+  for (let j = 0; j < rows; j++) {
+    for (let i = 0; i < cols; i++) {
+      const cx = (i + (j % 2) * 0.5) * cell + (rand() - 0.5) * cell * 0.7;
+      const cy = j * row + (rand() - 0.5) * cell * 0.6;
+      const rad = cell * (0.42 + rand() * 0.24);
+      const [squash, turn, crease, shine] = [0.7 + rand() * 0.3, rand() * Math.PI, 0.16 + rand() * 0.12, rand() * 0.1];
+      // drawn again across the tile's edges, so it repeats without a join
+      for (const ox of [-w, 0, w]) {
+        for (const oy of [-h, 0, h]) {
+          c.beginPath();
+          c.ellipse(cx + ox, cy + oy, rad, rad * squash, turn, 0, Math.PI * 2);
+          c.strokeStyle = `rgba(0,0,0,${crease})`;
+          c.lineWidth = 1.4;
+          c.stroke();
+          c.fillStyle = `rgba(255,255,255,${shine})`;
+          c.fill();
+        }
+      }
+    }
+  }
+}
+
 // A speaker cone's surface on its lathe's uv (up the canvas is from the rim in to the centre):
 // pressed concentric ribs, and fine fibres radiating out through the paper
 export function drawConeRibs(c, w, h) {
