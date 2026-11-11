@@ -53,9 +53,9 @@ module.exports = async function checkStrike() {
     '../services/leaderboardStore': { store: storeModule.memoryStore() },
     '../utils/nameGuard': { checkName },
     './visitsController': { visitorId: (req) => req.ip, isPerson: (req) => !/bot/i.test(req.agent || '') },
+    '../services/moderation': { flagged: async (name) => flagged.has(name) },
   });
   let flagged = new Set();
-  strike.setModeration(async (name) => flagged.has(name));
 
   const call = async (handler, { ip = '1.1.1.1', body, params = {}, headers = {}, agent = 'Mozilla/5.0' } = {}) => {
     let status = 200;

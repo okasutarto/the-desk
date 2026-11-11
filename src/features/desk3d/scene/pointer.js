@@ -11,6 +11,8 @@ export function createPointer(runtime) {
   const parallax = { x: 0, y: 0, tx: 0, ty: 0 };
   let hovered = null;
   let downAt = null;
+  // a press on the guestbook's pad or the sheet held up off it: { pointerId, note, uv }
+  let raisedTap = null;
   // where the mouse last stood, so hover can be checked again when the scene moves under it
   let mouseAt = null;
 
@@ -128,6 +130,16 @@ export function createPointer(runtime) {
   }
   const onPointerMove = (e) => {
     runtime.core.responsiveUntil = performance.now() + 2000;
+    // a drag across the guestbook's sheet held up to write on picks out the letters it passes
+    if (raisedTap?.note.raised && e.pointerId === raisedTap.pointerId) {
+      if (!raisedTap.dragged && Math.hypot(e.clientX - raisedTap.x, e.clientY - raisedTap.y) < 4) return;
+      raisedTap.dragged = true;
+      rayFromPointer(e);
+      const uv = raycaster.intersectObject(raisedTap.note.face, false)[0]?.uv;
+      if (uv) raisedTap.note.onSelect?.(raisedTap.uv, uv);
+      e.preventDefault();
+      return;
+    }
     if (screenDrag?.pointerId === e.pointerId) {
       const at = screenPoint(e);
       if (screenDrag.desktop) {
@@ -352,7 +364,21 @@ export function createPointer(runtime) {
       if (e.pointerType === "mouse") runtime.mouse.pressMouse();
       return;
     }
-    const entry = runtime.camera.focus.name === "about" && pick(e)?.entry;
+    const picked = runtime.camera.focus.name === "about" && pick(e);
+    const entry = picked?.entry;
+    // The guestbook's pad, and its sheet held up to write on: a tap there does its thing (on the
+    // lift of the finger, when a phone will raise its keyboard); they aren't dragged
+    if (entry?.note?.raised || entry?.note?.tapOnly) {
+      raisedTap = { pointerId: e.pointerId, note: entry.note, uv: picked.hit?.uv?.clone(), x: e.clientX, y: e.clientY, dragged: false };
+      downAt = null;
+      // held up, the sheet takes a press and a drag like a text box: the caret, then a selection
+      if (entry.note.raised) {
+        entry.note.onPress?.(raisedTap.uv);
+        runtime.core.renderer.domElement.setPointerCapture(e.pointerId);
+      }
+      e.preventDefault();
+      return;
+    }
     const point = entry?.note && boardPointer(e);
     if (point) {
       runtime.aboutBoard.noteDrag = {
@@ -455,11 +481,23 @@ export function createPointer(runtime) {
         return;
       }
     }
+    if (raisedTap && e.pointerId === raisedTap.pointerId) {
+      const { note, uv, dragged } = raisedTap;
+      raisedTap = null;
+      if (runtime.core.renderer.domElement.hasPointerCapture(e.pointerId)) runtime.core.renderer.domElement.releasePointerCapture(e.pointerId);
+      // a drag has picked out its letters already; a tap places the caret there
+      if (!dragged) note.onTap?.(uv);
+      return;
+    }
     if (runtime.aboutBoard.noteDrag) {
       if (e.pointerId !== runtime.aboutBoard.noteDrag.pointerId) return;
       runtime.aboutBoard.noteDrag.moved = runtime.aboutBoard.noteDrag.moved || Math.hypot(e.clientX - runtime.aboutBoard.noteDrag.startX, e.clientY - runtime.aboutBoard.noteDrag.startY) >= 4;
       const drag = finishNoteDrag(e.pointerId);
-      if (drag?.note.href && !drag.moved) runtime.camera.runHotspot({ href: drag.note.href });
+      // a paper tapped, not moved: a link opens, the guestbook's card and page tab do their thing
+      if (drag && !drag.moved) {
+        if (drag.note.href) runtime.camera.runHotspot({ href: drag.note.href });
+        else drag.note.onTap?.();
+      }
       return;
     }
     if (!downAt) return;

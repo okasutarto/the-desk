@@ -45,8 +45,8 @@ Prefer a classic page? The same content lives at [`/2d`](https://okasp.dev/2d).
 
 | Prop | What it does |
 | --- | --- |
-| 🪪 **ID badge** | Flips to reveal the links. Drag its pin to re-pin it anywhere on the wall, or pull the lanyard and let it swing. |
-| 📌 **About board** | Notes about me, pinned up. Drag them around and they pin back in place. |
+| 🪪 **ID badge** | Flips to reveal the links (GitHub, LinkedIn, email and the resume). Drag its pin to re-pin it anywhere on the wall, or pull the lanyard and let it swing. |
+| 📌 **Guestbook** | The cork board where visitors leave a note for everyone who comes by. Tap SIGN THE BOOK, write your name on the card that comes up and a line (120 characters, no links), and it's pinned up for all to see, on the paper you wrote it on. Leaf back through older notes with the tab in the corner; drag the papers around and they pin back in place. |
 | 🖥️ **Monitor** | A tiny desktop with a draggable dock: a working terminal (`help`, `whoami`, `projects`, `sudo hire oka`), the Spotifree lo-fi player, VS Kode, Snake, a picker of six cel-shaded toon wallpapers and more. |
 | ⌨️ **Keyboard** | A Halo75 V2-inspired board in five colourways, with a status LED above Esc, sculpted keycaps, a smoky fluted acrylic case and a tilted chassis. A rainbow RGB halo runs under the caps and spills onto the mat at night. Physical keys flash and animate their matching modeled keys; `1`–`5` jump between sections. |
 | 🟧 **Times Gate** | A Divoom Times Gate 2 at real size, standing in front of the riser. Its five pixel screens show the weather where you are, my GitHub contributions, a visit counter, the room's FPS and Byte, a pixel pet that wanders, sleeps at night and crackles happily when you click to pet it. The screens glow onto the desk, faintly by day and fully at night. |

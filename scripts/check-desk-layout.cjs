@@ -6,12 +6,21 @@ const vm = require('node:vm');
 const THREE = require('three');
 const root = path.join(__dirname, '../src');
 const source = require('./helpers/desk-source.cjs').readDeskSource();
-const data = fs.readFileSync(path.join(root, 'data/about.js'), 'utf8').replace(/export /g, '');
-const { ABOUT_NOTES } = vm.runInNewContext(data + '; ({ ABOUT_NOTES })');
-const layoutStart = source.indexOf('  const noteLayout =');
-const layout = vm.runInNewContext(source.slice(layoutStart, source.indexOf('  const pinGeo', layoutStart)) + '; noteLayout');
-assert.deepEqual(Object.keys(layout).sort(), Array.from(ABOUT_NOTES, (note) => note.id).sort(),
-  'every shared 2D note must have a pinned placement on the 3D board');
+// The guestbook's grid of papers on the cork board (it was the About board)
+const guestbook = source.slice(source.indexOf("  // The guestbook's papers: twelve slots"));
+const gridNum = (name) => vm.runInNewContext(`(${guestbook.match(new RegExp(`const ${name} = ([^;]+);`))[1]})`);
+const COLS = gridNum('COLS');
+const ROWS = gridNum('ROWS');
+const SLOT_W = gridNum('SLOT_W');
+const SLOT_H = gridNum('SLOT_H');
+assert.equal(COLS.length * ROWS.length, 12, 'the card, ten notes and the page tab');
+// tilted up to 3°, every paper stays on the cork, below the heading's tape
+const TILT = 3 * Math.PI / 180;
+const halfW = (SLOT_W * Math.cos(TILT) + SLOT_H * Math.sin(TILT)) / 2;
+const halfH = (SLOT_H * Math.cos(TILT) + SLOT_W * Math.sin(TILT)) / 2;
+for (const x of COLS) assert.ok(Math.abs(x) + halfW < 3.235, `column ${x} stays on the cork`);
+for (const y of ROWS) assert.ok(Math.abs(y) + halfH < 1.935, `row ${y} stays on the cork`);
+assert.ok(Math.max(...ROWS) + halfH < 1.45, 'the top row leaves the heading clear');
 
 const num = (name) => Number(source.match(new RegExp(`const ${name} = ([\\d.]+)`))[1]);
 const FOLDER_W = num('FOLDER_W');
@@ -107,12 +116,9 @@ assert.ok(edge.y - note.h / 2 > -1.975);
 assert.equal(clampNote(note, 0.3, 0.2).x, 0.3);
 const overlapStart = source.indexOf('  function notesOverlap(');
 const notesOverlap = vm.runInNewContext(source.slice(overlapStart, source.indexOf('  function liftNote(', overlapStart)) + '; notesOverlap');
-const notes = Array.from(ABOUT_NOTES, (data) => {
-  const [x, y, w, h] = layout[data.id];
-  return { paper: { position: { x, y } }, w, h, angle: -THREE.MathUtils.clamp(data.rotate, -2, 2) * Math.PI / 180 };
-});
+const notes = ROWS.flatMap((y) => COLS.map((x) => ({ paper: { position: { x, y } }, w: SLOT_W, h: SLOT_H, angle: (x + y) % 2 ? TILT : -TILT })));
 for (let i = 0; i < notes.length; i++) for (let j = i + 1; j < notes.length; j++) {
-  assert.equal(notesOverlap(notes[i], notes[j]), false, `initial notes ${ABOUT_NOTES[i].id}/${ABOUT_NOTES[j].id} must not overlap`);
+  assert.equal(notesOverlap(notes[i], notes[j]), false, `papers ${i}/${j} must not overlap at rest`);
 }
 const dragged = { ...notes[0], paper: { position: { ...notes[1].paper.position } } };
 assert.equal(notesOverlap(dragged, notes[1]), true, 'dropping onto another note must be rejected');
@@ -122,7 +128,7 @@ const resumeContext = {
   shelfDrag: null,
   stickyDrag: null,
   noteDrag: null,
-  lanyardDrag: null,
+  lanyardDrag: null, raisedTap: null,
   chairDrag: null,
   hatDrag: null,
   finishNoteDrag() { const drag = resumeContext.noteDrag; resumeContext.noteDrag = null; return drag; },
@@ -140,4 +146,12 @@ assert.equal(opens.length, 1, 'dragging the resume must not open its link');
 resumeContext.noteDrag = { ...gesture(), moved: true };
 onPointerUp({ pointerId: 1, clientX: 10, clientY: 20 });
 assert.equal(opens.length, 1, 'dragging away and back must not count as a click');
-console.log('Shared notes, fixed board camera, drag bounds and prop layout checks passed.');
+// the guestbook's card and page tab answer a tap, and not a drag
+let taps = 0;
+resumeContext.noteDrag = { ...gesture(), note: { onTap: () => taps++ } };
+onPointerUp({ pointerId: 1, clientX: 10, clientY: 20 });
+assert.equal(taps, 1, 'a tap on the card starts a note');
+resumeContext.noteDrag = { ...gesture(), moved: true, note: { onTap: () => taps++ } };
+onPointerUp({ pointerId: 1, clientX: 10, clientY: 20 });
+assert.equal(taps, 1, 'dragging the card is just a drag');
+console.log('Guestbook grid, fixed board camera, drag bounds, taps and prop layout checks passed.');
