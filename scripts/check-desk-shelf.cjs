@@ -12,7 +12,7 @@ const ctx = vm.createContext({
   performance, responsiveUntil: 0,
   THREE, shelfLook: 1.7, focus: { name: 'shelf' }, viewH: 12, userView: { zoom: 1 }, cam: { zoom: 2 }, container: { clientHeight: 600 },
   shelfBubble: { hide() { hidden++; } }, applyShot() { moves++; },
-  finishScreenDrag: () => null, screenDrag: null, chairDrag: null, downAt: null, stickyDrag: null, noteDrag: null, lanyardDrag: null, hatDrag: null,
+  finishScreenDrag: () => null, screenDrag: null, chairDrag: null, downAt: null, stickyDrag: null, noteDrag: null, lanyardDrag: null, raisedTap: null, hatDrag: null,
   pick: () => ({ entry: {} }), handleClick: () => clicks++, back() { throw new Error('drag navigated away'); },
   renderer: { domElement: { style: {}, setPointerCapture: (id) => captured.add(id), hasPointerCapture: (id) => captured.has(id), releasePointerCapture: (id) => captured.delete(id) } },
 });

@@ -15,7 +15,7 @@ let point = new THREE.Vector3(2.4, 3.5, 0.1);
 const sandbox = vm.createContext({
   performance, responsiveUntil: 0,
   SCREEN_Y: 2.13, screen: {}, raycaster: { intersectObject: () => [] }, desktop: { active: () => null },
-  THREE, monitor, screenDrag: null, chairDrag: null, shelfDrag: null, noteDrag: null, lanyardDrag: null, hatDrag: null, downAt: null, focus: { name: "monitor" },
+  THREE, monitor, screenDrag: null, chairDrag: null, shelfDrag: null, noteDrag: null, lanyardDrag: null, hatDrag: null, raisedTap: null, downAt: null, focus: { name: "monitor" },
   renderer: { domElement: { style: {}, setPointerCapture: (id) => captured.add(id), hasPointerCapture: (id) => captured.has(id), releasePointerCapture: (id) => captured.delete(id) } },
   pick: () => ({ entry }),
   rayFromPointer: () => ({ intersectPlane: (_plane, result) => result.copy(monitor.localToWorld(point.clone())) }),

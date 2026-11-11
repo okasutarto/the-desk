@@ -15,10 +15,12 @@ export function createLifecycle(runtime) {
       mouse: runtime.mouse.setMouseFinish,
       headset: runtime.headset.setHeadsetFinish,
       chair: runtime.chair.setChairFinish,
+      clock: runtime.wallDecor.setClockFinish,
     })[part]?.(finish),
     setTimesGateFinish: runtime.timesGate.setTimesGateFinish,
     setTime: runtime.theme.setTime,
     setRain: runtime.weather.setRain,
+    setAmbience: runtime.ambience.setAmbience,
     setMuted: runtime.workstation.setMuted,
     standby: runtime.animation.standby,
     landStandby: runtime.workstation.landStandby,
@@ -39,6 +41,7 @@ export function createLifecycle(runtime) {
       runtime.core.destroyed = true;
       runtime.workstation.lofi.destroy();
       setRainLevel(0);
+      runtime.ambience.destroy();
       cancelAnimationFrame(runtime.animation.frame);
       runtime.core.timers.forEach(clearTimeout);
       clearTimeout(runtime.camera.arriveTimer);
@@ -69,6 +72,9 @@ export function createLifecycle(runtime) {
       window.removeEventListener("keydown", runtime.keyboard.onKonami);
       runtime.textInput.typer.removeEventListener("input", runtime.textInput.onTyperInput);
       runtime.textInput.typer.removeEventListener("keydown", runtime.textInput.onTyperKey);
+      runtime.textInput.typer.removeEventListener("keyup", runtime.textInput.onTyperSelect);
+      runtime.textInput.typer.removeEventListener("select", runtime.textInput.onTyperSelect);
+      document.removeEventListener("selectionchange", runtime.textInput.onTyperSelect);
       runtime.textInput.typer.remove();
       runtime.swordEffects.impactFlash.remove();
       runtime.core.renderer.domElement.removeEventListener("wheel", runtime.chat.onWheel);

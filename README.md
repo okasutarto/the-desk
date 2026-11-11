@@ -45,8 +45,8 @@ Prefer a classic page? The same content lives at [`/2d`](https://okasp.dev/2d).
 
 | Prop | What it does |
 | --- | --- |
-| 🪪 **ID badge** | Flips to reveal the links. Drag its pin to re-pin it anywhere on the wall, or pull the lanyard and let it swing. |
-| 📌 **About board** | Notes about me, pinned up. Drag them around and they pin back in place. |
+| 🪪 **ID badge** | Flips to reveal the links (GitHub, LinkedIn, email and the resume). Drag its pin to re-pin it anywhere on the wall, or pull the lanyard and let it swing. |
+| 📌 **Guestbook** | The cork board where visitors leave a note for everyone who comes by. Tap SIGN THE BOOK, write your name on the card that comes up and a line (120 characters, no links), and it's pinned up for all to see, on the paper you wrote it on. Leaf back through older notes with the tab in the corner; drag the papers around and they pin back in place. |
 | 🖥️ **Monitor** | A tiny desktop with a draggable dock: a working terminal (`help`, `whoami`, `projects`, `sudo hire oka`), the Spotifree lo-fi player, VS Kode, Snake, a picker of six cel-shaded toon wallpapers and more. |
 | ⌨️ **Keyboard** | A Halo75 V2-inspired board in five colourways, with a status LED above Esc, sculpted keycaps, a smoky fluted acrylic case and a tilted chassis. A rainbow RGB halo runs under the caps and spills onto the mat at night. Physical keys flash and animate their matching modeled keys; `1`–`5` jump between sections. |
 | 🟧 **Times Gate** | A Divoom Times Gate 2 at real size, standing in front of the riser. Its five pixel screens show the weather where you are, my GitHub contributions, a visit counter, the room's FPS and Byte, a pixel pet that wanders, sleeps at night and crackles happily when you click to pet it. The screens glow onto the desk, faintly by day and fully at night. |
@@ -58,13 +58,13 @@ Prefer a classic page? The same content lives at [`/2d`](https://okasp.dev/2d).
 | ☕ **Mug** | A sip and a quote. Finish the cup and the room switches to the night shift. |
 | 💡 **Lamp** | Day and night, by hand. |
 | 🔦 **Monitor lightbar** | Toggle the task light on or off during the night shift. |
-| 🔊 **Speakers** | Sound on or off, with a little groove when it comes on. |
+| 🔊 **Speakers** | An Edifier S1000MKIII pair: sound on or off, with a little groove when it comes on. |
 | 🪟 **Window & blind** | Morning, midday, sunset and moonlight scenery: wooded hills under snowy peaks, cel-shaded cirrus, a lake deepening toward the shore and a split-rail fence by the path, framed by a bough and a bush, with birds, stars and rain. Pull the blind or its chain; three quick knocks toggle rain. The blind comes in seven prints and any colour. |
 | 🪴 **Plant** | Each click blooms a flower. Three blooms call a butterfly. |
 | 🖱️ **Mouse** | A life-size wireless gaming mouse with two thumb buttons and a green status light, in four colours. It follows your pointer, and grows ears and a tail and scampers off for a lap when clicked. |
 | 🪑 **Chair** | A Titan Evo-inspired gaming chair, traced from photos. Click to spin it, or drag it round on its post. |
 | 🖼️ **Painting** | A small gallery: it flips to the next picture. |
-| 🕰️ **Clock** | Spins its hands round and chimes. |
+| 🕰️ **Clock** | A two-faced flag clock standing straight out from the wall, in six colours. Spins its hands round and chimes. |
 | 🎸 **Guitar** | Strums the next chord; its strings react to hover and vibration, and respond to the room lighting. |
 | 👒 **Straw hat** | Luffy has something to say. |
 | ⚔️ **Sword rack** | Inspect three swords, draw one and strike, with technique cards, manga effects and falling sakura. Its close-up has an independent spotlight. |
@@ -94,6 +94,12 @@ Gatling to clear the sky. A Sea King surfaces at the end of every stage.
 
 Chain kills for a multiplier, and if you go down you get your own wanted poster.
 
+**Bounty board.** The title screen shows the top five bounties of everyone who has played, and
+the poster the top ten. A bounty that beats the tenth puts your name on the poster: type up to
+12 characters (on a phone the keyboard comes up) and press Enter, or Skip. Each player keeps
+one line, their best. Names go through a word list and OpenAI's moderation before they're
+shown, and if the board can't be reached the game plays on with your own best.
+
 ## 🎨 Make it your room
 
 The ⚙️ gear next to **2D site** opens the room settings, grouped into **Time & weather**,
@@ -104,6 +110,7 @@ remembered in your browser. Close the panel with its ✕, the gear or Esc.
 | --- | --- | --- |
 | 🕰️ **Time of day** | Auto · Morning · Midday · Evening · Night | Auto: your own clock |
 | 🌧️ **Weather** | Auto · Clear · Rain | Auto: the real weather where you are |
+| 🐦 **Ambience** | On · Off: birds, the lake lapping, leaves rustling in the gusts, crickets, drips on the glass and thunder outside the window | On |
 | 🧱 **Wall** | Seven house paints from white to graphite, or any colour at all | Graphite |
 | 🟫 **Floor** | Six woods × planks, herringbone or parquet | Oak, planks |
 | 🪵 **Desk** | Six woods × planks, cathedral, knotty, butcher block or quartersawn | Cherry, butcher block |
@@ -117,6 +124,7 @@ remembered in your browser. Close the panel with its ✕, the gear or Esc.
 | 🖱️ **Mouse** | Black · White · Magenta · Red | White |
 | 🪑 **Chair** | Black · White leatherette; the frame, base and red stitching stay | Black |
 | 🎧 **Headset** | White · Black · Pink · Mint; shell, stitching, dial caps, emblem ink and glow colour | White |
+| 🕰️ **Wall clock** | Yellow · Red · Blue · Black · White · Green; case and hands | Blue |
 | 🟧 **Smart Pixel Art** (Times Gate) | Silver · Pink · White · Yellow | Silver |
 
 "Where you are" comes from your browser's time zone (`Asia/Jakarta` is Jakarta), looked up
@@ -144,6 +152,15 @@ furniture, standing on a thick slab on a dotted backdrop.
 
 **Same desk. A different mood.** Sunlight moves across the room, rain rolls in, and the
 night shift trades the daylight for cyan and pink neon.
+
+It sounds the part too, very quietly: birds in the morning, the lake lapping at its shore, the
+leaves rustling as each gust sweeps through the trees, crickets after dark, drops on
+the glass in the rain, and thunder (with
+lightning in the window) when it storms or when you knock the rain up. The rain follows the
+real weather's strength: a light drizzle hisses softly, a downpour drums on the glass, and a
+storm with hail thunders more often. Open the window and
+it all gets louder, and each gust blows in softly, lifting the blind and swinging its chain;
+it stays open until you shut it. Start the music and it steps back.
 
 <table>
   <tr>

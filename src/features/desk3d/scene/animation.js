@@ -417,15 +417,16 @@ export function createAnimation(runtime) {
     runtime.cat.updateCatWatch(now);
     runtime.cat.updateCatLife(now);
     runtime.cat.updateCatNeck();
-    runtime.wallDecor.updateSecondHand();
     runtime.theme.updateDaylight(now);
     runtime.room.outside.t += dt;
+    runtime.windowBlind.blowIn(dt);
     runtime.room.outside.rain += (runtime.room.outside.rainTarget - runtime.room.outside.rain) * Math.min(1, dt * 0.35);
     runtime.theme.updateLighting(now);
     if (Math.abs(runtime.room.outside.rain - (runtime.room.outside.heard ?? -1)) > 0.02) {
       runtime.room.outside.heard = runtime.room.outside.rain;
       setRainLevel(runtime.workstation.soundMuted ? 0 : runtime.room.outside.rain);
     }
+    runtime.ambience.update(now);
     if (now - runtime.room.outside.drawnAt >= 1000 / 30) {
       runtime.room.outside.drawnAt = now;
       runtime.room.windowView.userData.tex.redraw();

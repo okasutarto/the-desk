@@ -13,6 +13,7 @@ export * from "./textures/caseFiles";
 export * from "./textures/chat";
 export * from "./textures/postcard";
 export * from "./textures/aboutBoard";
+export * from "./textures/guestbook";
 export * from "./textures/desk";
 export * from "./textures/roomDetails";
 export * from "./textures/decor";

@@ -30,4 +30,6 @@ vm.runInContext('muted.value = true; setRainLevel(1)', sandbox);
 assert.equal(targets.at(-1), 0, 'mute still silences rain');
 vm.runInContext('muted.value = false; document.hidden = true; setRainLevel(1)', sandbox);
 assert.equal(targets.at(-1), 0, 'hidden page still silences rain');
+vm.runInContext('document.hidden = false; rainWanted = 0; setRainLevel(0.8)', sandbox);
+assert.equal(vm.runInContext('rainWanted', sandbox), 0.8, 'the wanted level is kept for when audio opens');
 console.log('Quieter window effects, rain gain, mute and visibility checks passed.');

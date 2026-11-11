@@ -98,6 +98,23 @@
                         </button>
                       </div>
                     </div>
+                    <div class="settings-sub">
+                      <h3 class="settings-sublabel">
+                        Ambience
+                        <span class="settings-value">· {{ settings.ambience ? "outside the window" : "off" }}</span>
+                      </h3>
+                      <div class="flex flex-wrap gap-1.5">
+                        <button
+                          v-for="(name, key) in { on: 'On', off: 'Off' }"
+                          :key="key"
+                          class="pattern-chip"
+                          :class="{ 'pattern-chip--on': settings.ambience === (key === 'on') }"
+                          :aria-pressed="settings.ambience === (key === 'on')"
+                          @click="setAmbience(key === 'on')">
+                          {{ name }}
+                        </button>
+                      </div>
+                    </div>
                   </template>
                   <div v-else-if="group.key === 'wall'" class="settings-sub">
                     <div class="flex flex-wrap gap-1.5">
@@ -438,7 +455,7 @@ const consoleOn = ref(false);
 const secretToast = ref(null);
 const settingsOpen = ref(false);
 const openGroup = ref("sky");
-const { settings, wallIsPreset, groupSummary, woodLabel, isDarkColour, setWall, setWallPattern, setWallBrick, setWallSlats, setWood, setFloor, setTime, setRain, setTimesGateFinish, setDeviceFinish, setBlind, blindIsPreset, blindColourName } = useDeskSettings(scene);
+const { settings, wallIsPreset, groupSummary, woodLabel, isDarkColour, setWall, setWallPattern, setWallBrick, setWallSlats, setWood, setFloor, setTime, setRain, setAmbience, setTimesGateFinish, setDeviceFinish, setBlind, blindIsPreset, blindColourName } = useDeskSettings(scene);
 let secretTimer = null;
 const zoomed = computed(() => focus.value !== "overview");
 const isDesktop = useMediaQuery("(min-width: 768px)");
@@ -474,7 +491,7 @@ const hint = computed(() => {
   if (focus.value === "contact") return isDesktop.value ? "Write on the card (Tab moves along), then hit SEND POSTCARD" : "Tap the card to write, then tap SEND POSTCARD";
   if (focus.value === "chat") return isDesktop.value ? "Type a question and hit Enter (scroll to read back)" : "Tap a question or the box below to ask";
   if (focus.value === "hero") return isDesktop.value ? "Click the badge to flip it (links on the back). Drag the pin to move it" : "Tap the badge to flip it. Drag the pin to move it";
-  if (focus.value === "about") return isDesktop.value ? "Drag the papers to rearrange them. Release to pin them back" : "Drag a paper to move it. Release to pin it back";
+  if (focus.value === "about") return isDesktop.value ? "The guestbook: click SIGN THE BOOK to leave a note · Drag the papers around" : "The guestbook: tap SIGN THE BOOK to leave a note";
   // On a desktop the terminal's welcome already says to look around; on a phone it's too small to read
   return isDesktop.value ? "" : "Tap anything to take a closer look · Swipe to turn the room, pinch to zoom";
 });
@@ -563,6 +580,7 @@ onMounted(async () => {
       blind: { ...settings.blind },
       time: settings.time,
       rain: settings.rain,
+      ambience: settings.ambience,
       onEvent,
     });
     setBootProgress(0.6);

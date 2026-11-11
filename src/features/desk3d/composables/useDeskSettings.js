@@ -63,6 +63,8 @@ export function readSettings() {
   return {
     time: TIME_MODES[saved.time] ? saved.time : DEFAULT_TIME,
     rain: RAIN_MODES[saved.rain] ? saved.rain : DEFAULT_RAIN,
+    // the sounds outside the window, on unless switched off
+    ambience: saved.ambience !== false,
     deviceFinishes: Object.fromEntries(Object.entries(DEVICE_FINISHES).map(([part, device]) => [part,
       Object.hasOwn(device.finishes, saved.deviceFinishes?.[part]) ? saved.deviceFinishes[part] : device.default,
     ])),
@@ -99,7 +101,7 @@ export function useDeskSettings(scene) {
   const groupSummary = computed(() => {
     const woods = new Set(Object.values(settings.woods).map((choice) => choice.wood));
     return {
-      sky: `${settings.time === "auto" ? "Auto" : TIME_MODES[settings.time]}, ${settings.rain === "auto" ? "auto" : RAIN_MODES[settings.rain].toLowerCase()}`,
+      sky: `${settings.time === "auto" ? "Auto" : TIME_MODES[settings.time]}, ${settings.rain === "auto" ? "auto" : RAIN_MODES[settings.rain].toLowerCase()}${settings.ambience ? "" : ", quiet"}`,
       wall: wallLabel.value,
       floor: `${WOODS[settings.floor.wood].name}, ${FLOOR_LAYOUTS[settings.floor.layout].toLowerCase()}`,
       wood: woods.size === 1 ? WOODS[[...woods][0]].name : "Mixed",
@@ -168,6 +170,11 @@ export function useDeskSettings(scene) {
     scene.value?.setRain(mode);
     saveSettings();
   }
+  function setAmbience(enabled) {
+    settings.ambience = enabled === true;
+    scene.value?.setAmbience(settings.ambience);
+    saveSettings();
+  }
 
   // The print and the colour are picked apart; either may be left out
   function setBlind({ pattern, colour } = {}) {
@@ -193,5 +200,5 @@ export function useDeskSettings(scene) {
     saveSettings();
   }
 
-  return { settings, wallIsPreset, wallName, blindIsPreset, blindColourName, setBlind, groupSummary, woodLabel, isDarkColour, setWall, setWallPattern, setWallBrick, setWallSlats, setWood, setFloor, setTime, setRain, setTimesGateFinish, setDeviceFinish };
+  return { settings, wallIsPreset, wallName, blindIsPreset, blindColourName, setBlind, groupSummary, woodLabel, isDarkColour, setWall, setWallPattern, setWallBrick, setWallSlats, setWood, setFloor, setTime, setRain, setAmbience, setTimesGateFinish, setDeviceFinish };
 }

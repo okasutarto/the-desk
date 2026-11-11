@@ -97,10 +97,12 @@ export const PART_PATTERNS = {
 };
 
 export const SPEAKER_FINISHES = {
-  // The Edifier R1280DBs's two models: wood-grain sides on a grey box, or all black (the sides'
-  // grain stained dark). `shell` is the top and back, `baffle` the front.
-  wood: { name: "Wood sides", color: null, shell: "#4a4c50", baffle: "#64676b" },
-  black: { name: "Black", color: "#3a3532", shell: "#252527", baffle: "#3a3b3e" },
+  // The Edifier S1000MKIII's wood sides on a black box, or all black (the sides' grain stained
+  // dark). `baffle` is the leather wrapped over the front, top and back, `shell` the box's ends
+  // hidden in the panels. Both a shade lighter than the real black, so the toon shading still
+  // shows the shapes.
+  wood: { name: "Wood sides", color: null, shell: "#3a3b3f", baffle: "#45464b" },
+  black: { name: "Black", color: "#3a3532", shell: "#2a2b2e", baffle: "#36373b" },
 };
 
 // A painted window frame's coats, and the one it starts in

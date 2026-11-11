@@ -1,8 +1,9 @@
 import * as THREE from "three";
 import gsap from "gsap";
 import { hoverSound, sfx, GROOVE_BEAT, setRainLevel, initializeAudio } from "@/shared/composables/useSfx";
-import { canvasTexture, drawTerminal, drawWoodTop, drawBrushedMetal, drawMatteFinish, drawStudioTop, drawVentSlots, drawPowerScreen } from "../textures";
+import { canvasTexture, drawTerminal, drawWoodTop, drawBrushedMetal, drawLeather, drawStudioTop, drawVentSlots, drawPowerScreen } from "../textures";
 import { createDesktop, SCREEN_W, SCREEN_H } from "../desktop";
+import { createStrikeBoard } from "../strikeBoard";
 import { createLofi, TRACKS } from "../lofi";
 import { PALETTES } from "../sceneConfig";
 import { DEFAULT_WOODS, SPEAKER_FINISHES } from "../woods";
@@ -436,12 +437,15 @@ export function createWorkstation(runtime) {
     gsap.fromTo(speaker.dustCap.position, { z: speaker.dustCap.userData.restZ + 0.018 * strength }, { z: speaker.dustCap.userData.restZ, duration: 0.18, ease: "power2.out", overwrite: true });
     gsap.fromTo(speaker.group.scale, { x: 1.02, y: 0.98, z: 1.02 }, { x: 1, y: 1, z: 1, duration: 0.22, ease: "power2.out", overwrite: true });
   }
-  // Edifier R1280DBs: 146 W × 234 H × 196 D mm. Wood-grain sides on a grey MDF box, a
-  // dark front baffle (shown with its grille off, as in Edifier's photo): the 13 mm silk-dome
-  // tweeter top left beside the flared bass port, the 4-inch woofer filling the lower half,
-  // and four screws. The right one is the active speaker, with its
-  // volume, treble and bass knobs on its outer side. No branding is printed. The side panels
-  // follow the furniture wood; the black model stains them dark (set by the theme).
+  // Edifier S1000MKIII, kept to the size the R1280DBs stood here at (146 W × 234 H × 196 D mm:
+  // the real pair is bigger and would crowd the riser). Two thick wood side panels with every
+  // edge chamfered, their profile leaning the front back and clipping the top back corner; a
+  // black box between them wrapped in pebbled leather, its front baffle leaning back with the
+  // panels' front edges. On the baffle: the titanium-dome tweeter on a round flange, the 6.5-inch aluminium woofer in a frame of six screws, and four silver grille pins
+  // round it. The right one is the active speaker: a rounded slot window under its woofer holds
+  // the status light, with the small gold Hi-Res Audio badge beside it, and its volume, treble
+  // and bass knobs are round the back. Brass feet under both. The side panels follow the
+  // furniture wood; the black model stains them dark (set by the theme).
   const speakerGrain = canvasTexture(768, 512);
   runtime.core.track(speakerGrain.texture);
   drawWoodTop(speakerGrain.ctx, 768, 512, DEFAULT_WOODS.speakers);
@@ -451,41 +455,106 @@ export function createWorkstation(runtime) {
   speakerWoodMat.map = speakerGrain.texture;
   const speakerShellMat = runtime.core.toon(SPEAKER_FINISHES.wood.shell);
   const speakerBaffleMat = runtime.core.toon(SPEAKER_FINISHES.wood.baffle);
-  const trimMat = runtime.core.toon("#8e9196");
-  const wooferConeMat = runtime.core.toon("#6b6e72");
+  const trimMat = runtime.core.toon("#c9ccd1");
+  const wooferConeMat = runtime.core.toon("#64686e");
+  const dustCapMat = runtime.core.toon("#50535a");
+  const titaniumMat = runtime.core.toon("#8f949b");
+  const tweeterFaceMat = runtime.core.toon("#6c6e74");
+  tweeterFaceMat.side = THREE.DoubleSide;
+  const brassMat = runtime.core.toon("#d8ab4a");
   const speakerRubberMat = runtime.core.toon("#141415");
-  const speakerDomeMat = runtime.core.toon("#24252a");
-  // The woofer cone's pressed concentric ripples over a faint weave, on the lathe's uv
-  // (around × along)
+  const speakerDomeMat = runtime.core.toon("#26272b");
+  // The aluminium cone, on the lathe's uv (around × along): fine radial streaks of its spun
+  // metal and a soft bright band halfway down, where the light catches the slope
   const coneWeave = canvasTexture(256, 256);
   runtime.core.track(coneWeave.texture);
-  coneWeave.ctx.fillStyle = "#d8d8d8";
+  const coneShine = coneWeave.ctx.createLinearGradient(0, 0, 0, 256);
+  coneShine.addColorStop(0, "#c8c8c8");
+  coneShine.addColorStop(0.45, "#f0f0f0");
+  coneShine.addColorStop(1, "#bdbdbd");
+  coneWeave.ctx.fillStyle = coneShine;
   coneWeave.ctx.fillRect(0, 0, 256, 256);
-  for (let i = 0; i < 256; i += 4) {
-    coneWeave.ctx.fillStyle = "rgba(0,0,0,.07)";
-    coneWeave.ctx.fillRect(i, 0, 1.5, 256);
-  }
-  for (let i = 0; i < 256; i += 16) {
-    coneWeave.ctx.fillStyle = "rgba(0,0,0,.22)";
-    coneWeave.ctx.fillRect(0, i, 256, 4);
-    coneWeave.ctx.fillStyle = "rgba(255,255,255,.2)";
-    coneWeave.ctx.fillRect(0, i + 5, 256, 3);
+  for (let i = 0; i < 256; i += 2) {
+    coneWeave.ctx.fillStyle = `rgba(${i % 6 ? "0,0,0" : "255,255,255"},${0.03 + ((i * 37) % 11) / 160})`;
+    coneWeave.ctx.fillRect(i, 0, 1, 256);
   }
   coneWeave.texture.wrapS = coneWeave.texture.wrapT = THREE.RepeatWrapping;
   coneWeave.texture.repeat.set(6, 1);
   wooferConeMat.map = coneWeave.texture;
-  // The baffle's textured matte coat: coarse specks, light and dark, big enough to read at the
-  // desk's distance, in a tile its material tints. The baffle and body map their uv in scene
-  // units (across × up the face and on over the top), so it runs on unbroken round the curves.
+  // The baffle's pebbled leatherette, in a tile its material tints. Its uv runs in scene units
+  // across × up the baffle.
   const baffleFinish = canvasTexture(256, 256);
   runtime.core.track(baffleFinish.texture);
-  drawMatteFinish(baffleFinish.ctx, 256, 256, { grain: 0.16, speck: 4 });
+  drawLeather(baffleFinish.ctx, 256, 256);
   baffleFinish.texture.wrapS = baffleFinish.texture.wrapT = THREE.RepeatWrapping;
-  baffleFinish.texture.repeat.set(1.2, 1.2);
+  baffleFinish.texture.repeat.set(1.5, 1.5);
   speakerBaffleMat.map = baffleFinish.texture;
-  const portTubeMat = runtime.core.toon("#141415");
-  portTubeMat.side = THREE.DoubleSide;
-  const R1280 = { w: 1.46, h: 2.34, d: 1.96 };
+  // The Hi-Res Audio badge's print: "Hi-Res" in black on the gold, "AUDIO" in gold on the
+  // black band under it
+  const badgePrint = canvasTexture(128, 128);
+  runtime.core.track(badgePrint.texture);
+  badgePrint.ctx.fillStyle = "#e2b34d";
+  badgePrint.ctx.fillRect(0, 0, 128, 128);
+  badgePrint.ctx.fillStyle = "#141415";
+  badgePrint.ctx.fillRect(0, 80, 128, 48);
+  badgePrint.ctx.textAlign = "center";
+  badgePrint.ctx.textBaseline = "middle";
+  badgePrint.ctx.font = "900 38px 'Arial Black', 'Helvetica Neue', Arial, sans-serif";
+  badgePrint.ctx.fillText("Hi-Res", 64, 42, 116);
+  badgePrint.ctx.fillStyle = "#e2b34d";
+  badgePrint.ctx.font = "800 30px 'Helvetica Neue', Arial, sans-serif";
+  badgePrint.ctx.fillText("AUDIO", 64, 105, 112);
+  badgePrint.texture.anisotropy = 4;
+  const badgePrintMat = runtime.core.toon("#ffffff");
+  badgePrintMat.map = badgePrint.texture;
+  const S1000 = { w: 1.46, h: 2.34, d: 1.96 };
+  // The brass feet lift the cabinet this far off the riser
+  const FOOT = 0.05;
+  const CAB_H = S1000.h - FOOT;
+  // How far the front leans back, in radians
+  const LEAN = 0.12;
+  const SIDE_PANEL = 0.12;
+  // The chamfer on every edge of the side panels
+  const EDGE = 0.03;
+  // The baffle's thickness, deep enough to sink the drivers down into it
+  const RECESS = 0.14;
+  // The clipped top back corner
+  const CLIP = 0.26;
+  const frontAt = (y) => S1000.d / 2 - y * Math.tan(LEAN);
+  // The side profile (front to back across, then up), anticlockwise from the front foot: the
+  // leaning front, the top, the clipped corner, the back and the bottom
+  const PROFILE = [[frontAt(0), 0], [frontAt(CAB_H), CAB_H], [-S1000.d / 2 + CLIP, CAB_H], [-S1000.d / 2, CAB_H - CLIP], [-S1000.d / 2, 0]];
+  // The profile pulled in by inset[i] along its edge i (from point i to the next)
+  const insetPoints = (inset) => {
+    const lines = PROFILE.map(([x0, y0], i) => {
+      const [x1, y1] = PROFILE[(i + 1) % PROFILE.length];
+      const len = Math.hypot(x1 - x0, y1 - y0);
+      const [dx, dy] = [(x1 - x0) / len, (y1 - y0) / len];
+      return { x: x0 - dy * inset[i], y: y0 + dx * inset[i], dx, dy };
+    });
+    // each corner where an edge's line meets the one before it
+    return lines.map((a, i) => {
+      const b = lines[(i + lines.length - 1) % lines.length];
+      const t = ((b.x - a.x) * b.dy - (b.y - a.y) * b.dx) / (a.dx * b.dy - a.dy * b.dx);
+      return [a.x + a.dx * t, a.y + a.dy * t];
+    });
+  };
+  const shapeOf = (points) => {
+    const shape = new THREE.Shape();
+    points.forEach(([px, py], i) => (i ? shape.lineTo(px, py) : shape.moveTo(px, py)));
+    shape.closePath();
+    return shape;
+  };
+  const insetProfile = (inset) => shapeOf(insetPoints(inset));
+  // A profile extruded across the speaker, centred on x: the shape's x runs front to back
+  const acrossProfile = (shape, width, bevel = 0) => {
+    const geometry = new THREE.ExtrudeGeometry(shape, bevel
+      ? { depth: width - 2 * bevel, bevelEnabled: true, bevelSize: bevel, bevelThickness: bevel, bevelSegments: 1, curveSegments: 1 }
+      : { depth: width, bevelEnabled: false, curveSegments: 1 });
+    geometry.translate(0, 0, -(width - 2 * bevel) / 2);
+    geometry.rotateY(-Math.PI / 2);
+    return geometry;
+  };
   // A rounded rectangle, centred on (cx, cy)
   const roundedPlate = (w, h, r, cx = 0, cy = 0) => {
     const shape = new THREE.Shape();
@@ -501,6 +570,13 @@ export function createWorkstation(runtime) {
     shape.quadraticCurveTo(l, b, l + r, b);
     return shape;
   };
+  const circle = (r, cx = 0, cy = 0) => new THREE.Path().absarc(cx, cy, r, 0, Math.PI * 2, true);
+  // A flat ring or plate with its edges chamfered, lying on the baffle (its back at z = 0)
+  const facePlate = (shape, depth, bevel, curveSegments = 48) => {
+    const geometry = new THREE.ExtrudeGeometry(shape, { depth, bevelEnabled: true, bevelSize: bevel, bevelThickness: bevel, bevelSegments: 2, curveSegments });
+    geometry.translate(0, 0, bevel);
+    return geometry;
+  };
   // A turned part (a profile of [radius, height] pairs) facing the room along +z
   const turnedMat = runtime.core.toon("#141415");
   turnedMat.side = THREE.DoubleSide;
@@ -509,221 +585,226 @@ export function createWorkstation(runtime) {
     part.rotation.x = Math.PI / 2;
     return part;
   };
-  // A tapered well sunk into a side face: open at the surface (x0), its floor at x1
-  const sideWell = (x0, x1, z, y, [ow, oh], [iw, ih]) => {
-    const outer = [[z - ow / 2, y - oh / 2], [z + ow / 2, y - oh / 2], [z + ow / 2, y + oh / 2], [z - ow / 2, y + oh / 2]].map(([cz, cy]) => new THREE.Vector3(x0, cy, cz));
-    const inner = [[z - iw / 2, y - ih / 2], [z + iw / 2, y - ih / 2], [z + iw / 2, y + ih / 2], [z - iw / 2, y + ih / 2]].map(([cz, cy]) => new THREE.Vector3(x1, cy, cz));
-    const points = [];
-    for (let i = 0; i < 4; i++) {
-      const j = (i + 1) % 4;
-      points.push(outer[i], outer[j], inner[j], outer[i], inner[j], inner[i]);
-    }
-    points.push(inner[0], inner[1], inner[2], inner[0], inner[2], inner[3]);
-    const geometry = new THREE.BufferGeometry().setFromPoints(points);
-    geometry.computeVertexNormals();
-    return geometry;
-  };
-  const RECESS = 0.125;
-  const SIDE_PANEL = 0.08;
-  const BAFFLE_Z = R1280.d / 2;
-  const WOOFER_AT = 0.74;
+  // Up the leaning baffle (its own y, from the cabinet's foot): the woofer low, the tweeter
+  // above, the active one's slot window under the woofer
+  const WOOFER_AT = 0.95;
+  const TWEETER_AT = 1.9;
+  const SLOT_AT = 0.27;
+  const BAFFLE_W = S1000.w - 2 * SIDE_PANEL + 0.02;
+  // The baffle's face, a hair behind the panels' front edges
+  const FACE = -0.005;
   // Close in either side of the monitor, a hand's width from its edges
   [-5.1, 3.1].forEach((x, index) => {
     const active = index === 1;
-    // Mirrored pair: the tweeter towards the outer side, the port towards the middle; the
-    // active one's port sits a little lower, under its remote's round receiver window
-    const outer = active ? 1 : -1;
-    const TWEETER_AT = { x: outer * 0.22, y: 1.74 };
-    const BASS_PORT_AT = { x: -outer * 0.36, y: active ? 1.58 : 1.74 };
     const speaker = new THREE.Group();
-    speaker.name = "r1280dbs-speaker";
+    speaker.name = "s1000mkiii-speaker";
     speaker.position.set(x, RISER_TOP, -3.1);
     runtime.core.scene.add(speaker);
-    // The grey core between two wood side panels whose corners sweep round in a curve and
-    // whose edges are rounded over, with the front baffle set between them. The baffle is
-    // thick and really pierced, so the drivers and port sit down inside their openings.
+    // The cabinet on its feet: two wood side panels and the black box between them
     const cabinet = new THREE.Group();
-    cabinet.name = "r1280dbs-cabinet";
-    const ROUND = 0.03;
-    const face = BAFFLE_Z - 0.005;
-    // The active speaker's controls sit in a tall well cut into its outer side panel
-    const CONTROL = { z: BAFFLE_Z - 0.4, y: 1.6, w: 0.46, h: 1.0 };
+    cabinet.name = "s1000mkiii-cabinet";
+    cabinet.position.y = FOOT;
     [-1, 1].forEach((side) => {
-      const sideShape = roundedPlate(R1280.d - 2 * ROUND, R1280.h - 2 * ROUND, 0.14);
-      if (active && side === 1) sideShape.holes.push(roundedPlate(CONTROL.w + 2 * ROUND, CONTROL.h + 2 * ROUND, 0.07, CONTROL.z, CONTROL.y - R1280.h / 2));
-      const sideGeometry = new THREE.ExtrudeGeometry(sideShape, { depth: SIDE_PANEL - 2 * ROUND, bevelEnabled: true, bevelSize: ROUND, bevelThickness: ROUND, bevelSegments: 4, curveSegments: 12 });
-      // laid on its side: the plate's width runs front to back, its extrusion across the speaker
-      sideGeometry.translate(0, 0, -(SIDE_PANEL - 2 * ROUND) / 2);
-      sideGeometry.rotateY(-Math.PI / 2);
+      const sideGeometry = acrossProfile(insetProfile(Array(5).fill(EDGE)), SIDE_PANEL, EDGE);
       // One even veneer across the panel: its faces map front-to-back × bottom-to-top, its
-      // rounded edges carry the grain on round them
+      // chamfers carry the grain on round them
       const sidePosition = sideGeometry.attributes.position;
       const sideNormal = sideGeometry.attributes.normal;
       const sideUv = sideGeometry.attributes.uv;
       for (let i = 0; i < sidePosition.count; i++) {
-        const u = sidePosition.getZ(i) / R1280.d + 0.5;
-        const v = Math.abs(sideNormal.getY(i)) > 0.7 ? 0.5 + sidePosition.getX(i) / R1280.d : sidePosition.getY(i) / R1280.h + 0.5;
+        const u = sidePosition.getZ(i) / S1000.d + 0.5;
+        const v = Math.abs(sideNormal.getY(i)) > 0.7 ? 0.5 + sidePosition.getX(i) / S1000.d : sidePosition.getY(i) / CAB_H;
         sideUv.setXY(i, u, v);
       }
-      // The cabinet is inked as one box: the left panel's outline is drawn round the panels'
-      // profile carried right across the speaker, and the right panel has none. An inside face
-      // of either would show as a broken line wherever the panels' rounded edges meet the grey.
+      // The cabinet is inked as one: the left panel's outline is drawn round the panels'
+      // profile carried right across the speaker, and the right panel has none
       let outline = 0;
       let hull;
       if (side === -1) {
         outline = 0.012;
-        hull = new THREE.ExtrudeGeometry(roundedPlate(R1280.d - 2 * ROUND, R1280.h - 2 * ROUND, 0.14), { depth: R1280.w - 2 * ROUND, bevelEnabled: true, bevelSize: ROUND, bevelThickness: ROUND, bevelSegments: 4, curveSegments: 12 });
-        hull.translate(0, 0, -(R1280.w - 2 * ROUND) / 2);
-        hull.rotateY(-Math.PI / 2);
-        hull.translate((R1280.w - SIDE_PANEL) / 2, 0, 0);
+        hull = acrossProfile(insetProfile(Array(5).fill(EDGE)), S1000.w, EDGE);
+        hull.translate((S1000.w - SIDE_PANEL) / 2, 0, 0);
       }
       const panel = runtime.core.mesh(sideGeometry, speakerWoodMat, { outline, hull });
       panel.name = "wood-side-panel";
-      panel.position.set(side * (R1280.w / 2 - SIDE_PANEL / 2), R1280.h / 2, 0);
+      panel.position.x = side * (S1000.w / 2 - SIDE_PANEL / 2);
       cabinet.add(panel);
     });
-    // The grey body between the side panels: its profile sweeps round the same curves as the
-    // panels' corners, front and back, just inside them, so nothing of it shows past their edges.
-    // The baffle fills the notch in its front between the two front curves, flush with them, and
-    // is really pierced, so the drivers and port sit down inside their openings. Its top, back
-    // and face are the baffle's matte finish, its hidden ends the shell's grey.
-    const BODY_R = 0.17;
-    // (its ends sit past the panels' rounded inner edges, so none of it shows over them)
-    const BODY_W = R1280.w - 2 * SIDE_PANEL + 2 * ROUND;
-    const [bodyBack, bodyBottom, top] = [-R1280.d / 2 + 0.01, 0.01, R1280.h];
-    const [notchLow, notchHigh, notchBack] = [bodyBottom + BODY_R, top - BODY_R, face - RECESS];
-    const bodyShape = new THREE.Shape();
-    bodyShape.moveTo(face - BODY_R, bodyBottom);
-    bodyShape.quadraticCurveTo(face, bodyBottom, face, notchLow);
-    bodyShape.lineTo(notchBack, notchLow);
-    bodyShape.lineTo(notchBack, notchHigh);
-    bodyShape.lineTo(face, notchHigh);
-    bodyShape.quadraticCurveTo(face, top, face - BODY_R, top);
-    bodyShape.lineTo(bodyBack + BODY_R, top);
-    bodyShape.quadraticCurveTo(bodyBack, top, bodyBack, top - BODY_R);
-    bodyShape.lineTo(bodyBack, bodyBottom + BODY_R);
-    bodyShape.quadraticCurveTo(bodyBack, bodyBottom, bodyBack + BODY_R, bodyBottom);
-    bodyShape.lineTo(face - BODY_R, bodyBottom);
-    const bodyGeometry = new THREE.ExtrudeGeometry(bodyShape, { depth: BODY_W, bevelEnabled: false, curveSegments: 16 });
-    bodyGeometry.translate(0, 0, -BODY_W / 2);
-    bodyGeometry.rotateY(-Math.PI / 2);
-    // One finish over body and baffle: v runs up the face and on round the curves, over the top
-    // and under the bottom (further back, further from the middle), so its grain carries
-    // across every join
-    const finishUv = (geometry, yAt, zAt) => {
-      const position = geometry.attributes.position;
-      const uv = geometry.attributes.uv;
-      for (let i = 0; i < position.count; i++) {
-        const y = position.getY(i) + yAt;
-        uv.setXY(i, position.getX(i), y - R1280.h / 2 + (face - position.getZ(i) - zAt) * (2 * y / R1280.h - 1));
-      }
+    // The box between the panels, wrapped in the leather in one piece: up the leaning front,
+    // over the edge and across the top, down the clipped corner and the back. Its front lies on
+    // the baffle's face, with a notch where the thick baffle fills it, so the baffle's face runs
+    // on flush into the wrap's front above and below it.
+    const WRAP = insetPoints([-FACE, 0.03, 0.03, 0.03, 0.03]);
+    const [wrapFoot, wrapBrow] = WRAP;
+    const frontLength = Math.hypot(wrapBrow[0] - wrapFoot[0], wrapBrow[1] - wrapFoot[1]);
+    const up = [(wrapBrow[0] - wrapFoot[0]) / frontLength, (wrapBrow[1] - wrapFoot[1]) / frontLength];
+    const onFront = (s, depth = 0) => [wrapFoot[0] + up[0] * s - up[1] * depth, wrapFoot[1] + up[1] * s + up[0] * depth];
+    const [NOTCH_LOW, NOTCH_HIGH] = [0.12, frontLength - 0.12];
+    const bodyGeometry = acrossProfile(shapeOf([wrapFoot, onFront(NOTCH_LOW), onFront(NOTCH_LOW, RECESS), onFront(NOTCH_HIGH, RECESS), onFront(NOTCH_HIGH), ...WRAP.slice(1)]), S1000.w - 2 * SIDE_PANEL + 0.04);
+    // The leather's grain runs on round the wrap: v is the distance round the profile from the
+    // front foot (the nearest point on its unnotched outline), u the distance across
+    const wrapEdges = WRAP.map((p, i) => ({ p, q: WRAP[(i + 1) % WRAP.length] }));
+    const roundWrap = (z, y) => {
+      let [best, nearest, from] = [0, Infinity, 0];
+      wrapEdges.forEach(({ p, q }) => {
+        const [ex, ey] = [q[0] - p[0], q[1] - p[1]];
+        const length = Math.hypot(ex, ey);
+        const t = Math.min(1, Math.max(0, ((z - p[0]) * ex + (y - p[1]) * ey) / (length * length)));
+        const gap = Math.hypot(z - p[0] - ex * t, y - p[1] - ey * t);
+        if (gap < nearest) [best, nearest] = [from + t * length, gap];
+        from += length;
+      });
+      return best;
     };
-    finishUv(bodyGeometry, 0, 0);
-    // (no outline of its own: the left panel's hull rings the whole cabinet)
+    const bodyPosition = bodyGeometry.attributes.position;
+    for (let i = 0; i < bodyPosition.count; i++) bodyGeometry.attributes.uv.setXY(i, bodyPosition.getX(i), roundWrap(bodyPosition.getZ(i), bodyPosition.getY(i)));
+    // (its ends, hidden in the panels, the shell's black)
     const body = runtime.core.mesh(bodyGeometry, [speakerShellMat, speakerBaffleMat], { outline: 0 });
     body.name = "cabinet-body";
     cabinet.add(body);
-    // Square-edged, so its face runs straight on into the body's curves
-    const baffleShape = roundedPlate(BODY_W, notchHigh - notchLow, 0.001, 0, (notchHigh + notchLow) / 2 - R1280.h / 2);
-    [[TWEETER_AT.x, TWEETER_AT.y, 0.17], [BASS_PORT_AT.x, BASS_PORT_AT.y, 0.15], [0, WOOFER_AT, 0.5]].forEach(([hx, hy, r]) => {
-      const hole = new THREE.Path();
-      hole.absarc(hx, hy - R1280.h / 2, r, 0, Math.PI * 2, true);
-      baffleShape.holes.push(hole);
-    });
+    speaker.add(cabinet);
+    // Everything on the baffle hangs off a frame leaning back with it, from the panels' front
+    // foot: its y runs up the baffle, its z out of it
+    const front = new THREE.Group();
+    front.name = "leaning-front";
+    front.position.set(0, FOOT, frontAt(0));
+    front.rotation.x = -LEAN;
+    speaker.add(front);
+    // The baffle: thick, filling the wrap's notch flush with its face, and really pierced, so
+    // the woofer and the slot window sit down inside their openings
+    const upBaffle = ([, y]) => (y - FACE * Math.sin(LEAN)) / Math.cos(LEAN);
+    const [baffleLow, baffleHigh] = [upBaffle(onFront(NOTCH_LOW)), upBaffle(onFront(NOTCH_HIGH))];
+    const baffleShape = roundedPlate(BAFFLE_W, baffleHigh - baffleLow, 0.001, 0, (baffleHigh + baffleLow) / 2);
+    baffleShape.holes.push(circle(0.38, 0, WOOFER_AT));
+    if (active) baffleShape.holes.push(roundedPlate(0.36, 0.1, 0.049, 0, SLOT_AT));
     const baffleGeometry = new THREE.ExtrudeGeometry(baffleShape, { depth: RECESS, bevelEnabled: false, curveSegments: 32 });
-    finishUv(baffleGeometry, R1280.h / 2, notchBack);
+    baffleGeometry.translate(0, 0, FACE - RECESS);
+    // the same grain as the wrap's, measured round the profile from the cabinet's own frame
+    const bafflePosition = baffleGeometry.attributes.position;
+    for (let i = 0; i < bafflePosition.count; i++) {
+      const [by, bz] = [bafflePosition.getY(i), bafflePosition.getZ(i)];
+      const z = frontAt(0) - by * Math.sin(LEAN) + bz * Math.cos(LEAN);
+      baffleGeometry.attributes.uv.setXY(i, bafflePosition.getX(i), roundWrap(z, by * Math.cos(LEAN) + bz * Math.sin(LEAN)));
+    }
     const baffle = runtime.core.mesh(baffleGeometry, speakerBaffleMat, { outline: 0 });
     baffle.name = "front-baffle";
-    baffle.position.set(0, R1280.h / 2, notchBack);
-    cabinet.add(baffle);
-    speaker.add(cabinet);
-    // The tweeter on its own thick round black plate, chamfered round its rim and held by four
-    // screws, dished into a cup round the dark silk dome; a single guard bar spans the cup
-    const tweeterPlate = turned([[0.27, -0.004], [0.27, 0.018], [0.245, 0.045], [0.19, 0.045], [0.172, 0.03], [0.16, 0], [0.155, -0.06]]);
-    tweeterPlate.position.set(TWEETER_AT.x, TWEETER_AT.y, face);
-    const tweeterCup = runtime.core.mesh(new THREE.CircleGeometry(0.16, 40), speakerRubberMat, { outline: 0 });
-    tweeterCup.position.set(TWEETER_AT.x, TWEETER_AT.y, face - 0.06);
-    const tweeterRing = runtime.core.mesh(new THREE.TorusGeometry(0.105, 0.02, 10, 40), trimMat, { outline: 0 });
-    tweeterRing.position.set(TWEETER_AT.x, TWEETER_AT.y, face - 0.05);
-    const tweeter = runtime.core.mesh(new THREE.SphereGeometry(0.085, 24, 14), speakerDomeMat, { outline: 0 });
-    tweeter.name = "silk-dome-tweeter";
-    tweeter.scale.z = 0.5;
-    tweeter.position.set(TWEETER_AT.x, TWEETER_AT.y, face - 0.055);
-    const bar = runtime.core.mesh(runtime.core.rbox(0.33, 0.022, 0.016, 0.006), trimMat, { outline: 0 });
-    bar.position.set(TWEETER_AT.x, TWEETER_AT.y, face - 0.008);
-    speaker.add(bar);
-    // The bass port beside it: a plain round opening, black inside
-    const port = runtime.core.mesh(new THREE.CircleGeometry(0.15, 32), speakerRubberMat, { outline: 0 });
-    port.name = "front-bass-port";
-    port.position.set(BASS_PORT_AT.x, BASS_PORT_AT.y, face - 0.1);
-    const portTube = runtime.core.mesh(new THREE.CylinderGeometry(0.15, 0.15, 0.1, 32, 1, true), portTubeMat, { outline: 0 });
-    portTube.rotation.x = Math.PI / 2;
-    portTube.position.set(BASS_PORT_AT.x, BASS_PORT_AT.y, face - 0.05);
-    if (active) {
-      const receiver = runtime.core.mesh(new THREE.SphereGeometry(0.11, 20, 12), speakerDomeMat, { outline: 0 });
-      receiver.name = "remote-receiver";
-      receiver.scale.z = 0.35;
-      receiver.position.set(BASS_PORT_AT.x + 0.04, 2.0, face - 0.015);
-      // The status light shines through the receiver's window: red when muted, green when playing
-      const ledMat = runtime.core.track(new THREE.MeshBasicMaterial({ color: soundMuted ? "#e11d48" : "#57ff8d" }));
-      const led = new THREE.Mesh(runtime.core.track(new THREE.CircleGeometry(0.055, 24)), ledMat);
-      led.name = "speaker-power-indicator";
-      led.position.set(receiver.position.x, receiver.position.y, face + 0.024);
-      speakerLeds.push(ledMat);
-      speaker.add(receiver, led);
-    }
-    // The 4-inch woofer: a raised black frame with a chamfered edge, a thick rubber roll
-    // surround, a grey rippled cone and a bulging black dust cap
-    const wooferFrame = turned([[0.62, -0.004], [0.62, 0.016], [0.6, 0.035], [0.525, 0.035], [0.505, 0.02], [0.49, -0.01]]);
+    front.add(baffle);
+    // The tweeter: a round black flange held by four screws on its diagonals, a wide dark grey
+    // face dishing gently in to a black ring, and the pale titanium dome standing out of it
+    const tweeterPlate = runtime.core.mesh(facePlate(new THREE.Shape().absarc(0, TWEETER_AT, 0.31, 0, Math.PI * 2, false), 0.02, 0.012, 64), speakerDomeMat, { outline: 0.004 });
+    tweeterPlate.name = "tweeter-plate";
+    tweeterPlate.position.z = FACE;
+    const PLATE_TOP = FACE + 0.044;
+    const tweeterFace = turned([[0.245, 0.002], [0.2, -0.004], [0.15, -0.012], [0.112, -0.016]], tweeterFaceMat);
+    tweeterFace.name = "tweeter-face";
+    tweeterFace.position.set(0, TWEETER_AT, PLATE_TOP);
+    const faceLip = runtime.core.mesh(new THREE.TorusGeometry(0.25, 0.009, 8, 64), speakerRubberMat, { outline: 0 });
+    faceLip.position.set(0, TWEETER_AT, PLATE_TOP);
+    const tweeterRing = runtime.core.mesh(new THREE.TorusGeometry(0.104, 0.018, 10, 48), speakerRubberMat, { outline: 0 });
+    tweeterRing.position.set(0, TWEETER_AT, PLATE_TOP - 0.014);
+    const tweeter = runtime.core.mesh(new THREE.SphereGeometry(0.085, 28, 16), titaniumMat, { outline: 0.003 });
+    tweeter.name = "titanium-dome-tweeter";
+    tweeter.scale.z = 0.7;
+    tweeter.position.set(0, TWEETER_AT, PLATE_TOP - 0.022);
+    front.add(tweeterPlate, tweeterFace, faceLip, tweeterRing, tweeter);
+    // The woofer: a chamfered black frame, a thin black trim ring inside it, a thick rubber
+    // roll surround, the aluminium cone and its bulging cap
+    const wooferFrame = runtime.core.mesh(facePlate(Object.assign(new THREE.Shape().absarc(0, WOOFER_AT, 0.47, 0, Math.PI * 2, false), { holes: [circle(0.37, 0, WOOFER_AT)] }), 0.02, 0.014, 64), speakerDomeMat, { outline: 0.004 });
     wooferFrame.name = "woofer-frame";
-    wooferFrame.position.set(0, WOOFER_AT, face);
-    speaker.add(wooferFrame);
-    const surround = runtime.core.mesh(new THREE.TorusGeometry(0.445, 0.05, 14, 72), speakerRubberMat, { outline: 0 });
+    wooferFrame.position.z = FACE;
+    const FRAME_TOP = FACE + 0.048;
+    const trim = runtime.core.mesh(new THREE.TorusGeometry(0.37, 0.012, 8, 72), speakerRubberMat, { outline: 0 });
+    trim.position.set(0, WOOFER_AT, FACE + 0.012);
+    const surround = runtime.core.mesh(new THREE.TorusGeometry(0.33, 0.042, 14, 72), speakerRubberMat, { outline: 0 });
     surround.name = "driver-surround";
-    surround.scale.z = 0.75;
-    surround.position.set(0, WOOFER_AT, face - 0.005);
-    const coneProfile = [[0.41, 0.005], [0.3, -0.045], [0.17, -0.085], [0.13, -0.09]].map(([r, depth]) => new THREE.Vector2(r, depth));
+    surround.scale.z = 0.7;
+    surround.position.set(0, WOOFER_AT, FACE - 0.01);
+    const coneProfile = [[0.3, 0.0], [0.22, -0.04], [0.14, -0.07], [0.11, -0.075]].map(([r, depth]) => new THREE.Vector2(r, depth));
     const woofer = runtime.core.mesh(new THREE.LatheGeometry(coneProfile, 64), wooferConeMat, { outline: 0 });
+    woofer.name = "aluminium-cone";
     woofer.rotation.x = Math.PI / 2;
-    woofer.position.set(0, WOOFER_AT, face - 0.005);
-    const dustCap = runtime.core.mesh(new THREE.SphereGeometry(0.16, 24, 14), speakerDomeMat, { outline: 0.004 });
-    dustCap.scale.z = 0.6;
-    dustCap.position.set(0, WOOFER_AT, face - 0.08);
+    woofer.position.set(0, WOOFER_AT, FACE - 0.01);
+    const dustCap = runtime.core.mesh(new THREE.SphereGeometry(0.13, 24, 14), dustCapMat, { outline: 0.004 });
+    dustCap.scale.z = 0.55;
+    dustCap.position.set(0, WOOFER_AT, FACE - 0.08);
     dustCap.userData.restZ = dustCap.position.z;
-    // Black screws: four on the tweeter plate and four on the woofer frame, on their
-    // diagonals, and one in each corner of the baffle
-    const diagonals = [[-1, -1], [1, -1], [-1, 1], [1, 1]];
+    front.add(wooferFrame, trim, surround, woofer, dustCap);
+    // Black screws: four round the tweeter's flange and six round the woofer frame
     [
-      ...diagonals.map(([sx, sy]) => [TWEETER_AT.x + sx * 0.152, TWEETER_AT.y + sy * 0.152, 0.045]),
-      ...diagonals.map(([sx, sy]) => [sx * 0.396, WOOFER_AT + sy * 0.396, 0.035]),
-      ...diagonals.map(([sx, sy]) => [sx * 0.52, R1280.h / 2 + sy * (R1280.h / 2 - 0.14), 0]),
-    ].forEach(([sx, sy, lift]) => {
-      const screw = runtime.core.mesh(new THREE.SphereGeometry(0.028, 12, 8), speakerDomeMat, { outline: 0 });
-      screw.scale.z = 0.35;
-      screw.position.set(sx, sy, face + lift + 0.002);
-      speaker.add(screw);
+      ...[[-1, -1], [1, -1], [-1, 1], [1, 1]].map(([sx, sy]) => [sx * 0.195, TWEETER_AT + sy * 0.195, PLATE_TOP]),
+      ...Array.from({ length: 6 }, (_, k) => [0.42 * Math.cos(k * Math.PI / 3), WOOFER_AT + 0.42 * Math.sin(k * Math.PI / 3), FRAME_TOP]),
+    ].forEach(([sx, sy, sz]) => {
+      const screw = runtime.core.mesh(new THREE.SphereGeometry(0.022, 12, 8), speakerRubberMat, { outline: 0 });
+      screw.name = "baffle-screw";
+      screw.scale.z = 0.4;
+      screw.position.set(sx, sy, sz);
+      front.add(screw);
     });
-    speaker.add(tweeterPlate, tweeterCup, tweeterRing, tweeter, port, portTube, surround, woofer, dustCap);
-    // Round the back: the active speaker's input panel, the passive one's speaker terminals
-    const rear = runtime.core.mesh(runtime.core.rbox(active ? 0.8 : 0.4, active ? 0.9 : 0.3, 0.012, 0.02), speakerRubberMat, { outline: 0 });
-    rear.position.set(0, active ? 1.0 : 0.6, -BAFFLE_Z + 0.022);
+    // The grille's four silver pins, on the woofer's diagonals just outside its frame
+    [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(([sx, sy]) => {
+      const pin = runtime.core.mesh(new THREE.CylinderGeometry(0.022, 0.022, 0.03, 14), trimMat, { outline: 0.003 });
+      pin.name = "grille-pin";
+      pin.rotation.x = Math.PI / 2;
+      pin.position.set(sx * 0.36, WOOFER_AT + sy * 0.45, FACE + 0.015);
+      front.add(pin);
+    });
+    if (active) {
+      // The slot window, dark glass down in its opening, with the status light behind it: red
+      // when muted, green when playing
+      const slot = runtime.core.mesh(new THREE.ShapeGeometry(roundedPlate(0.36, 0.1, 0.049, 0, SLOT_AT), 12), speakerRubberMat, { outline: 0 });
+      slot.name = "status-window";
+      slot.position.z = FACE - 0.06;
+      const ledMat = runtime.core.track(new THREE.MeshBasicMaterial({ color: soundMuted ? "#e11d48" : "#57ff8d" }));
+      const led = new THREE.Mesh(runtime.core.track(new THREE.CircleGeometry(0.03, 20)), ledMat);
+      led.name = "speaker-power-indicator";
+      led.position.set(0, SLOT_AT, FACE - 0.055);
+      speakerLeds.push(ledMat);
+      // The Hi-Res Audio badge in the corner: a small gold tile, its print on its face
+      const badge = runtime.core.mesh(runtime.core.rbox(0.1, 0.1, 0.012, 0.006), brassMat, { outline: 0.003 });
+      badge.name = "hi-res-badge";
+      badge.position.set(0.47, 0.17, FACE + 0.006);
+      const print = runtime.core.mesh(new THREE.PlaneGeometry(0.092, 0.092), badgePrintMat, { outline: 0, cast: false });
+      print.name = "hi-res-badge-print";
+      print.position.set(0.47, 0.17, FACE + 0.0125);
+      front.add(slot, led, badge, print);
+    }
+    // Four brass feet, wider where they meet the riser
+    [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(([sx, sz]) => {
+      const foot = runtime.core.mesh(new THREE.CylinderGeometry(0.07, 0.085, FOOT, 20), brassMat, { outline: 0.004 });
+      foot.name = "brass-foot";
+      foot.position.set(sx * 0.5, FOOT / 2, sz * 0.66);
+      speaker.add(foot);
+    });
+    // Round the back: a bass port near the top, then the active speaker's input panel and its
+    // three knobs (volume, treble, bass), or the passive one's speaker terminals
+    const BACK = -S1000.d / 2 + 0.03;
+    const rearPort = runtime.core.mesh(new THREE.CircleGeometry(0.12, 28), speakerRubberMat, { outline: 0 });
+    rearPort.name = "rear-bass-port";
+    rearPort.rotation.y = Math.PI;
+    rearPort.position.set(0, FOOT + 1.75, BACK - 0.002);
+    const portRim = runtime.core.mesh(new THREE.TorusGeometry(0.13, 0.018, 8, 32), speakerDomeMat, { outline: 0 });
+    portRim.position.copy(rearPort.position);
+    speaker.add(rearPort, portRim);
+    const rear = runtime.core.mesh(runtime.core.rbox(active ? 0.8 : 0.4, active ? 0.95 : 0.3, 0.02, 0.02), speakerDomeMat, { outline: 0 });
+    rear.position.set(0, FOOT + (active ? 0.75 : 0.6), BACK - 0.01);
     speaker.add(rear);
     if (active) {
-      // The controls, down in the well cut into the outer side panel: its black walls taper in
-      // to a floor where three knobs stand (volume, treble, bass)
-      const WELL_FLOOR = R1280.w / 2 - 0.065;
-      const well = runtime.core.mesh(sideWell(R1280.w / 2 + 0.002, WELL_FLOOR, CONTROL.z, CONTROL.y, [CONTROL.w, CONTROL.h], [CONTROL.w - 0.16, CONTROL.h - 0.16]), turnedMat, { outline: 0 });
-      well.name = "side-control-panel";
-      speaker.add(well);
-      [CONTROL.y + 0.25, CONTROL.y, CONTROL.y - 0.25].forEach((y) => {
+      [1.05, 0.8, 0.55].forEach((y) => {
         const knob = runtime.core.mesh(new THREE.CylinderGeometry(0.075, 0.08, 0.05, 28), speakerRubberMat, { outline: 0.005 });
-        knob.name = "side-knob";
-        knob.rotation.z = Math.PI / 2;
-        knob.position.set(WELL_FLOOR + 0.025, y, CONTROL.z);
+        knob.name = "rear-knob";
+        knob.rotation.x = Math.PI / 2;
+        knob.position.set(0.2, FOOT + y, BACK - 0.045);
         const rim = runtime.core.mesh(new THREE.TorusGeometry(0.06, 0.006, 6, 28), trimMat, { outline: 0 });
-        rim.rotation.y = Math.PI / 2;
-        rim.position.set(WELL_FLOOR + 0.051, y, CONTROL.z);
+        rim.position.set(0.2, FOOT + y, BACK - 0.071);
         speaker.add(knob, rim);
+      });
+    } else {
+      ["#c0262d", "#1b1b1d"].forEach((color, k) => {
+        const post = runtime.core.mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.08, 16), runtime.core.toon(color), { outline: 0.004 });
+        post.name = "binding-post";
+        post.rotation.x = Math.PI / 2;
+        post.position.set(k ? 0.1 : -0.1, FOOT + 0.6, BACK - 0.05);
+        speaker.add(post);
       });
     }
     const entry = { group: speaker, woofer, dustCap, tweeter };
@@ -873,6 +954,8 @@ export function createWorkstation(runtime) {
       focus: (name) => runtime.camera.setFocus(name),
       terminalClick: () => autotype(AUTORUN[autorunIndex++ % AUTORUN.length]),
       sound: (name) => sfx[name]?.(),
+      // Straw Hat Strike's bounty board, and the name typed onto a poster
+      strike: createStrikeBoard({ textInput: runtime.textInput }),
     },
   });
   let screenDrawnAt = 0;

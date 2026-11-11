@@ -19,9 +19,11 @@ const board = vm.runInNewContext(
   section('  const aboutBoard =', '  // ---------- keyboard:') + '; ({ aboutBoard, boardNotes, liftNote, pinNote })', boardContext = {
     THREE, gsap, focus, hoverSound() {}, WALL_Z: -4.9, badgeClearance: null, scene: new THREE.Group(), renderer: { domElement: { style: {} } },
     track: (value) => value, noRaycast() {}, windowWood: { texture: new THREE.Texture() },
-    printed: (w, h) => new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial()),
+    printed: (w, h) => Object.assign(new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial()), { userData: { tex: { redraw() {} } } }),
     mesh: (geometry, material) => new THREE.Mesh(geometry, material), rbox: (w, h, d) => new THREE.BoxGeometry(w, h, d),
-    toon: (color) => new THREE.MeshToonMaterial({ color }), printMaterial: () => new THREE.MeshToonMaterial(), drawAboutBoard() {}, drawAboutNote() {},
+    toon: (color) => new THREE.MeshToonMaterial({ color }), printMaterial: () => new THREE.MeshToonMaterial(), drawAboutBoard() {}, drawGuestPaper() {},
+    GUEST_NAME_MAX: 20, GUEST_MESSAGE_MAX: 120, GUEST_PAPERS: ['a', 'b', 'c', 'd', 'e', 'f'], getNotes: async () => ({ ok: false }), postNote: async () => ({ ok: false }), localStorage: { getItem: () => null, setItem() {} },
+    timers: [], setTimeout: () => 0, destroyed: false, caretOn: false, typing: null, startTyping() {}, stopTyping() {},
     register: (object, handler) => handlers.set(object, handler), sfx: { pop() {} },
   });
 for (const note of board.boardNotes) {
@@ -53,12 +55,13 @@ assert.ok(board.aboutBoard.position.equals(boardPosition), 'board stays mounted'
 
 // The badge swinging over a paper hangs clear of it, and further out when the paper tips forward
 const clearance = boardContext.badgeClearance;
-const who = board.boardNotes[0];
+const who = board.boardNotes.find((note) => note.shown);
 const overWho = [board.aboutBoard.position.x + who.paper.position.x, board.aboutBoard.position.y + who.paper.position.y + 0.74];
 const restClear = clearance(...overWho, 0);
 assert.ok(restClear > board.aboutBoard.position.z + who.paper.position.z + 0.2, 'badge clears a resting paper and its pin');
 who.sheet.rotation.x = -0.24;
-assert.ok(clearance(...overWho, 0) > restClear + 0.2, 'badge clears a paper tipped out by hover');
+// as far out as the paper's lower edge tips (a taller paper tips further)
+assert.ok(clearance(...overWho, 0) > restClear + Math.sin(0.24) * who.h - 0.06, 'badge clears a paper tipped out by hover');
 who.sheet.rotation.x = 0;
 assert.equal(clearance(-20, 0, 0), -Infinity, 'off the board the badge keeps its own depth');
 

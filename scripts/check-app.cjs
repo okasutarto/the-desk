@@ -175,6 +175,8 @@ async function main() {
   for (const agent of ['Googlebot/2.1', 'WhatsApp/2.23', 'curl/8.4.0', 'Mozilla/5.0 HeadlessChrome/120', undefined]) {
     assert.equal(await visit('POST', '4.4.4.4', agent), 2, String(agent));
   }
-  console.log('App checks passed: safe chat formatting, storage fallback, CORS, SSE completion/errors and the visit count.');
+  await require('./check-app-strike.cjs')();
+  await require('./check-app-guestbook.cjs')();
+  console.log('App checks passed: safe chat formatting, storage fallback, CORS, SSE completion/errors, the visit count, the bounty board and the guestbook.');
 }
 main().catch(error => { console.error(error); process.exitCode = 1; });

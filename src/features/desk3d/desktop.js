@@ -31,7 +31,8 @@ export function createDesktop({ terminal, player, actions }) {
   let wallpaperFade = null;
   const typist = createTypist();
   const snake = createSnake((name) => actions.sound?.(name));
-  const strike = createStrike((name) => actions.sound?.(name));
+  const strike = createStrike((name) => actions.sound?.(name), actions.strike);
+  actions.strike?.attach(strike);
   // The console takes over the whole screen while it's on
   const tv = { on: false, t0: 0 };
   // Launchpad: a grid of every app over the dimmed desktop
@@ -561,10 +562,17 @@ export function createDesktop({ terminal, player, actions }) {
   }
 
   function click(hs) {
-    if (hs.id === "consoleExit") return Object.assign(tv, { on: false });
+    if (hs.id === "consoleExit") {
+      actions.strike?.stopName();
+      return Object.assign(tv, { on: false });
+    }
     if (hs.id === "strikeStart") return now() - tv.t0 > STRIKE_BOOT && strike.start();
     if (hs.id === "strikeBomb") return strike.bomb();
     if (hs.id === "strikePause") return strike.pause();
+    // the bounty board's name box on the poster, and its buttons
+    if (hs.id === "strikeName") return actions.strike?.focusName();
+    if (hs.id === "strikePost") return actions.strike?.post();
+    if (hs.id === "strikeSkip") return strike.skipEntry();
     if (hs.id === "padClose") return Object.assign(pad, { open: false, t0: now() });
     if (hs.id === "pad") {
       Object.assign(pad, { open: false, t0: now() });
@@ -605,11 +613,14 @@ export function createDesktop({ terminal, player, actions }) {
     playConsole() {
       Object.assign(tv, { on: true, t0: now() });
       strike.state = "ready";
+      strike.entry = null;
       strike.keys.clear();
+      actions.strike?.refresh();
     },
     exitConsole() {
       if (!tv.on) return false;
       tv.on = false;
+      actions.strike?.stopName();
       return true;
     },
     // Window title bars and dock icons share the scene's captured screen pointer.
