@@ -51,16 +51,18 @@ assert.ok(state().badgeFront.position.z > 0.0325 && state().badgeBack.position.z
 const textures = require('./helpers/texture-source.cjs').readTexturesSource();
 const badgeCode = textures.slice(textures.indexOf('export function drawBadge('), textures.indexOf('// ---------- boarding pass'));
 const canvas = new Proxy({}, { get: () => () => {} });
-const printContext = vm.createContext({ guilloche() {}, stockGrain() {}, DISPLAY: 'sans-serif', BODY: 'sans-serif', brutalBox() {}, drawPortrait() {} });
+const RESUME = 'https://example.test/cv.pdf';
+const printContext = vm.createContext({ guilloche() {}, stockGrain() {}, DISPLAY: 'sans-serif', BODY: 'sans-serif', brutalBox() {}, drawPortrait() {}, ABOUT_NOTES: [{ id: 'resume', href: RESUME }] });
 const draw = vm.runInContext(badgeCode.replace('export ', '') + '; drawBadge', printContext);
 for (const [w, h] of [[480, 780], [532, 854], [960, 1560]]) {
   const links = draw(canvas, w, h, { back: true });
-  assert.equal(links.length, 3);
+  assert.equal(links.length, 4, 'GitHub, LinkedIn, email and the resume');
+  assert.equal(links[3].href, RESUME, 'the resume came from the About board');
   for (const link of links) {
     assert.ok(link.x >= 0 && link.y >= 0 && link.x + link.w <= w && link.y + link.h <= h);
   }
   assert.equal(links[0].x, 38 * w / 480);
-  assert.equal(links[0].y, 326 * h / 780);
+  assert.equal(links[0].y, 306 * h / 780);
   draw(canvas, w, h);
 }
 console.log('Badge ribbon buffers, winding, drag, flip, holder and scaled link checks passed.');

@@ -28,14 +28,15 @@ function drawClip(c, x, y, w, h, api) {
   c.translate(x, y);
   stockGrain(c, w, h, { seed: x + y, wear: 0 });
   c.restore();
+  // the clip grips the top edge and reaches about 56 px down the sheet: the writing starts below it
   paperclip(c, x + 45, y - 26, 82, 0.05);
   if (api) {
-    fileText(c, api.request, x + 16, y + 35, w - 32, { size: 17, weight: 800, lines: 2 });
-    fileText(c, api.status, x + 16, y + 95, w - 32, { size: 16, ink: "#166534", lines: 1 });
-    fileText(c, typeof api.body === "string" ? api.body : JSON.stringify(api.body, null, 2), x + 16, y + 130, w - 32, { size: 15, ink: "#7c3aed", lines: 8 });
+    fileText(c, api.request, x + 16, y + 78, w - 32, { size: 17, weight: 800, lines: 2 });
+    fileText(c, api.status, x + 16, y + 135, w - 32, { size: 16, ink: "#166534", lines: 1 });
+    fileText(c, typeof api.body === "string" ? api.body : JSON.stringify(api.body, null, 2), x + 16, y + 168, w - 32, { size: 15, ink: "#7c3aed", lines: 7 });
   } else {
-    brutalBox(c, x + 20, y + 28, w - 40, 25, "#fff", { shadow: 0, line: 3 });
-    brutalBox(c, x + 20, y + 70, w - 40, h * 0.35, "#d9d9d9", { shadow: 0, line: 3 });
+    brutalBox(c, x + 20, y + 66, w - 40, 25, "#fff", { shadow: 0, line: 3 });
+    brutalBox(c, x + 20, y + 104, w - 40, h * 0.28, "#d9d9d9", { shadow: 0, line: 3 });
     for (let i = 0; i < 2; i++) brutalBox(c, x + 20 + i * (w / 2 - 10), y + h * 0.64, w / 2 - 30, h * 0.15, "#fff", { shadow: 0, line: 3 });
     c.fillStyle = "#111";
     c.fillRect(x + 20, y + h - 35, w * 0.55, 16);
@@ -83,11 +84,6 @@ export function drawFolderCover(c, w, h, project, index = 0) {
     const color = FOLDER_COLORS[index % FOLDER_COLORS.length];
     folderBoard(c, color, index);
     rubberStamp(c, 160, 655, `CASE Nº ${String(index + 1).padStart(2, "0")}`, { color: "rgba(26,23,20,.55)", size: 26, angle: -0.08, seed: index + 1 });
-    c.strokeStyle = "rgba(60,30,10,.16)";
-    c.lineWidth = 7;
-    c.beginPath();
-    c.arc(560, 640, 62, 0.5, Math.PI * 1.75);
-    c.stroke();
     brutalBox(c, 42, 42, 245, 46, "#fff", { shadow: 5, line: 4 });
     fileText(c, project.type.toUpperCase(), 58, 53, 220, { size: 20, weight: 800, lines: 1 });
     const longestWord = project.title.toUpperCase().split(/\s+/).sort((a, b) => b.length - a.length)[0];
@@ -253,13 +249,8 @@ export function drawCaseBack(c, w, h, project, { inside = false, index = 0, kind
     c.textAlign = "left";
     c.textBaseline = "alphabetic";
     c.restore();
-    // a coffee ring, and a marker doodle by the signature line
+    // a marker doodle by the signature line
     c.globalAlpha = 1;
-    c.strokeStyle = "rgba(90,50,20,.22)";
-    c.lineWidth = 7;
-    c.beginPath();
-    c.arc(w * 0.78, h * 0.78, h * 0.12, 0.4, Math.PI * 1.8);
-    c.stroke();
     c.strokeStyle = "#111";
     c.lineWidth = 3;
     c.beginPath();

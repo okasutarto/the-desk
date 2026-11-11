@@ -29,12 +29,6 @@ export function drawAboutBoard(c, w, h) {
     c.arc(x + 1, y + 1.5, w * 0.002, 0, Math.PI);
     c.fill();
   }
-  // A faded coffee ring
-  c.strokeStyle = "rgba(90,50,20,.18)";
-  c.lineWidth = w * 0.006;
-  c.beginPath();
-  c.arc(w * 0.47, h * 0.9, w * 0.045, 0.3, Math.PI * 1.85);
-  c.stroke();
 
   // Stickers slapped on the cork: flat colour, a thick black edge and a hard shadow
   const sticker = (x, y, turn, draw) => {
@@ -114,8 +108,10 @@ export function drawAboutBoard(c, w, h) {
   c.fillStyle = "rgba(17,17,17,.75)";
   [-0.5, 0.5].forEach((dx) => c.fillRect(w * 0.83 + dx * u - u * 0.15, h * 0.12 - u * 0.6, u * 0.3, u * 0.6));
 
-  // The heading on a strip of masking tape, torn at both ends
-  const tw = w * 0.24;
+  // The heading on a strip of masking tape, torn at both ends, cut a little longer than the word
+  const HEADING = "GUESTBOOK";
+  c.font = `900 ${Math.round(h * 0.055)}px ${DISPLAY}`;
+  const tw = Math.max(w * 0.24, c.measureText(HEADING).width + w * 0.05);
   const th = h * 0.085;
   c.save();
   c.translate(w / 2, h * 0.07);
@@ -135,7 +131,7 @@ export function drawAboutBoard(c, w, h) {
   c.font = `900 ${Math.round(h * 0.055)}px ${DISPLAY}`;
   c.textAlign = "center";
   c.textBaseline = "middle";
-  c.fillText("ABOUT ME", 0, th * 0.06);
+  c.fillText(HEADING, 0, th * 0.06);
   c.restore();
   c.textAlign = "left";
   c.textBaseline = "alphabetic";

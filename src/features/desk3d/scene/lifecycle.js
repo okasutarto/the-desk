@@ -72,6 +72,9 @@ export function createLifecycle(runtime) {
       window.removeEventListener("keydown", runtime.keyboard.onKonami);
       runtime.textInput.typer.removeEventListener("input", runtime.textInput.onTyperInput);
       runtime.textInput.typer.removeEventListener("keydown", runtime.textInput.onTyperKey);
+      runtime.textInput.typer.removeEventListener("keyup", runtime.textInput.onTyperSelect);
+      runtime.textInput.typer.removeEventListener("select", runtime.textInput.onTyperSelect);
+      document.removeEventListener("selectionchange", runtime.textInput.onTyperSelect);
       runtime.textInput.typer.remove();
       runtime.swordEffects.impactFlash.remove();
       runtime.core.renderer.domElement.removeEventListener("wheel", runtime.chat.onWheel);

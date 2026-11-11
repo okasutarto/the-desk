@@ -63,7 +63,7 @@ const textarea = {
   addEventListener: (name, callback) => events.set(name, callback),
 };
 const createTextInput = vm.runInNewContext(parts.get('textInput').source.replace('export function', 'function') + '; createTextInput', {
-  document: { createElement: () => textarea },
+  document: { createElement: () => textarea, addEventListener() {}, removeEventListener() {} },
 });
 let back = 0;
 const pressed = [];

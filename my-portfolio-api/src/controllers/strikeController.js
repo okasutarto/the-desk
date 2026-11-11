@@ -2,6 +2,7 @@ const crypto = require('crypto');
 const { store } = require('../services/leaderboardStore');
 const { checkName } = require('../utils/nameGuard');
 const { visitorId, isPerson } = require('./visitsController');
+const moderation = require('../services/moderation');
 
 /**
  * Straw Hat Strike's bounty board: the best bounty of each player, the top ten shown to all.
@@ -50,20 +51,6 @@ function readToken(token, now = Date.now()) {
 const publicBoard = (rows) => rows.map(({ id, name, score, stage, at }, i) => ({
   id, rank: i + 1, name, score: Number(score), stage: Number(stage), at: Number(at),
 }));
-
-// OpenAI's moderation on the name (free to call). Unflagged or unreachable lets it through:
-// the word list has already run, and a name can always be taken down afterwards.
-let moderate = async (name) => {
-  if (!process.env.OPENAI_API_KEY) return false;
-  try {
-    const { openai } = require('../services/openaiService');
-    const result = await openai.moderations.create({ model: 'omni-moderation-latest', input: name });
-    return Boolean(result.results?.[0]?.flagged);
-  } catch (error) {
-    console.error('Name moderation unavailable:', error.message);
-    return false;
-  }
-};
 
 async function limited(kind, id) {
   return (await store.hit(`${kind}:${id}`, HOUR)) > LIMITS[kind];
@@ -120,7 +107,7 @@ async function score(req, res) {
     const id = visitorId(req);
     if (await limited('score', id)) return res.status(429).json({ error: 'Too many bounties posted, try again later' });
     // The token is spent last, so a refused name can be fixed and sent again
-    if (await moderate(checked.name)) return res.status(422).json({ error: 'Pick another name', reason: 'words' });
+    if (await moderation.flagged(checked.name)) return res.status(422).json({ error: 'Pick another name', reason: 'words' });
     if (!(await store.spend(ticket.nonce, TOKEN_TTL))) return res.status(409).json({ error: 'That run was already posted', reason: 'token' });
     const best = await store.best(id);
     // One line on the board per player: their best run, under the name it was posted with
@@ -155,6 +142,4 @@ async function remove(req, res) {
 
 module.exports = {
   top, run, score, remove, readToken, maxScore, maxStage,
-  // for the checks: swap the moderation call
-  setModeration(fn) { moderate = fn; },
 };

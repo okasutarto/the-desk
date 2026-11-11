@@ -176,6 +176,7 @@ async function main() {
     assert.equal(await visit('POST', '4.4.4.4', agent), 2, String(agent));
   }
   await require('./check-app-strike.cjs')();
-  console.log('App checks passed: safe chat formatting, storage fallback, CORS, SSE completion/errors, the visit count and the bounty board.');
+  await require('./check-app-guestbook.cjs')();
+  console.log('App checks passed: safe chat formatting, storage fallback, CORS, SSE completion/errors, the visit count, the bounty board and the guestbook.');
 }
 main().catch(error => { console.error(error); process.exitCode = 1; });

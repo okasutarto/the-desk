@@ -491,7 +491,7 @@ const hint = computed(() => {
   if (focus.value === "contact") return isDesktop.value ? "Write on the card (Tab moves along), then hit SEND POSTCARD" : "Tap the card to write, then tap SEND POSTCARD";
   if (focus.value === "chat") return isDesktop.value ? "Type a question and hit Enter (scroll to read back)" : "Tap a question or the box below to ask";
   if (focus.value === "hero") return isDesktop.value ? "Click the badge to flip it (links on the back). Drag the pin to move it" : "Tap the badge to flip it. Drag the pin to move it";
-  if (focus.value === "about") return isDesktop.value ? "Drag the papers to rearrange them. Release to pin them back" : "Drag a paper to move it. Release to pin it back";
+  if (focus.value === "about") return isDesktop.value ? "The guestbook: click SIGN THE BOOK to leave a note · Drag the papers around" : "The guestbook: tap SIGN THE BOOK to leave a note";
   // On a desktop the terminal's welcome already says to look around; on a phone it's too small to read
   return isDesktop.value ? "" : "Tap anything to take a closer look · Swipe to turn the room, pinch to zoom";
 });
