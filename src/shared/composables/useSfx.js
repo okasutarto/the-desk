@@ -116,6 +116,8 @@ const unlock = async () => {
         resuming = false;
       }
     }
+    // Rain asked for before there was any audio to play it in starts now
+    if (ctx.state === "running" && rainWanted > 0.01) setRainLevel(rainWanted);
     return ctx.state === "running";
   } catch {
     return false;
@@ -1018,9 +1020,12 @@ export function startScrape() {
 }
 
 // Rain against the window: a looping hiss whose level follows the weather (0–1). It goes
-// quiet while muted, and the loop is only built once there's rain to hear.
+// quiet while muted, and the loop is only built once there's rain to hear (and audio to hear it in).
 let rainLoop = null;
+// The last level asked for, so rain set while audio was still locked is heard once it opens
+let rainWanted = 0;
 export function setRainLevel(level) {
+  rainWanted = level;
   const target = muted.value || !ctx || document.hidden ? 0 : level;
   if (!rainLoop && target <= 0.01) return;
   if (!rainLoop) {

@@ -20,6 +20,7 @@ export function createLifecycle(runtime) {
     setTimesGateFinish: runtime.timesGate.setTimesGateFinish,
     setTime: runtime.theme.setTime,
     setRain: runtime.weather.setRain,
+    setAmbience: runtime.ambience.setAmbience,
     setMuted: runtime.workstation.setMuted,
     standby: runtime.animation.standby,
     landStandby: runtime.workstation.landStandby,
@@ -40,6 +41,7 @@ export function createLifecycle(runtime) {
       runtime.core.destroyed = true;
       runtime.workstation.lofi.destroy();
       setRainLevel(0);
+      runtime.ambience.destroy();
       cancelAnimationFrame(runtime.animation.frame);
       runtime.core.timers.forEach(clearTimeout);
       clearTimeout(runtime.camera.arriveTimer);

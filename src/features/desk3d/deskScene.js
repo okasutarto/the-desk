@@ -16,6 +16,7 @@ import { createTextInput } from "./scene/textInput";
 import { createRoom } from "./scene/room";
 import { createWindowBlind } from "./scene/windowBlind";
 import { createWeather } from "./scene/weather";
+import { createAmbienceScene } from "./scene/ambience";
 import { createGuitar } from "./scene/guitar";
 import { createWindowLighting } from "./scene/windowLighting";
 import { createWallDecor } from "./scene/wallDecor";
@@ -61,15 +62,16 @@ export { SECTIONS } from "./sceneConfig";
 
 installSceneShaders(benchmark, lowPower);
 
-export function createDeskScene({ container, projects, experiences, dark = false, muted = false, wallColor = "#3a3a3a", wallPattern = {}, woods = {}, floor = {}, time = "auto", rain = "auto", timesGateFinish = "silver", deviceFinishes = {}, blind = {}, onEvent = () => {} }) {
+export function createDeskScene({ container, projects, experiences, dark = false, muted = false, wallColor = "#3a3a3a", wallPattern = {}, woods = {}, floor = {}, time = "auto", rain = "auto", ambience = true, timesGateFinish = "silver", deviceFinishes = {}, blind = {}, onEvent = () => {} }) {
   // Each scene owns its state. Factories run in construction order; callbacks can access
   // parts created later, and mutable exports remain live through their module accessors.
-  const runtime = { options: { container, projects, experiences, dark, muted, wallColor, wallPattern, woods, floor, time, rain, timesGateFinish, deviceFinishes, blind, onEvent } };
+  const runtime = { options: { container, projects, experiences, dark, muted, wallColor, wallPattern, woods, floor, time, rain, ambience, timesGateFinish, deviceFinishes, blind, onEvent } };
   runtime.core = createCore(runtime);
   runtime.textInput = createTextInput(runtime);
   runtime.room = createRoom(runtime);
   runtime.windowBlind = createWindowBlind(runtime);
   runtime.weather = createWeather(runtime);
+  runtime.ambience = createAmbienceScene(runtime);
   runtime.guitar = createGuitar(runtime);
   runtime.windowLighting = createWindowLighting(runtime);
   runtime.wallDecor = createWallDecor(runtime);

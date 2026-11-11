@@ -425,6 +425,7 @@ export function createAnimation(runtime) {
       runtime.room.outside.heard = runtime.room.outside.rain;
       setRainLevel(runtime.workstation.soundMuted ? 0 : runtime.room.outside.rain);
     }
+    runtime.ambience.update(now);
     if (now - runtime.room.outside.drawnAt >= 1000 / 30) {
       runtime.room.outside.drawnAt = now;
       runtime.room.windowView.userData.tex.redraw();

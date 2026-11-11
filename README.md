@@ -104,6 +104,7 @@ remembered in your browser. Close the panel with its ✕, the gear or Esc.
 | --- | --- | --- |
 | 🕰️ **Time of day** | Auto · Morning · Midday · Evening · Night | Auto: your own clock |
 | 🌧️ **Weather** | Auto · Clear · Rain | Auto: the real weather where you are |
+| 🐦 **Ambience** | On · Off: birds, wind, the town, crickets, drips on the glass and thunder outside the window | On |
 | 🧱 **Wall** | Seven house paints from white to graphite, or any colour at all | Graphite |
 | 🟫 **Floor** | Six woods × planks, herringbone or parquet | Oak, planks |
 | 🪵 **Desk** | Six woods × planks, cathedral, knotty, butcher block or quartersawn | Cherry, butcher block |
@@ -145,6 +146,13 @@ furniture, standing on a thick slab on a dotted backdrop.
 
 **Same desk. A different mood.** Sunlight moves across the room, rain rolls in, and the
 night shift trades the daylight for cyan and pink neon.
+
+It sounds the part too, very quietly: birds in the morning, wind and the town by day,
+crickets after dark, cars going by, drops on the glass in the rain, and thunder (with
+lightning in the window) when it storms or when you knock the rain up. The rain follows the
+real weather's strength: a light drizzle hisses softly, a downpour drums on the glass, and a
+storm with hail thunders more often. Open the window and
+it all gets louder; start the music and it steps back.
 
 <table>
   <tr>
