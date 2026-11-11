@@ -1,4 +1,5 @@
 import { BODY, DISPLAY, brutalBox, drawPortrait } from "./base";
+import { ABOUT_NOTES } from "@/data/about";
 import { guilloche, stockGrain } from "./finishes";
 
 // ---------- ID badge (hero) ----------
@@ -38,12 +39,14 @@ export function drawBadge(c, w, h, { back = false, now = new Date() } = {}) {
     c.font = `500 20px ${BODY}`;
     c.fillText("Good things start with a conversation.", w / 2, 270);
     // Links, printed as buttons
+    // (the resume came here from the About board when that became the guestbook)
     [
       { label: "GITHUB ↗", color: "#ffdd00", href: "https://github.com/okasutarto" },
       { label: "LINKEDIN ↗", color: "#00e0c6", href: "https://linkedin.com/in/okasutarto" },
       { label: "EMAIL ME ↗", color: "#ff90e8", href: "mailto:okasputra@gmail.com" },
+      { label: "RESUME ↓", color: "#7fb2ff", href: ABOUT_NOTES.find((note) => note.id === "resume")?.href },
     ].forEach((link, i) => {
-      const box = { x: 38, y: 326 + i * 100, w: w - 76, h: 72 };
+      const box = { x: 38, y: 306 + i * 84, w: w - 76, h: 64 };
       brutalBox(c, box.x, box.y, box.w, box.h, link.color, { shadow: 6, line: 4 });
       c.fillStyle = "#17243b";
       c.font = `800 24px ${DISPLAY}`;
