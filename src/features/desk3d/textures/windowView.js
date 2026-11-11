@@ -84,7 +84,8 @@ export function windowSky(time, from = SKIES[time], blend = 1) {
 export function drawWindowView(c, w, h, { t = 0, time = "day", rain = 0, glass = 1, flockAt = -99, starAt = -99, skyFrom, skyBlend = 1, flash = 0 } = {}) {
   const look = windowSky(time, skyFrom, skyBlend);
   const dark = look.night >= 0.5;
-  // Rain greys everything over: a real shower (0.7) is already a dull, overcast sky
+  // Rain greys everything over: a light drizzle (0.25) only a little, moderate rain (0.6) to a
+  // dull, overcast sky
   const grey = (color) => mixHex(color, dark ? "#2a2f45" : "#8d97a8", Math.min(1, rain * 1.25) * 0.65);
   // detail sized by the shorter side, so a wider pane shows more landscape, not bigger trees
   const u = Math.min(w, h) / 100;

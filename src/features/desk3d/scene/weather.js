@@ -1,5 +1,5 @@
 import gsap from "gsap";
-import { weatherKind } from "../textures";
+import { rainForCode } from "../textures";
 
 export function createWeather(runtime) {
   // ---------- the real weather, for the rain outside and the Times Gate ----------
@@ -28,7 +28,7 @@ export function createWeather(runtime) {
     + `&timezone=${encodeURIComponent(place.tz)}&forecast_days=4`;
   let place = null;
   let rainMode = runtime.options.rain;
-  // how hard it's really raining there, 0 when dry, once a forecast is in
+  // how hard it's really raining there (0 dry to 1 a storm with hail), once a forecast is in
   let realRain = null;
   let weatherNow = null;
   let weatherFetchedAt = 0;
@@ -54,8 +54,8 @@ export function createWeather(runtime) {
         updated: current.time.slice(11, 16),
       };
       weatherFetchedAt = performance.now();
-      const kind = weatherKind(current.weather_code)[1];
-      const raining = kind === "storm" ? 1 : kind === "rain" ? 0.7 : 0;
+      // as hard as it's really raining there, from a light drizzle to a storm with hail
+      const raining = rainForCode(current.weather_code);
       // Only a change in the real weather moves the rain, so knocking on the window still
       // brings or stops a shower until then
       if (raining !== realRain) {

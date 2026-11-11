@@ -22,8 +22,9 @@ const RATES = {
 };
 // The loudest each bed gets on the sfx bus. For scale: full rain is 0.01.
 export const BED_PEAK = { wind: 0.016, town: 0.012 };
-// Rain at or above this brings thunder: a real storm (1) or the rain knocked up at the window
-// (0.9), but not the settings' plain "Rain" (0.8) or a real shower (0.7)
+// Rain at or above this brings thunder: a real thunderstorm (0.9, or 1 with hail) or the rain
+// knocked up at the window (0.9), but not the settings' plain "Rain" (0.8) or real rain, however
+// heavy (0.8 at most; see rainForCode)
 export const STORM_RAIN = 0.85;
 // While the lofi plays, the world outside steps back this far
 export const UNDER_MUSIC = 0.35;
@@ -51,7 +52,8 @@ export function ambienceMix({ part, rain = 0, windowOpen = false, music = false,
       // fewer cars in the rain, but each one hisses on the wet road
       cars: rate.cars * (1 - rain * 0.3),
       drips: rain > 0.2 ? rain * 70 : 0,
-      thunder: rain >= STORM_RAIN ? 1.5 : 0,
+      // a storm with hail rolls in about three times as often as one just over the line
+      thunder: rain >= STORM_RAIN ? 1 + (rain - STORM_RAIN) * 15 : 0,
     },
   };
 }

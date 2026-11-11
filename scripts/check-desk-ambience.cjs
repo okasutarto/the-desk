@@ -36,8 +36,21 @@ assert.equal(ambienceMix({ part: 'day' }).rates.drips, 0, 'no drips when dry');
 
 assert.equal(ambienceMix({ part: 'day', rain: 0.8 }).rates.thunder, 0, 'the settings\' plain rain has no thunder');
 assert.equal(ambienceMix({ part: 'day', rain: 0.7 }).rates.thunder, 0, 'a real shower has no thunder');
+
+// ---------- the real weather's rain, by its WMO code ----------
+const { rainForCode } = vm.runInNewContext(`${strip('textures/weather.js')}\n; ({ rainForCode })`, {});
+assert.ok(rainForCode(51) < rainForCode(55) && rainForCode(55) < rainForCode(65), 'drizzle is lighter than heavy rain');
+assert.ok(rainForCode(61) < rainForCode(63) && rainForCode(63) < rainForCode(65), 'slight, moderate, heavy');
+assert.ok(rainForCode(80) < rainForCode(82), 'showers by their strength');
+for (const code of [51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82]) {
+  assert.ok(rainForCode(code) > 0 && rainForCode(code) < STORM_RAIN, `code ${code}: rain, but never thunder`);
+}
+for (const code of [95, 96, 99]) assert.ok(rainForCode(code) >= STORM_RAIN, `code ${code}: a storm thunders`);
+assert.ok(rainForCode(99) > rainForCode(95), 'hail makes the storm heavier');
+for (const code of [0, 1, 2, 3, 45, 71, 75, 85]) assert.equal(rainForCode(code), 0, `code ${code}: dry outside the window`);
 assert.ok(ambienceMix({ part: 'day', rain: 0.9 }).rates.thunder > 0, 'rain knocked up at the window brings a storm');
 assert.ok(ambienceMix({ part: 'day', rain: 1 }).rates.thunder > 0, 'a real storm thunders');
+assert.ok(ambienceMix({ part: 'day', rain: 1 }).rates.thunder > ambienceMix({ part: 'day', rain: 0.9 }).rates.thunder * 1.5, 'a storm with hail thunders more often');
 assert.ok(STORM_RAIN > 0.8 && STORM_RAIN <= 0.9);
 
 for (const quiet of [{ on: false }, { muted: true }, { hidden: true }]) {

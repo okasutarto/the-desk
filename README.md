@@ -149,7 +149,9 @@ night shift trades the daylight for cyan and pink neon.
 
 It sounds the part too, very quietly: birds in the morning, wind and the town by day,
 crickets after dark, cars going by, drops on the glass in the rain, and thunder (with
-lightning in the window) when it storms or when you knock the rain up. Open the window and
+lightning in the window) when it storms or when you knock the rain up. The rain follows the
+real weather's strength: a light drizzle hisses softly, a downpour drums on the glass, and a
+storm with hail thunders more often. Open the window and
 it all gets louder; start the music and it steps back.
 
 <table>
