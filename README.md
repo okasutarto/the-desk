@@ -59,7 +59,7 @@ Prefer a classic page? The same content lives at [`/2d`](https://okasp.dev/2d).
 | 💡 **Lamp** | Day and night, by hand. |
 | 🔦 **Monitor lightbar** | Toggle the task light on or off during the night shift. |
 | 🔊 **Speakers** | Sound on or off, with a little groove when it comes on. |
-| 🪟 **Window & blind** | Morning, midday, sunset and moonlight scenery with birds, stars and rain. Pull the blind or its chain; three quick knocks toggle rain. The blind comes in seven prints and any colour. |
+| 🪟 **Window & blind** | Morning, midday, sunset and moonlight scenery: wooded hills under snowy peaks, a banded toon sky and a stepped lake, framed by a bough and a bush, with birds, stars and rain. Pull the blind or its chain; three quick knocks toggle rain. The blind comes in seven prints and any colour. |
 | 🪴 **Plant** | Each click blooms a flower. Three blooms call a butterfly. |
 | 🖱️ **Mouse** | A life-size wireless gaming mouse with two thumb buttons and a green status light, in four colours. It follows your pointer, and grows ears and a tail and scampers off for a lap when clicked. |
 | 🪑 **Chair** | A Titan Evo-inspired gaming chair, traced from photos. Click to spin it, or drag it round on its post. |
