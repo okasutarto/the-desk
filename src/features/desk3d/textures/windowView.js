@@ -67,7 +67,7 @@ const HILLS = ridgeline([
 const HILL_PINES = Array.from({ length: 90 }, (_, i) => {
   const x = (i + 0.5 + Math.sin(i * 12.9898) * 0.35) / 90;
   const clump = Math.sin(x * 23 + 1.3) * 0.6 + Math.sin(x * 51 + 4) * 0.4;
-  return { x, clump, h: 3.4 + ((i * 0.618) % 1) * 2.2, wd: 1.3 + ((i * 0.414) % 1) * 0.6, sink: ((i * 0.733) % 1) * 0.014 };
+  return { x, clump, h: 3.4 + ((i * 0.618) % 1) * 2.2, wd: 1.3 + ((i * 0.414) % 1) * 0.6, sink: ((i * 0.733) % 1) * 0.014, lean: Math.sin(i * 7.3) * 0.18 };
 }).filter((p) => p.clump > -0.15);
 const hillY = (x) => HILLS[Math.max(0, Math.min(HILLS.length - 1, Math.round(x * (HILLS.length - 1))))][1];
 // The bough reaching in over the top of the view: its line (fractions of the pane) and the
@@ -215,18 +215,15 @@ export function drawWindowView(c, w, h, { t = 0, time = "day", rain = 0, glass =
   sweep.addColorStop(1, SKY[2]);
   c.fillStyle = sweep;
   c.fillRect(0, 0, w, h);
-  // ...breaking into hard, gently waving bands of light toward the horizon, the way a painted
-  // background steps its sky. At sunrise and sunset they catch the sun's own colour.
-  const warm = time === "evening" || time === "morning" ? 0.35 : 0.08;
-  for (let k = 0; k < 3; k++) {
-    const top = h * (0.25 + k * 0.07);
-    c.beginPath();
-    c.moveTo(-u, h * 0.6);
-    for (let x = 0; x <= w + u * 4; x += u * 4) c.lineTo(x, top + Math.sin(x / (w * 0.13) + k * 1.9 + t * 0.05) * u * 0.9);
-    c.lineTo(w + u * 4, h * 0.6);
-    c.closePath();
-    c.fillStyle = mixHex(mixHex(SKY[1], SKY[2], 0.25 + k * 0.33), grey(look.sun[2]), dark ? 0 : warm * (k + 1) / 3);
-    c.fill();
+  // At sunrise and sunset the low sky warms toward the sun's own colour, blended in without a
+  // visible edge
+  if (!dark && (time === "evening" || time === "morning")) {
+    const warmth = c.createLinearGradient(0, h * 0.2, 0, h * 0.55);
+    const sunTone = grey(look.sun[2]);
+    warmth.addColorStop(0, `${sunTone}00`);
+    warmth.addColorStop(1, `${sunTone}55`);
+    c.fillStyle = warmth;
+    c.fillRect(0, h * 0.2, w, h * 0.4);
   }
   // High wisps of cirrus drawn out by the wind, drifting slowly above everything else
   if (rain < 0.6) {
@@ -425,15 +422,15 @@ export function drawWindowView(c, w, h, { t = 0, time = "day", rain = 0, glass =
     c.lineTo(w * vx, h * vy);
     c.lineTo(w * vx, h * 0.6);
     c.lineTo(w * (px - lightSide * 0.012), h * 0.6);
-    c.lineTo(w * (px + lightSide * 0.014), h * (py + (0.6 - py) * 0.5));
-    c.lineTo(w * (px - lightSide * 0.004), h * (py + (0.6 - py) * 0.22));
+    c.quadraticCurveTo(w * (px + lightSide * 0.02), h * (py + (0.6 - py) * 0.55), w * (px + lightSide * 0.004), h * (py + (0.6 - py) * 0.3));
+    c.quadraticCurveTo(w * (px - lightSide * 0.008), h * (py + (0.6 - py) * 0.12), w * px, h * py);
     c.closePath();
     c.fillStyle = shade(mountainColor, 0.3);
     c.fill();
     c.beginPath();
     [[0.024, 0.085, 0.036, 0.15], [0.058, 0.1, 0.07, 0.16], [0.012, 0.13, 0.016, 0.2]].forEach(([x0, y0, x1, y1]) => {
       c.moveTo(w * (px + lightSide * x0), h * (py + y0));
-      c.lineTo(w * (px + lightSide * x1), h * (py + y1));
+      c.quadraticCurveTo(w * (px + lightSide * (x0 + x1) * 0.55), h * (py + (y0 + y1) / 2), w * (px + lightSide * x1), h * (py + y1));
     });
     stroke(line * 0.55, shade(mountainColor, 0.18));
   });
@@ -457,9 +454,10 @@ export function drawWindowView(c, w, h, { t = 0, time = "day", rain = 0, glass =
       c.beginPath();
       c.moveTo(w * RIDGE[p - 6][0], h * RIDGE[p - 6][1]);
       RIDGE.slice(p - 5, p + 7).forEach(([rx, ry]) => c.lineTo(w * rx, h * ry));
-      c.lineTo(w * (x + 0.015), h * (y + 0.04));
-      c.lineTo(w * (x - 0.02), h * (y + 0.055));
-      c.lineTo(w * (x - 0.03), h * (y + 0.045));
+      // a soft, drippy hem rather than a zigzag
+      c.quadraticCurveTo(w * (x + 0.03), h * (y + 0.045), w * (x + 0.012), h * (y + 0.042));
+      c.quadraticCurveTo(w * (x - 0.004), h * (y + 0.062), w * (x - 0.018), h * (y + 0.05));
+      c.quadraticCurveTo(w * (x - 0.03), h * (y + 0.05), w * RIDGE[p - 6][0], h * RIDGE[p - 6][1]);
       c.closePath();
     };
     const snow = dark ? "#c9c5dc" : "#fffdf5";
@@ -472,7 +470,7 @@ export function drawWindowView(c, w, h, { t = 0, time = "day", rain = 0, glass =
     c.moveTo(w * x, h * y);
     c.lineTo(w * (x - lightSide * 0.06), h * (y + 0.06));
     c.lineTo(w * (x + lightSide * 0.004), h * (y + 0.06));
-    c.closePath();
+    c.quadraticCurveTo(w * (x + lightSide * 0.01), h * (y + 0.025), w * x, h * y);
     c.fillStyle = shade(snow, 0.2);
     c.fill();
     c.restore();
@@ -491,18 +489,21 @@ export function drawWindowView(c, w, h, { t = 0, time = "day", rain = 0, glass =
     c.lineTo(w + line, mapY(h * 0.6));
     c.closePath();
   };
-  const pineAt = (p) => [w * p.x, h * (hillY(p.x) + 0.007 + p.sink), u * p.h, u * p.wd];
+  const pineAt = (p) => [w * p.x, h * (hillY(p.x) + 0.007 + p.sink), u * p.h, u * p.wd, p.lean];
+  // each a soft flame of a conifer, swelling out from its foot and leaning a little its own way
+  const pineSide = (bx, by, ph, pw, lean, side, mapY) => {
+    const tipX = bx + pw * lean;
+    c.bezierCurveTo(bx + side * pw * 0.2 + pw * lean * 0.6, mapY(by - ph * 0.8), bx + side * pw * 0.95, mapY(by - ph * 0.45), bx + side * pw, mapY(by));
+    return tipX;
+  };
   const pinesPath = (mapY = (y) => y) => {
     c.beginPath();
     HILL_PINES.forEach((p) => {
-      const [bx, by, ph, pw] = pineAt(p);
-      c.moveTo(bx - pw, mapY(by));
-      c.lineTo(bx - pw * 0.42, mapY(by - ph * 0.42));
-      c.lineTo(bx - pw * 0.62, mapY(by - ph * 0.4));
-      c.lineTo(bx, mapY(by - ph));
-      c.lineTo(bx + pw * 0.62, mapY(by - ph * 0.4));
-      c.lineTo(bx + pw * 0.42, mapY(by - ph * 0.42));
+      const [bx, by, ph, pw, lean] = pineAt(p);
+      c.moveTo(bx + pw * lean, mapY(by - ph));
+      pineSide(bx, by, ph, pw, lean, -1, mapY);
       c.lineTo(bx + pw, mapY(by));
+      c.bezierCurveTo(bx + pw * 0.95, mapY(by - ph * 0.45), bx + pw * 0.2 + pw * lean * 0.6, mapY(by - ph * 0.8), bx + pw * lean, mapY(by - ph));
       c.closePath();
     });
   };
@@ -519,13 +520,12 @@ export function drawWindowView(c, w, h, { t = 0, time = "day", rain = 0, glass =
   c.fill();
   c.beginPath();
   HILL_PINES.forEach((p) => {
-    const [bx, by, ph, pw] = pineAt(p);
-    c.moveTo(bx, by - ph);
-    c.lineTo(bx - lightSide * pw * 0.62, by - ph * 0.4);
-    c.lineTo(bx - lightSide * pw * 0.42, by - ph * 0.42);
-    c.lineTo(bx - lightSide * pw, by);
-    c.lineTo(bx, by);
-    c.closePath();
+    const [bx, by, ph, pw, lean] = pineAt(p);
+    const tipX = bx + pw * lean;
+    c.moveTo(tipX, by - ph);
+    pineSide(bx, by, ph, pw, lean, -lightSide, (y) => y);
+    c.lineTo(bx - lightSide * pw * 0.1, by);
+    c.quadraticCurveTo(bx - lightSide * pw * 0.05 + pw * lean * 0.5, by - ph * 0.5, tipX, by - ph);
   });
   c.fillStyle = shade(pineHillColor, 0.28);
   c.fill();
@@ -542,21 +542,34 @@ export function drawWindowView(c, w, h, { t = 0, time = "day", rain = 0, glass =
   c.restore();
   c.fillStyle = hillColor;
   c.fill();
-  c.fillStyle = shade(hillColor, 0.12);
-  c.fillRect(0, h * 0.555, w, h * 0.05);
+  const foot = c.createLinearGradient(0, h * 0.52, 0, h * 0.6);
+  foot.addColorStop(0, `${shade(hillColor, 0.14)}00`);
+  foot.addColorStop(1, shade(hillColor, 0.14));
+  c.fillStyle = foot;
+  c.fillRect(0, h * 0.52, w, h * 0.08);
   c.restore();
 
-  // Mist hanging along the foot of the mountains, drifting and thinning as it goes
-  c.fillStyle = mixHex(SKY[2], "#ffffff", dark ? 0.1 : 0.45);
+  // Mist hanging along the foot of the mountains, drifting and thinning as it goes: soft-edged
+  // drifts that fade out all round instead of hard strips
+  const mistTone = mixHex(SKY[2], "#ffffff", dark ? 0.1 : 0.45);
   for (let i = 0; i < 4; i++) {
     const mw = w * (0.22 + (i % 2) * 0.1);
     const mx = wrapX(((i * 0.31) % 1) * w + t * u * (0.5 + i * 0.25), mw);
     const my = h * (0.535 + (i % 3) * 0.015) + Math.sin(t * 0.5 + i * 2) * u * 0.4;
     const mh = u * (1.4 + (i % 2) * 0.6) * (0.85 + 0.15 * Math.sin(t * 0.7 + i));
     c.globalAlpha = (dark ? 0.25 : 0.45) * (0.7 + 0.3 * Math.sin(t * 0.4 + i * 1.7));
+    c.save();
+    c.translate(mx, my);
+    c.scale(mw / 2, mh * 1.2);
+    const drift = c.createRadialGradient(0, 0, 0, 0, 0, 1);
+    drift.addColorStop(0, mistTone);
+    drift.addColorStop(0.55, `${mistTone}cc`);
+    drift.addColorStop(1, `${mistTone}00`);
+    c.fillStyle = drift;
     c.beginPath();
-    c.roundRect(mx - mw / 2, my - mh / 2, mw, mh, mh / 2);
+    c.arc(0, 0, 1, 0, Math.PI * 2);
     c.fill();
+    c.restore();
   }
   c.globalAlpha = 1;
 
@@ -572,7 +585,16 @@ export function drawWindowView(c, w, h, { t = 0, time = "day", rain = 0, glass =
   c.fillStyle = bankColor;
   c.fill();
   stroke(line * 0.8);
-  [0.04, 0.11, 0.17, 0.42, 0.5, 0.84, 0.9].forEach((x, i) => blob([[w * x, bank - h * 0.018, u * (1.6 + (i % 3) * 0.5)]], grey(dark ? "#1f5c3a" : "#2f9e57"), 0));
+  // bushes along the far bank: lumpy, each two or three soft mounds rather than a compass circle
+  [0.04, 0.11, 0.17, 0.42, 0.5, 0.84, 0.9].forEach((x, i) => {
+    const r = u * (1.6 + (i % 3) * 0.5);
+    const y = bank - h * 0.014;
+    blob([
+      { x: w * x, y: y - r * 0.25, r, sy: 0.85, seed: i * 2.1, wob: 0.12 },
+      { x: w * x - r * 0.8, y: y + r * 0.1, r: r * 0.65, seed: i * 3.3 + 1, wob: 0.12 },
+      ...(i % 2 ? [{ x: w * x + r * 0.85, y: y + r * 0.15, r: r * 0.55, seed: i * 1.7 + 2, wob: 0.12 }] : []),
+    ], grey(dark ? "#1f5c3a" : "#2f9e57"), 0);
+  });
   [[0.56, "#ff6b6b"], [0.615, "#3b82f6"], [0.67, "#ffb35c"]].forEach(([x, roof], i) => {
     const hx = w * x;
     const hw = u * (3.4 + (i % 2) * 0.6);
@@ -688,21 +710,14 @@ export function drawWindowView(c, w, h, { t = 0, time = "day", rain = 0, glass =
   const lakeTop = h * 0.58;
   const lakeBottom = h * 0.78;
   const lakeColor = grey(dark ? "#172554" : "#3b82f6");
-  c.fillStyle = lakeColor;
+  // The water deepens toward us: pale with sky along the far bank, darker under the near shore,
+  // in one smooth sweep
+  const deepening = c.createLinearGradient(0, lakeTop, 0, lakeBottom);
+  deepening.addColorStop(0, glow(lakeColor, dark ? 0.08 : 0.16));
+  deepening.addColorStop(0.4, lakeColor);
+  deepening.addColorStop(1, shade(lakeColor, 0.24));
+  c.fillStyle = deepening;
   c.fillRect(0, lakeTop, w, lakeBottom - lakeTop);
-  // The water deepens toward us in hard steps: a pale sheet of sky along the far bank, then
-  // two darker shelves whose edges wave slowly, like a bed dropping away under the surface
-  [[0, glow(lakeColor, dark ? 0.08 : 0.16), 0.32], [0.5, shade(lakeColor, 0.12), 1], [0.78, shade(lakeColor, 0.24), 1]].forEach(([at, color, until], k) => {
-    const top = lakeTop + (lakeBottom - lakeTop) * at;
-    const bottom = lakeTop + (lakeBottom - lakeTop) * until;
-    c.beginPath();
-    c.moveTo(0, bottom);
-    for (let x = 0; x <= w + u * 3; x += u * 3) c.lineTo(x, top + (at ? Math.sin(x / (w * 0.09) + k * 2.2 + t * 0.4) * u * 0.6 : 0));
-    c.lineTo(w + u * 3, bottom);
-    c.closePath();
-    c.fillStyle = color;
-    c.fill();
-  });
   c.save();
   c.beginPath();
   c.rect(0, lakeTop, w, lakeBottom - lakeTop);
@@ -844,10 +859,12 @@ export function drawWindowView(c, w, h, { t = 0, time = "day", rain = 0, glass =
   c.translate(bx, by);
   c.rotate(Math.sin(t * 1.6) * 0.06);
   c.beginPath();
-  c.moveTo(-u * 6, 0);
-  c.lineTo(u * 6, 0);
-  c.lineTo(u * 4, u * 2.6);
-  c.lineTo(-u * 4, u * 2.6);
+  // a rounded hull with its bow swept up, and a sail bellied out by the breeze
+  c.moveTo(-u * 6.4, -u * 0.6);
+  c.quadraticCurveTo(0, u * 0.5, u * 6.6, -u * 1);
+  c.quadraticCurveTo(u * 5.6, u * 2.6, u * 3, u * 2.7);
+  c.lineTo(-u * 3.6, u * 2.7);
+  c.quadraticCurveTo(-u * 5.6, u * 2.4, -u * 6.4, -u * 0.6);
   c.closePath();
   c.fillStyle = "#ff6b6b";
   c.fill();
@@ -858,8 +875,8 @@ export function drawWindowView(c, w, h, { t = 0, time = "day", rain = 0, glass =
   stroke();
   c.beginPath();
   c.moveTo(u * 0.6, -u * 8.5);
-  c.lineTo(u * 6, -u * 1.2);
-  c.lineTo(u * 0.6, -u * 1.2);
+  c.quadraticCurveTo(u * 4.6, -u * 5.6, u * 6, -u * 1.2);
+  c.quadraticCurveTo(u * 3.2, -u * 0.8, u * 0.6, -u * 1.2);
   c.closePath();
   c.fillStyle = "#fffdf5";
   c.fill();
@@ -891,11 +908,23 @@ export function drawWindowView(c, w, h, { t = 0, time = "day", rain = 0, glass =
 
   // Grass, flowers, and trees swaying on the near shore
   const grassColor = grey(dark ? "#2f6b45" : "#8fd694");
-  c.fillStyle = grassColor;
-  c.fillRect(0, lakeBottom, w, h - lakeBottom);
-  // the bank's lip in shade where it drops to the water, and tufts swaying in the breeze
+  // the near bank's edge bulges and dips along the water instead of running ruler-straight
+  // (always at or above the lake's foot, so no gap opens under it)
+  const shoreline = (dy = 0) => {
+    c.moveTo(-u, h + u);
+    for (let x = -u; x <= w + u * 2; x += u * 2) c.lineTo(x, lakeBottom + dy - u * (0.9 + Math.sin(x / (w * 0.075) + 0.6) * 0.55 + Math.sin(x / (w * 0.021)) * 0.25));
+    c.lineTo(w + u * 2, h + u);
+    c.closePath();
+  };
+  c.beginPath();
+  shoreline();
   c.fillStyle = shade(grassColor, 0.2);
-  c.fillRect(0, lakeBottom, w, u * 1.4);
+  c.fill();
+  // the bank's lip in shade where it drops to the water, and tufts swaying in the breeze
+  c.beginPath();
+  shoreline(u * 1.4);
+  c.fillStyle = grassColor;
+  c.fill();
   c.beginPath();
   GRASS_TUFTS.forEach(({ x, y, s: k }) => {
     const gx = w * x;
@@ -910,8 +939,7 @@ export function drawWindowView(c, w, h, { t = 0, time = "day", rain = 0, glass =
   });
   stroke(line * 0.5, shade(grassColor, 0.32));
   c.beginPath();
-  c.moveTo(0, lakeBottom);
-  c.lineTo(w, lakeBottom);
+  shoreline();
   stroke();
   // A sandy path winding down to a little wooden pier
   const path = () => {
@@ -1176,19 +1204,42 @@ export function drawWindowView(c, w, h, { t = 0, time = "day", rain = 0, glass =
     c.rotate(bend * 0.035);
     const bark = "#8b5a2b";
     const tw = u * 1.2 * scale;
+    const th = u * 10 * scale;
+    // tapering as it rises, with a gentle kink and roots flaring into the grass
+    const trunk = () => {
+      c.beginPath();
+      c.moveTo(-tw * 1.7, 0);
+      c.quadraticCurveTo(-tw * 0.95, -th * 0.06, -tw * 0.95, -th * 0.25);
+      c.bezierCurveTo(-tw * 0.9, -th * 0.55, -tw * 0.55, -th * 0.7, -tw * 0.7, -th * 1.02);
+      c.lineTo(tw * 0.7, -th * 1.02);
+      c.bezierCurveTo(tw * 0.75, -th * 0.7, tw * 1, -th * 0.5, tw * 0.95, -th * 0.25);
+      c.quadraticCurveTo(tw * 0.95, -th * 0.06, tw * 1.7, 0);
+      c.quadraticCurveTo(tw * 0.6, u * 0.4 * scale, 0, u * 0.2 * scale);
+      c.quadraticCurveTo(-tw * 0.6, u * 0.4 * scale, -tw * 1.7, 0);
+      c.closePath();
+    };
+    trunk();
     c.fillStyle = bark;
-    c.fillRect(-tw, -u * 10 * scale, tw * 2, u * 10 * scale);
+    c.fill();
     // a shaded side down the trunk, and a few knots and grain marks in the bark
+    c.save();
+    c.clip();
     c.fillStyle = shade(bark, 0.35);
-    c.fillRect(lightSide > 0 ? -tw : tw * 0.2, -u * 10 * scale, tw * 0.8, u * 10 * scale);
+    c.beginPath();
+    c.moveTo(-lightSide * tw * 2, u * scale);
+    c.lineTo(-lightSide * tw * 0.1, u * scale);
+    c.quadraticCurveTo(lightSide * tw * 0.15, -th * 0.5, -lightSide * tw * 0.05, -th * 1.1);
+    c.lineTo(-lightSide * tw * 2, -th * 1.1);
+    c.closePath();
+    c.fill();
+    c.restore();
     c.beginPath();
     [[-0.3, 2.5, 1.6], [0.35, 5, 1.2], [-0.1, 7.5, 1.4]].forEach(([bx, by, len]) => {
       c.moveTo(tw * bx, -u * by * scale);
       c.quadraticCurveTo(tw * (bx + 0.3), -u * (by + len * 0.5) * scale, tw * bx, -u * (by + len) * scale);
     });
     stroke(line * 0.45, shade(bark, 0.55));
-    c.beginPath();
-    c.rect(-tw, -u * 10 * scale, tw * 2, u * 10 * scale);
+    trunk();
     stroke();
     c.translate(0, -u * 10 * scale);
     c.rotate((wind(x, 0.28) * 1.4 - bend) * 0.035 + Math.sin(t * 1.7 + i) * 0.006);
