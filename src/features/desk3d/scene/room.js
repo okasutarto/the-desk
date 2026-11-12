@@ -450,8 +450,31 @@ export function createRoom(runtime) {
   runtime.core.track(viewFar.texture);
   runtime.core.track(viewNear.texture);
   const viewMaterial = runtime.core.track(new THREE.MeshBasicMaterial({ map: viewFar.texture }));
+  // The view is painted in the room's own calm style, then graded to the room's light: a
+  // little less saturated (least by day) and tinted toward the hour, cream by day, warm orange
+  // at sunset, blue at night. The grade eases to a new hour rather than jumping.
+  const VIEW_GRADES = {
+    morning: [new THREE.Color("#ffe2c4"), 0.55, 0.85],
+    day: [new THREE.Color("#fff3e2"), 0.4, 0.92],
+    evening: [new THREE.Color("#ffc39a"), 0.6, 0.78],
+    night: [new THREE.Color("#9aa0dc"), 0.55, 0.78],
+  };
+  const viewGrade = {
+    uGradeTint: { value: VIEW_GRADES.day[0].clone() },
+    uGradeAmount: { value: VIEW_GRADES.day[1] },
+    uGradeSaturation: { value: VIEW_GRADES.day[2] },
+  };
+  let viewGradeSet = false;
+  const easeViewGrade = (part) => {
+    const [tint, amount, saturation] = VIEW_GRADES[part];
+    const k = viewGradeSet ? 0.06 : 1;
+    viewGradeSet = true;
+    viewGrade.uGradeTint.value.lerp(tint, k);
+    viewGrade.uGradeAmount.value += (amount - viewGrade.uGradeAmount.value) * k;
+    viewGrade.uGradeSaturation.value += (saturation - viewGrade.uGradeSaturation.value) * k;
+  };
   viewMaterial.onBeforeCompile = (shader) => {
-    Object.assign(shader.uniforms, {
+    Object.assign(shader.uniforms, viewGrade, {
       uPortalNear: { value: viewNear.texture },
       uPortalPlane: { value: new THREE.Vector2(GLASS.x * 2, GLASS.y * 2) },
       uPortalMargin: { value: new THREE.Vector2(...VIEW_MARGIN) },
@@ -475,18 +498,26 @@ ${shader.vertexShader}`.replace("#include <project_vertex>", `#include <project_
   vPortalNear = portalUv + uPortalDepth.y * portalSlant;`);
     shader.fragmentShader = `uniform sampler2D uPortalNear;
 uniform vec2 uPortalMargin;
+uniform vec3 uGradeTint;
+uniform float uGradeAmount;
+uniform float uGradeSaturation;
 varying vec2 vPortalFar;
 varying vec2 vPortalNear;
 ${shader.fragmentShader}`.replace("#include <map_fragment>", `vec2 portalPad = 1.0 + 2.0 * uPortalMargin;
   vec4 portalFarColor = texture2D(map, (vPortalFar + uPortalMargin) / portalPad);
   vec4 portalNearColor = texture2D(uPortalNear, (vPortalNear + uPortalMargin) / portalPad);
-  diffuseColor *= vec4(mix(portalFarColor.rgb, portalNearColor.rgb, portalNearColor.a), 1.0);`);
+  vec3 portalColor = mix(portalFarColor.rgb, portalNearColor.rgb, portalNearColor.a);
+  float portalLuma = dot(portalColor, vec3(0.2126, 0.7152, 0.0722));
+  portalColor = mix(vec3(portalLuma), portalColor, uGradeSaturation);
+  portalColor = mix(portalColor, portalColor * uGradeTint, uGradeAmount);
+  diffuseColor *= vec4(portalColor, 1.0);`);
   };
   viewMaterial.customProgramCacheKey = () => "window-portal";
   const portalView = new THREE.Mesh(runtime.core.track(new THREE.PlaneGeometry(GLASS.x * 2, GLASS.y * 2)), viewMaterial);
   portalView.userData.tex = {
     redraw() {
-      const look = { ...outside, time: dayPart(), margin: VIEW_MARGIN };
+      const look = { ...outside, time: dayPart(), margin: VIEW_MARGIN, calm: true };
+      easeViewGrade(dayPart());
       drawWindowView(viewFar.ctx, viewW, viewH, { ...look, layer: "back" });
       drawWindowView(viewNear.ctx, viewW, viewH, { ...look, layer: "front", under: viewFar.canvas });
       viewFar.texture.needsUpdate = true;

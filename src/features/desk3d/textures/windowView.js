@@ -119,7 +119,7 @@ export const GUST_EVERY = 7;
 // the window can slide the view behind its frame; `layer` paints only the far "back" (sky to
 // lake) or the near "front" (the shore and garden, rain and the water on the glass, on a clear
 // canvas), or "all" of it. A front layer's raindrops refract `under`, the back layer's canvas.
-export function drawWindowView(c, w, h, { t = 0, time = "day", rain = 0, glass = 1, flockAt = -99, starAt = -99, skyFrom, skyBlend = 1, flash = 0, margin = [0, 0], layer = "all", under = null } = {}) {
+export function drawWindowView(c, w, h, { t = 0, time = "day", rain = 0, glass = 1, flockAt = -99, starAt = -99, skyFrom, skyBlend = 1, flash = 0, margin = [0, 0], layer = "all", under = null, calm = false } = {}) {
   const canvasW = w;
   const canvasH = h;
   w = canvasW / (1 + margin[0] * 2);
@@ -146,10 +146,13 @@ export function drawWindowView(c, w, h, { t = 0, time = "day", rain = 0, glass =
   const grey = (color) => mixHex(color, dark ? "#2a2f45" : "#8d97a8", Math.min(1, rain * 1.25) * 0.65);
   // detail sized by the shorter side, so a wider pane shows more landscape, not bigger trees
   const u = Math.min(w, h) / 100;
-  const line = Math.max(3, u * 0.7);
+  // `calm` paints it the way the room is drawn: a softer warm ink and a finer line, no hard
+  // offset shadows, a plain sun, smaller toys on the lake, more haze, and a paper grain
+  const INK = calm ? "#211b26" : "#000";
+  const line = calm ? Math.max(2, u * 0.5) : Math.max(3, u * 0.7);
   c.lineJoin = "round";
   c.lineCap = "round";
-  const stroke = (width = line, color = "#000") => {
+  const stroke = (width = line, color = INK) => {
     c.lineWidth = width;
     c.strokeStyle = color;
     c.stroke();
@@ -187,9 +190,9 @@ export function drawWindowView(c, w, h, { t = 0, time = "day", rain = 0, glass =
   };
   // A union of parts with one clean outline and a hard shadow: drawn three times, shadow, then
   // grown by the line width in black, then the fill on top
-  const blob = (parts, fill, shadow = line * 1.4) => {
-    [[shadow, shadow, 0, "#000"], [0, 0, line, "#000"], [0, 0, 0, fill]].forEach(([dx, dy, grow, color]) => {
-      if (color === "#000" && dx && !shadow) return;
+  const blob = (parts, fill, shadow = calm ? 0 : line * 1.4) => {
+    [[shadow, shadow, 0, INK], [0, 0, line, INK], [0, 0, 0, fill]].forEach(([dx, dy, grow, color]) => {
+      if (color === INK && dx && !shadow) return;
       c.fillStyle = color;
       c.beginPath();
       parts.forEach((p) => partPath(p, dx, dy, grow));
@@ -323,7 +326,7 @@ export function drawWindowView(c, w, h, { t = 0, time = "day", rain = 0, glass =
       c.beginPath();
       c.moveTo(x, y);
       c.lineTo(x + w * 0.16, y - h * 0.06);
-      stroke(line * 2.2, "#000");
+      stroke(line * 2.2, INK);
       c.beginPath();
       c.moveTo(x, y);
       c.lineTo(x + w * 0.16, y - h * 0.06);
@@ -348,14 +351,26 @@ export function drawWindowView(c, w, h, { t = 0, time = "day", rain = 0, glass =
   c.fillRect(sx - sr * 4, sy - sr * 4, sr * 8, sr * 8);
   // A ring of light swelling out from it now and then, fading as it grows
   const ring = (t * 0.22) % 1;
-  c.globalAlpha = (1 - ring) * 0.4 * (1 - rain) * celestial;
+  c.globalAlpha = calm ? 0 : (1 - ring) * 0.4 * (1 - rain) * celestial;
   c.beginPath();
   c.arc(sx, sy, sr * (1.25 + ring * 1.9), 0, Math.PI * 2);
   stroke(line * (1.4 - ring), dark ? "#fffdf5" : glow(sunColor, 0.5));
   c.globalAlpha = Math.max(0, 1 - rain * 1.3) * celestial;
   // it breathes: a slow swell, and the rays stretching in a wave that runs round the disc
   const breathe = 1 + 0.03 * Math.sin(t * 1.6);
-  if (!dark) {
+  if (calm) {
+    // a plain disc in two soft steps of glow, no rays and no craters
+    [[1.7, 0.18], [1.3, 0.3]].forEach(([k, a]) => {
+      c.save();
+      c.globalAlpha *= a;
+      c.beginPath();
+      c.arc(sx, sy, sr * k, 0, Math.PI * 2);
+      c.fillStyle = dark ? "#fffdf5" : glow(sunColor, 0.55);
+      c.fill();
+      c.restore();
+    });
+    celBlob([[sx, sy, sr]], dark ? "#f4efe0" : glow(sunColor, 0.25), sr);
+  } else if (!dark) {
     c.save();
     c.translate(sx, sy);
     c.rotate(t * 0.25);
@@ -365,7 +380,7 @@ export function drawWindowView(c, w, h, { t = 0, time = "day", rain = 0, glass =
       c.beginPath();
       c.moveTo(sr * 1.3, 0);
       c.lineTo(tip, 0);
-      stroke(line * 3.2, "#000");
+      stroke(line * 3.2, INK);
       c.beginPath();
       c.moveTo(sr * 1.3, 0);
       c.lineTo(tip, 0);
@@ -420,7 +435,7 @@ export function drawWindowView(c, w, h, { t = 0, time = "day", rain = 0, glass =
   if (!dark && rain < 0.3) {
     const hx = wrapX(w * 0.15 + t * u * 1.6, u * 12);
     const hy = h * 0.2 + Math.sin(t * 0.5) * u * 1.5;
-    const r = u * 4.2;
+    const r = u * (calm ? 2.6 : 4.2);
     // swinging gently from the envelope, the basket trailing behind the drift
     c.save();
     c.translate(hx, hy);
@@ -466,7 +481,7 @@ export function drawWindowView(c, w, h, { t = 0, time = "day", rain = 0, glass =
     c.lineTo(R + line, mapY(h * 0.6));
     c.closePath();
   };
-  const mountainColor = grey(dark ? "#3b3570" : time === "evening" ? "#9b7fd4" : "#c4b5fd");
+  const mountainColor = grey(mixHex(dark ? "#3b3570" : time === "evening" ? "#9b7fd4" : "#c4b5fd", SKY[2], calm ? 0.22 : 0));
   ridge();
   c.fillStyle = mountainColor;
   c.fill();
@@ -540,7 +555,7 @@ export function drawWindowView(c, w, h, { t = 0, time = "day", rain = 0, glass =
 
   // Wooded hills in front of the mountains, a step nearer in colour and ink: a teal body under
   // a ragged crest of pines that merge into one silhouette, each shaded away from the light
-  const hillColor = grey(mixHex(dark ? "#1f4a4f" : time === "evening" ? "#5d6f93" : "#4f9f86", SKY[2], dark ? 0.08 : 0.2));
+  const hillColor = grey(mixHex(dark ? "#1f4a4f" : time === "evening" ? "#5d6f93" : "#4f9f86", SKY[2], (dark ? 0.08 : 0.2) + (calm ? 0.12 : 0)));
   const pineHillColor = shade(hillColor, 0.16);
   const hillsPath = (mapY = (y) => y) => {
     c.beginPath();
@@ -707,7 +722,7 @@ export function drawWindowView(c, w, h, { t = 0, time = "day", rain = 0, glass =
     c.fillStyle = dark ? "#ffdd00" : "#30437f";
     c.fillRect(hx - u * 0.6, base - hh * 0.7, u * 1.2, u * 1.1);
     if (i === 1) {
-      c.fillStyle = "#000";
+      c.fillStyle = INK;
       c.fillRect(hx + hw * 0.18, base - hh - u * 2.1, u * 0.9, u * 1.4);
       for (let k = 0; k < 3; k++) {
         const life = (t * 0.35 + k / 3) % 1;
@@ -919,6 +934,7 @@ export function drawWindowView(c, w, h, { t = 0, time = "day", rain = 0, glass =
   const by = lakeTop + (lakeBottom - lakeTop) * 0.45 + Math.sin(t * 2) * u * 0.6;
   c.save();
   c.translate(bx, by);
+  if (calm) c.scale(0.75, 0.75);
   c.rotate(Math.sin(t * 1.6) * 0.06);
   c.beginPath();
   // a rounded hull with its bow swept up, and a sail bellied out by the breeze
@@ -950,7 +966,7 @@ export function drawWindowView(c, w, h, { t = 0, time = "day", rain = 0, glass =
   if (!dark) {
     const dx = wrapX(w * 0.62 - t * u * 1.8, u * 14);
     const dy = lakeTop + (lakeBottom - lakeTop) * 0.7;
-    [[0, 1], [u * 4.2, 0.65], [u * 7.4, 0.65]].forEach(([off, k], i) => {
+    [[0, 1], [u * 4.2, 0.65], [u * 7.4, 0.65]].map(([off, k]) => (calm ? [off * 0.65, k * 0.65] : [off, k])).forEach(([off, k], i) => {
       const x = dx + off;
       const y = dy + Math.sin(t * 3 + i) * u * 0.3;
       blob([[x, y, u * 1.5 * k], [x - u * 1.3 * k, y - u * 1.4 * k, u * 0.95 * k]], k < 1 ? "#ffdd00" : "#fffdf5", 0);
@@ -1081,7 +1097,7 @@ export function drawWindowView(c, w, h, { t = 0, time = "day", rain = 0, glass =
       };
       const rw = u * 0.7 * (a.k + b.k) / 2;
       rail();
-      stroke(rw + line * 1.6, "#000");
+      stroke(rw + line * 1.6, INK);
       rail();
       stroke(rw, wood);
       c.save();
@@ -1105,11 +1121,11 @@ export function drawWindowView(c, w, h, { t = 0, time = "day", rain = 0, glass =
     post();
     c.save();
     c.translate(line * 1.2, line * 1.2);
-    c.fillStyle = "#000";
-    c.fill();
+    c.fillStyle = INK;
+    if (!calm) c.fill();
     c.restore();
     post();
-    stroke(line * 1.6, "#000");
+    stroke(line * 1.6, INK);
     post();
     c.fillStyle = wood;
     c.fill();
@@ -1149,7 +1165,7 @@ export function drawWindowView(c, w, h, { t = 0, time = "day", rain = 0, glass =
   // spikes. Stems are inked too, and each has a leaf or two reaching up and out.
   const stemColor = dark ? "#14532d" : "#166534";
   const leafColor = dark ? "#1f5c3a" : "#2f9e57";
-  const ink = (width = line * 1.1) => stroke(width, "#000");
+  const ink = (width = line * 1.1) => stroke(width, INK);
   const leaf = (x, y, side, size) => {
     const L = size * 1.3;
     c.save();
@@ -1391,10 +1407,12 @@ export function drawWindowView(c, w, h, { t = 0, time = "day", rain = 0, glass =
           c.closePath();
         };
         tier();
-        c.fillStyle = "#000";
+        c.fillStyle = INK;
         c.save();
-        c.translate(line * 1.4, line * 1.4);
-        c.fill();
+        if (!calm) {
+          c.translate(line * 1.4, line * 1.4);
+          c.fill();
+        }
         c.restore();
         c.fillStyle = pine;
         c.fill();
@@ -1479,9 +1497,9 @@ export function drawWindowView(c, w, h, { t = 0, time = "day", rain = 0, glass =
   const limbW = u * 1.5;
   c.save();
   c.translate(line * 1.4, line * 1.4);
-  limb(limbW + line * 2, "#000");
+  if (!calm) limb(limbW + line * 2, INK);
   c.restore();
-  limb(limbW + line * 2, "#000");
+  limb(limbW + line * 2, INK);
   limb(limbW, "#8b5a2b");
   c.translate(0, limbW * 0.25);
   limb(limbW * 0.4, shade("#8b5a2b", 0.35));
@@ -1720,7 +1738,41 @@ export function drawWindowView(c, w, h, { t = 0, time = "day", rain = 0, glass =
     c.fillRect(L, T, span, B - T);
   }
   c = real;
+  // the print's paper grain over whatever this layer painted (and only there); after dark only
+  // its darker flecks and fainter, since light specks on a night sky read as noise
+  if (calm) {
+    const grain = paperGrain(dark);
+    if (grain) {
+      real.save();
+      real.globalCompositeOperation = "source-atop";
+      real.globalAlpha = dark ? 0.18 : 0.32;
+      real.fillStyle = real.createPattern(grain, "repeat") ?? "transparent";
+      real.fillRect(L, T, span, B - T);
+      real.restore();
+    }
+  }
   real.restore();
+}
+
+// A tile of fine paper grain, the same every time: faint light and dark specks, or (for a
+// night view) dark flecks only
+const grainTiles = {};
+function paperGrain(darkOnly) {
+  const key = darkOnly ? "dark" : "light";
+  if (key in grainTiles || typeof document === "undefined") return grainTiles[key] ?? false;
+  const tile = document.createElement("canvas");
+  tile.width = tile.height = 96;
+  const g = tile.getContext("2d");
+  if (!g) return (grainTiles[key] = false);
+  let seed = 7;
+  const rand = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+  for (let i = 0; i < 900; i++) {
+    const light = rand() < 0.5;
+    if (light && darkOnly) continue;
+    g.fillStyle = light ? "rgba(255,250,240,.16)" : "rgba(30,20,40,.12)";
+    g.fillRect(rand() * 96, rand() * 96, 1 + rand() * 1.2, 1 + rand() * 1.2);
+  }
+  return (grainTiles[key] = tile);
 }
 
 
