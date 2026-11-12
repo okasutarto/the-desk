@@ -70,4 +70,26 @@ assert.ok(farDepth > nearDepth, 'the far layer slides further behind the frame t
 assert.ok(farDepth * reachX < marginX && farDepth * reachY < marginY, 'the furthest slide stays inside the painted margin');
 assert.match(roomSource, /const windowView = portalView;/, 'the room still hands the view on as windowView');
 
-console.log('Window portal: two layers with a margin, split painting, screen-space lookup and slides inside the margin passed.');
+// Painted in the room's calm style and graded to the room's light, least of all by day
+assert.match(roomSource, /margin: VIEW_MARGIN, calm: true/, 'the room paints the view in the calm style');
+const grades = Object.fromEntries([...roomSource.matchAll(/(morning|day|evening|night): \[new THREE\.Color\("(#[0-9a-f]{6})"\), ([\d.]+), ([\d.]+)\]/g)]
+  .map(([, part, , amount, saturation]) => [part, { amount: Number(amount), saturation: Number(saturation) }]));
+assert.deepEqual(Object.keys(grades).sort(), ['day', 'evening', 'morning', 'night'], 'a grade for every part of the day');
+for (const [part, { amount, saturation }] of Object.entries(grades)) {
+  assert.ok(amount > 0 && amount < 1 && saturation > 0.6 && saturation < 1, `${part}: a light grade, not a wash`);
+  if (part !== 'day') assert.ok(grades.day.saturation > saturation, `day keeps more colour than ${part}`);
+}
+assert.match(roomSource, /portalColor = mix\(vec3\(portalLuma\), portalColor, uGradeSaturation\)/, 'the shader desaturates toward luminance');
+
+// The calm style drops the hard offset shadows and the sun's rays
+const calm = recorder();
+const classic = recorder();
+drawWindowView(calm.ctx, 960, 600, { t: 3, time: 'day', calm: true });
+drawWindowView(classic.ctx, 960, 600, { t: 3, time: 'day' });
+assert.equal(calm.depth(), 0, 'calm: canvas state balanced');
+const offsets = (calls) => calls.filter(([k, x, y]) => k === 'translate' && x > 0 && x === y && x < 10).length;
+assert.ok(offsets(calm.calls) < offsets(classic.calls), 'calm drops the hard offset shadows');
+assert.ok(drawn(calm.calls) < drawn(classic.calls), 'calm paints less: no rays, no shadow copies');
+
+
+console.log('Window portal: two layers with a margin, split painting, screen-space lookup, slides inside the margin, calm style and grade passed.');
