@@ -76,6 +76,14 @@ assert.equal(batch.castShadow, false);
 assert.equal(shadows.castShadow, true);
 assert.ok(shadows.geometry.index.count < batch.geometry.index.count, 'bevel detail belongs in the colour pass, not every shadow projection');
 assert.equal(batch.receiveShadow, true);
+// Every batch leaves out the parts the camera can't see (each by its own bounds), never the whole
+const batches = scene.children.filter((item) => item.isBatchedMesh);
+assert.ok(batches.every((item) => item.perObjectFrustumCulled && !item.frustumCulled), 'each batched part is culled on its own');
+const away = new THREE.PerspectiveCamera(30, 1, 0.1, 5);
+away.position.set(0, 0, 1000);
+away.updateMatrixWorld();
+batch.onBeforeRender({ coordinateSystem: THREE.WebGLCoordinateSystem }, scene, away, batch.geometry, batch.material);
+assert.equal(batch._multiDrawCount, 0, 'parts out of view draw nothing');
 parent.position.set(3, 4, 5);
 parent.scale.setScalar(0.5);
 update();
