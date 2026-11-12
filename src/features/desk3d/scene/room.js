@@ -434,6 +434,66 @@ export function createRoom(runtime) {
   // The main frame and its middle post in one piece, all but flush with the wall's face, the
   // opening open behind it on either side of the post
   const windowFrame = woodPiece([cutOut([-GLASS.x - 0.2, GLASS.x + 0.2, -GLASS.y - 0.2, GLASS.y + 0.2], LEAVES.map(({ outer }) => outer))], 0.18, -0.09, 0.03);
+  // The view is painted in two layers with landscape to spare round every side: the far one
+  // (sky, mountains, hills, lake) and the near one (the shore and garden, the rain and the water
+  // on the glass). It isn't stuck to the glass: the plane looks up both layers by where each
+  // point of it sits on screen relative to the window's centre, so from the room's slanted
+  // overview the landscape stands upright behind the opening instead of lying squashed flat in
+  // it, and seen straight on it's exactly the pane-sized picture. As the camera swings round
+  // the window, the far layer slides further behind the frame than the near one.
+  const VIEW_MARGIN = [0.25, 0.2];
+  const VIEW_PX = 160;
+  const viewW = Math.round(GLASS.x * 2 * VIEW_PX * (1 + VIEW_MARGIN[0] * 2));
+  const viewH = Math.round(GLASS.y * 2 * VIEW_PX * (1 + VIEW_MARGIN[1] * 2));
+  const viewFar = canvasTexture(viewW, viewH);
+  const viewNear = canvasTexture(viewW, viewH);
+  runtime.core.track(viewFar.texture);
+  runtime.core.track(viewNear.texture);
+  const viewMaterial = runtime.core.track(new THREE.MeshBasicMaterial({ map: viewFar.texture }));
+  viewMaterial.onBeforeCompile = (shader) => {
+    Object.assign(shader.uniforms, {
+      uPortalNear: { value: viewNear.texture },
+      uPortalPlane: { value: new THREE.Vector2(GLASS.x * 2, GLASS.y * 2) },
+      uPortalMargin: { value: new THREE.Vector2(...VIEW_MARGIN) },
+      // how far each layer slides per unit of the camera's slant across the window, and the
+      // most slant it follows (so neither runs off its margin)
+      uPortalDepth: { value: new THREE.Vector2(0.2, 0.07) },
+      uPortalReach: { value: new THREE.Vector2(1, 0.7) },
+    });
+    shader.vertexShader = `uniform vec2 uPortalPlane;
+uniform vec2 uPortalDepth;
+uniform vec2 uPortalReach;
+varying vec2 vPortalFar;
+varying vec2 vPortalNear;
+${shader.vertexShader}`.replace("#include <project_vertex>", `#include <project_vertex>
+  vec2 portalCentre = (modelViewMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xy;
+  float portalScale = length(modelViewMatrix[0].xyz);
+  vec2 portalUv = (mvPosition.xy - portalCentre) / (portalScale * uPortalPlane) + 0.5;
+  vec3 portalLook = transpose(mat3(modelViewMatrix)) * vec3(0.0, 0.0, -1.0) / portalScale;
+  vec2 portalSlant = clamp(portalLook.xy / max(-portalLook.z, 0.2), -uPortalReach, uPortalReach);
+  vPortalFar = portalUv + uPortalDepth.x * portalSlant;
+  vPortalNear = portalUv + uPortalDepth.y * portalSlant;`);
+    shader.fragmentShader = `uniform sampler2D uPortalNear;
+uniform vec2 uPortalMargin;
+varying vec2 vPortalFar;
+varying vec2 vPortalNear;
+${shader.fragmentShader}`.replace("#include <map_fragment>", `vec2 portalPad = 1.0 + 2.0 * uPortalMargin;
+  vec4 portalFarColor = texture2D(map, (vPortalFar + uPortalMargin) / portalPad);
+  vec4 portalNearColor = texture2D(uPortalNear, (vPortalNear + uPortalMargin) / portalPad);
+  diffuseColor *= vec4(mix(portalFarColor.rgb, portalNearColor.rgb, portalNearColor.a), 1.0);`);
+  };
+  viewMaterial.customProgramCacheKey = () => "window-portal";
+  const portalView = new THREE.Mesh(runtime.core.track(new THREE.PlaneGeometry(GLASS.x * 2, GLASS.y * 2)), viewMaterial);
+  portalView.userData.tex = {
+    redraw() {
+      const look = { ...outside, time: dayPart(), margin: VIEW_MARGIN };
+      drawWindowView(viewFar.ctx, viewW, viewH, { ...look, layer: "back" });
+      drawWindowView(viewNear.ctx, viewW, viewH, { ...look, layer: "front", under: viewFar.canvas });
+      viewFar.texture.needsUpdate = true;
+      viewNear.texture.needsUpdate = true;
+    },
+  };
+  runtime.core.redrawers.push(() => portalView.userData.tex.redraw());
   // Keep the animated view at the same cadence in overview and close-up.
   // The room opens on the part of the day the visitor's clock (or their pick) says; night
   // switches on the room's lamps. The page already opened in the dark theme for a night.
@@ -444,7 +504,7 @@ export function createRoom(runtime) {
   let daylightPart = daylightParts.includes(runtime.core.previewTime) ? runtime.core.previewTime : runtime.options.dark ? "night" : startPart === "night" ? "morning" : startPart;
   const dayPart = () => (outside.night ? "night" : daylightPart);
   outside.sky = windowSky(dayPart());
-  const windowView = runtime.core.printed(GLASS.x * 2, GLASS.y * 2, 220, (c, w, h) => drawWindowView(c, w, h, { ...outside, time: dayPart() }), { unlit: true });
+  const windowView = portalView;
   windowView.position.z = -0.14; // behind the leaves' glazing bars
   // The view is the far distance: drawn first and writing no depth, so leaves swung out past
   // it still show in front of it through the opening (the wall round it hides the rest)
