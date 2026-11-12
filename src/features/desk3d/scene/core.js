@@ -6,7 +6,7 @@ import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
 import { ShaderPass } from "three/examples/jsm/postprocessing/ShaderPass.js";
 import { createSceneMeshes } from "../sceneMeshes";
 import { createPaperFlex } from "../paperFlex";
-import { PALETTES, perfParams, benchmark, lowPower } from "../sceneConfig";
+import { PALETTES, perfParams, benchmark, lowPower, uniformCache } from "../sceneConfig";
 
 export function createCore(runtime) {
   // Local preview links hold a part of the day, or a level of rain, whatever the visitor's clock
@@ -36,7 +36,8 @@ export function createCore(runtime) {
     renderer,
     new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, samples: 4, depthTexture: new THREE.DepthTexture(1, 1) }),
   );
-  composer.addPass(new RenderPass(scene, camera));
+  const renderPass = new RenderPass(scene, camera);
+  composer.addPass(renderPass);
   // N8AO, worked out from the frame's own depth (normals rebuilt from it), so sprites and glows
   // that don't write depth never reach it. Its samples build up while the room holds still,
   // averaging out the grain a single frame's occlusion leaves (the blotchy halo behind the
@@ -116,7 +117,8 @@ export function createCore(runtime) {
   });
   standbyPass.enabled = false;
   composer.addPass(standbyPass);
-  composer.addPass(new OutputPass());
+  const outputPass = new OutputPass();
+  composer.addPass(outputPass);
   if (benchmark === "no-ao" || lowPower) aoPass.enabled = false;
   // Count the complete frame, including shadow, postprocessing and overlay draws.
   if (perfParams.has("perf")) renderer.info.autoReset = false;
@@ -125,10 +127,63 @@ export function createCore(runtime) {
   let triangles = 0;
   let gpuMs = null;
   const gl = renderer.getContext();
+  // three (r161) re-sends matrix-array uniforms (spotLightMatrix[], pointShadowMatrix[]: one
+  // matrix per shadowed light) on every material switch, as it keeps no copy of arrays to
+  // compare against. A program keeps its uniform values, so an array identical to the last one
+  // sent to the same location is skipped. Locations belong to one program, so this is exact.
+  // Single matrices (mostly per object) go straight through. `?perf&ucache=0` turns it off.
+  const uniformUploads = { sent: 0, skipped: 0, enabled: uniformCache };
+  if (uniformCache) {
+    const lastSent = new WeakMap();
+    ["uniformMatrix4fv", "uniformMatrix3fv"].forEach((name) => {
+      const send = gl[name].bind(gl);
+      gl[name] = function (location, transpose, data, ...rest) {
+        if (location && data && !rest.length && data.length > 16) {
+          const prev = lastSent.get(location);
+          if (prev && prev.length === data.length) {
+            let same = true;
+            for (let i = 0; i < data.length; i++) if (prev[i] !== data[i]) { same = false; break; }
+            if (same) {
+              uniformUploads.skipped++;
+              return;
+            }
+            prev.set(data);
+          } else lastSent.set(location, Float32Array.from(data));
+          uniformUploads.sent++;
+        }
+        return send(location, transpose, data, ...rest);
+      };
+    });
+  }
   // Timed for everyone, not only `?perf`: the quality controller reads it to tell whether the
   // occlusion fits back in (see aoFits). Browsers without the extension leave it null.
   const gpuTimer = gl.getExtension("EXT_disjoint_timer_query_webgl2");
   let gpuQuery = null;
+  // `?perf` splits that GPU time by pass (shadow maps, the room, occlusion, output, overlays),
+  // so a slow frame says where it goes. WebGL can't nest timer queries, so under `?perf` the
+  // pass timer's query replaces the frame's single one; its whole-frame reading stands in for it.
+  const passTimer = gpuTimer && perfParams.has("perf") ? createPassTimer(gl, gpuTimer) : null;
+  if (passTimer) {
+    const passNames = new Map([[renderPass, "scene"], [aoPass, "ao"], [standbyPass, "standby"], [outputPass, "output"]]);
+    composer.passes.forEach((pass) => {
+      const draw = pass.render;
+      pass.render = function (...args) {
+        passTimer.begin(passNames.get(pass) || "post");
+        return draw.apply(this, args);
+      };
+    });
+    // Shadow maps are drawn inside the room's render; time them apart and pick its timing back
+    // up after. The split comes once a frame, whether or not a map is due, so every frame runs
+    // the same passes. Full-screen passes have no lights, and the overlay pass redraws no maps.
+    const shadowMap = renderer.shadowMap;
+    const drawShadows = shadowMap.render;
+    shadowMap.render = function (lights, ...rest) {
+      if (passTimer.label !== "scene" || passTimer.seen("shadows")) return drawShadows.call(this, lights, ...rest);
+      passTimer.begin("shadows");
+      drawShadows.call(this, lights, ...rest);
+      passTimer.begin("scene");
+    };
+  }
   // Cards, labels and bubbles drawn over everything (no depth test) skip the composer and are
   // laid on top afterwards, so the occlusion never shades them
   const overlays = [];
@@ -144,7 +199,8 @@ export function createCore(runtime) {
       gl.deleteQuery(gpuQuery);
       gpuQuery = null;
     }
-    const measuring = gpuTimer && !gpuQuery;
+    const measuring = gpuTimer && !gpuQuery && !passTimer;
+    passTimer?.frame();
     if (measuring) {
       gpuQuery = gl.createQuery();
       gl.beginQuery(gpuTimer.TIME_ELAPSED_EXT, gpuQuery);
@@ -173,6 +229,7 @@ export function createCore(runtime) {
       const background = scene.background;
       camera.layers.set(1);
       scene.background = null;
+      passTimer?.begin("overlays");
       // the lights now in this pass mustn't redraw shadow maps the scene already has
       renderer.shadowMap.autoUpdate = false;
       renderer.render(scene, camera);
@@ -182,6 +239,10 @@ export function createCore(runtime) {
       renderer.autoClear = true;
     }
     if (measuring) gl.endQuery(gpuTimer.TIME_ELAPSED_EXT);
+    if (passTimer) {
+      passTimer.finish();
+      if (passTimer.total !== null) gpuMs = passTimer.total;
+    }
     renderMs += (performance.now() - started - renderMs) * 0.1;
     drawCalls += (renderer.info.render.calls - drawCalls) * 0.1;
     triangles += (renderer.info.render.triangles - triangles) * 0.1;
@@ -298,6 +359,8 @@ export function createCore(runtime) {
     get triangles() { return triangles; },
     get renderMs() { return renderMs; },
     get gpuMs() { return gpuMs; },
+    uniformUploads,
+    get gpuPasses() { return passTimer?.ms ?? null; },
     refreshAO,
     updatePaperFlex,
     renderFrame,
@@ -306,5 +369,93 @@ export function createCore(runtime) {
     disposables,
     get gpuQuery() { return gpuQuery; },
     gl,
+  };
+}
+
+// GPU time per pass for the `?perf` readout. Apple's GPUs (and other tilers) overlap a pass with
+// the one before it, so a query around each pass also counts the wait for the last: summed, they
+// came to more than the frame's own time, and a pass as light as the output read ~5 ms. Instead a
+// frame runs a single query, from its start to the end of one pass, taking the passes in turn.
+// A pass costs the difference between where it ends and where the pass before it ended, each an
+// average over the frames that timed it, so a pass that only runs now and then (shadow maps
+// redrawn at 12 Hz) shows its cost per frame. `ms` maps pass name to milliseconds; `total` is the
+// whole frame. Passes are told apart by the run of passes up to them, so a frame that adds or
+// drops one (the overlays) averages apart from the others.
+function createPassTimer(gl, ext) {
+  const pending = [];
+  const reach = new Map();
+  const ms = new Map();
+  let order = null;
+  let lastOrder = [];
+  let aim = 0;
+  let query = null;
+  let label = null;
+  let total = null;
+  const settle = () => {
+    // a GPU far behind: let the oldest go rather than pile queries up
+    while (pending.length > 12) gl.deleteQuery(pending.shift()[1]);
+    // a disjoint event (power state, context switch) spoils every result in flight
+    if (gl.getParameter(ext.GPU_DISJOINT_EXT)) {
+      pending.splice(0).forEach(([, done]) => gl.deleteQuery(done));
+      return;
+    }
+    while (pending.length && gl.getQueryParameter(pending[0][1], gl.QUERY_RESULT_AVAILABLE)) {
+      const [key, done] = pending.shift();
+      const value = gl.getQueryParameter(done, gl.QUERY_RESULT) / 1e6;
+      gl.deleteQuery(done);
+      reach.set(key, reach.has(key) ? reach.get(key) + (value - reach.get(key)) * 0.2 : value);
+    }
+    if (!lastOrder.length || !lastOrder.every(([key]) => reach.has(key))) return;
+    ms.clear();
+    let before = 0;
+    lastOrder.forEach(([key, name]) => {
+      const end = reach.get(key);
+      ms.set(name, (ms.get(name) || 0) + Math.max(0, end - before));
+      before = Math.max(before, end);
+    });
+    total = before;
+  };
+  // the pass now running ends here; if it's the one this frame times, so does the query
+  const boundary = () => {
+    if (label === null) return;
+    const key = order.length ? `${order[order.length - 1][0]}>${label}` : label;
+    order.push([key, label]);
+    if (query && order.length - 1 === aim) {
+      gl.endQuery(ext.TIME_ELAPSED_EXT);
+      pending.push([key, query]);
+      query = null;
+    }
+  };
+  return {
+    ms,
+    get label() { return label; },
+    get total() { return total; },
+    seen(name) { return !!order?.some(([, passed]) => passed === name); },
+    frame() {
+      order = [];
+      label = null;
+      aim = lastOrder.length ? (aim + 1) % lastOrder.length : 0;
+      query = gl.createQuery();
+      gl.beginQuery(ext.TIME_ELAPSED_EXT, query);
+    },
+    begin(name) {
+      if (!order) return;
+      boundary();
+      label = name;
+    },
+    finish() {
+      if (!order) return;
+      boundary();
+      // fewer passes than the last frame: the one it was to time didn't run
+      if (query) {
+        gl.endQuery(ext.TIME_ELAPSED_EXT);
+        gl.deleteQuery(query);
+        query = null;
+      }
+      lastOrder = order;
+      order = null;
+      label = null;
+      settle();
+    },
   };
 }
