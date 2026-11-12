@@ -92,7 +92,13 @@ export function createAnimation(runtime) {
       const share = (count) => `${Math.round((count / Math.max(perfFrames, 1)) * 100)}%`;
       const reasons = [...motionFrames].sort((a, b) => b[1] - a[1]).map(([name, count]) => `${name} ${share(count)}`).join(" · ");
       const redraws = [...shadowRedraws].sort((a, b) => b[1] - a[1]).map(([name, count]) => `${name} ${(count / seconds).toFixed(0)}`).join(" · ");
-      const motion = `moving ${share(movingFrames)}${reasons ? ": " + reasons : ""}\nshadow maps/s ${redraws || "none"}`;
+      const uploads = runtime.core.uniformUploads;
+      const uploadTotal = uploads.sent + uploads.skipped;
+      const uniformLine = !uploads.enabled ? "matrix arrays: cache off (ucache=0)" : `matrix arrays/s ${(uploadTotal / seconds).toFixed(0)} · skipped ${uploadTotal ? Math.round((uploads.skipped / uploadTotal) * 100) : 0}%`;
+      uploads.sent = uploads.skipped = 0;
+      const passes = runtime.core.gpuPasses;
+      const passLine = passes?.size ? `\nGPU by pass ${[...passes].sort((a, b) => b[1] - a[1]).map(([name, value]) => `${name} ${value.toFixed(1)}`).join(" · ")}ms` : "";
+      const motion = `moving ${share(movingFrames)}${reasons ? ": " + reasons : ""}\nshadow maps/s ${redraws || "none"}\n${uniformLine}${passLine}`;
       motionFrames.clear();
       shadowRedraws.clear();
       perfFrames = movingFrames = 0;

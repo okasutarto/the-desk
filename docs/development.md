@@ -65,6 +65,15 @@ Add `?perf` (or `&perf` to an existing query) for FPS, draw calls, triangles, CP
 GPU timing when available, frame p95 and render density. For comparisons, reload with one
 benchmark at a time: `?perf&bench=no-ao`, `no-shadows`, `no-pcss`, `no-batch`, `no-ao-cache` or
 `no-light-skip` (shades with every point and spot light for every fragment, even those switched off or out of reach).
+`&ucache=0` re-sends identical matrix-array uniforms, as three does by default (the readout's
+`matrix arrays/s` line shows how many are sent and skipped). Where the browser can time the GPU,
+`GPU by pass` splits its time per frame between `scene` (the room, including its multisample
+resolve), `shadows` (every shadow map redrawn, averaged over frames), `ao`, `output`, `standby`
+and `overlays`. Each frame times one stretch, from its start to the end of one pass, taking the
+passes in turn, because tiling GPUs (Apple's included) overlap a pass with the one before it and a
+query per pass would count that wait twice. Give it a few seconds to settle. It combines with a benchmark, e.g.
+`?perf&bench=no-ao` against `?perf&bench=no-ao&ucache=0`; a `bench` also holds the adaptive
+quality still, so compare two runs with the same one.
 Benchmark toggles isolate rendering costs; they do not change saved settings. Use a production
 build for representative performance comparisons; development compilation and startup can skew
 measurements. The `time`/`rain` previews themselves do not override production behaviour.

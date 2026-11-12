@@ -274,7 +274,7 @@ const renderContext = vm.createContext({ scene, camera, noRaycast() {},
     overlayRenders++;
   } },
   composer: { render() { assert.ok(scene.children.filter((o) => o.isMesh).every((o) => !o.visible)); } },
-  useFrameDepth() {}, gpuQuery: null, gpuTimer: null, renderMs: 0, drawCalls: 0, triangles: 0,
+  useFrameDepth() {}, gpuQuery: null, gpuTimer: null, passTimer: null, renderMs: 0, drawCalls: 0, triangles: 0,
 });
 const renderStart = source.indexOf('  const overlays =');
 vm.runInContext(source.slice(renderStart, source.indexOf('  // Daylight enters', renderStart)), renderContext);

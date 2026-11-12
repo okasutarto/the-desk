@@ -8,6 +8,9 @@ export const PALETTES = {
 export const SECTIONS = ["hero", "about", "experience", "projects", "contact"];
 export const perfParams = new URLSearchParams(window.location.search);
 export const benchmark = perfParams.has("perf") ? perfParams.get("bench") : null;
+// `?perf&ucache=0` re-sends identical matrix-array uniforms, as three does by default (see core).
+// Separate from `bench`, so it combines with one (`?perf&bench=no-ao&ucache=0`).
+export const uniformCache = !(perfParams.has("perf") && perfParams.get("ucache") === "0");
 // Phones and tablets get a lighter room: fewer pixels, no ambient occlusion, no decorative
 // shadows, fewer soft-shadow samples and a slower idle refresh. `?quality=low|high` forces either.
 const quality = perfParams.get("quality");
