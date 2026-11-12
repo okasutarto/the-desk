@@ -86,8 +86,8 @@ const HILL_PINES = Array.from({ length: 160 }, (_, i) => {
 const hillY = (x) => HILLS[ridgeIndex(x)][1];
 // The bough reaching in over the top of the view: its line (fractions of the pane) and the
 // leaf clumps along it ([along 0–1, offset across, size])
-const BOUGH = [[-0.36, -0.03], [-0.03, 0.02], [0.08, 0.055], [0.17, 0.095], [0.25, 0.16]];
-const BOUGH_LEAVES = [[0.265, -0.15, 1.9], [0.625, 0.35, 1.15], [0.978, 0.3, 0.8], [0.08, 0.2, 1.4]];
+const BOUGH = [[-0.47, -0.04], [-0.36, -0.03], [-0.03, 0.02], [0.08, 0.055], [0.17, 0.095], [0.25, 0.16]];
+const BOUGH_LEAVES = [[0.41, -0.15, 1.9], [0.7, 0.35, 1.15], [0.982, 0.3, 0.8], [0.27, 0.2, 1.4], [0.06, -0.1, 1.5]];
 // Leafy lumps making up a round tree's crown ([x, y, size] in crown radii), and a cloud's puffs
 const CROWN = [[-0.78, 0.42, 0.48], [0.74, 0.46, 0.46], [-0.08, 0.56, 0.54], [-0.58, -0.18, 0.62], [0.52, -0.16, 0.66], [-0.12, -0.72, 0.68], [0.36, -1.02, 0.42]];
 const PUFFS = [[-0.62, 0.06, 0.36], [-0.28, -0.16, 0.5], [0.16, -0.26, 0.6], [0.56, -0.04, 0.44], [0.86, 0.1, 0.28]];
@@ -1423,6 +1423,8 @@ export function drawWindowView(c, w, h, { t = 0, time = "day", rain = 0, glass =
   // and two more out past the pane's sides, seen only when the window slides the view along
   tree(-0.14, 1.05, 4, true);
   tree(1.13, 1.2, 5, false);
+  tree(-0.33, 1.25, 6, false);
+  tree(1.31, 0.85, 7, true);
 
   // Right up against the glass, framing the view: a bush heaped in the near corner, a pair of
   // boulders at the pine's foot, and a bough reaching in over the top from a tree out of sight.
@@ -1455,7 +1457,7 @@ export function drawWindowView(c, w, h, { t = 0, time = "day", rain = 0, glass =
   c.save();
   const [rootX, rootY] = boughAt(0);
   c.translate(rootX, rootY);
-  c.rotate(wind(0.05, 0.3) * 0.03 + Math.sin(t * 0.8) * 0.006);
+  c.rotate(wind(0.05, 0.3) * 0.012 + Math.sin(t * 0.8) * 0.0025); // (rooted far out past the pane, so a small turn)
   c.translate(-rootX, -rootY);
   const limb = (width, color) => {
     c.beginPath();

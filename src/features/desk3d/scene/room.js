@@ -441,8 +441,8 @@ export function createRoom(runtime) {
   // overview the landscape stands upright behind the opening instead of lying squashed flat in
   // it, and seen straight on it's exactly the pane-sized picture. As the camera swings round
   // the window, the far layer slides further behind the frame than the near one.
-  const VIEW_MARGIN = [0.25, 0.2];
-  const VIEW_PX = 160;
+  const VIEW_MARGIN = [0.4, 0.3];
+  const VIEW_PX = 150;
   const viewW = Math.round(GLASS.x * 2 * VIEW_PX * (1 + VIEW_MARGIN[0] * 2));
   const viewH = Math.round(GLASS.y * 2 * VIEW_PX * (1 + VIEW_MARGIN[1] * 2));
   const viewFar = canvasTexture(viewW, viewH);
@@ -457,8 +457,8 @@ export function createRoom(runtime) {
       uPortalMargin: { value: new THREE.Vector2(...VIEW_MARGIN) },
       // how far each layer slides per unit of the camera's slant across the window, and the
       // most slant it follows (so neither runs off its margin)
-      uPortalDepth: { value: new THREE.Vector2(0.2, 0.07) },
-      uPortalReach: { value: new THREE.Vector2(1, 0.7) },
+      uPortalDepth: { value: new THREE.Vector2(0.35, 0.1) },
+      uPortalReach: { value: new THREE.Vector2(1, 0.45) },
     });
     shader.vertexShader = `uniform vec2 uPortalPlane;
 uniform vec2 uPortalDepth;
